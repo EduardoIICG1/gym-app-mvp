@@ -49,3 +49,17 @@ export interface User {
   email: string;
   role: "owner" | "admin" | "coach" | "student";
 }
+
+export type MemberRole = "admin" | "coach" | "member";
+export type MemberStatus = "active" | "inactive";
+
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  role: MemberRole;
+  status: MemberStatus;
+  assignedCoachId?: string;
+  assignedCoachName?: string;
+  contractedServices: ServiceType[];
+}

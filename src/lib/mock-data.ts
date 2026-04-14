@@ -1,4 +1,4 @@
-import { GymClass, Reservation, Membership, User } from "./types";
+import { GymClass, Reservation, Membership, Member, User } from "./types";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function getMondayOfCurrentWeek(): Date {
@@ -22,7 +22,7 @@ export const currentUser: User = {
   id: "user-123",
   name: "Eduardo García",
   email: "eduardo@primaryperformance.mx",
-  role: "student",
+  role: "admin",
 };
 
 // ─── Classes ───────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ export let mockReservations: Reservation[] = [
 ];
 
 // ─── Memberships ───────────────────────────────────────────────────────────
-export const mockMemberships: Membership[] = [
+export let mockMemberships: Membership[] = [
   {
     id: "mem-1",
     studentId: "user-123",
@@ -334,5 +334,129 @@ export const mockMemberships: Membership[] = [
     amount: 12000,
     startDate: "2026-01-01",
     endDate: "2026-12-31",
+  },
+  // Eduardo tiene también kinesio — demuestra múltiples membresías por usuario
+  {
+    id: "mem-7",
+    studentId: "user-123",
+    studentName: "Eduardo García",
+    studentEmail: "eduardo@primaryperformance.mx",
+    plan: "mensual",
+    paymentStatus: "paid",
+    membershipStatus: "active",
+    amount: 800,
+    startDate: "2026-04-01",
+    endDate: "2026-04-30",
+  },
+  // María López también tiene kinesio
+  {
+    id: "mem-8",
+    studentId: "user-003",
+    studentName: "María López",
+    studentEmail: "maria@gmail.com",
+    plan: "mensual",
+    paymentStatus: "paid",
+    membershipStatus: "active",
+    amount: 800,
+    startDate: "2026-04-01",
+    endDate: "2026-04-30",
+  },
+];
+
+// ─── Members ───────────────────────────────────────────────────────────────
+export let mockMembers: Member[] = [
+  {
+    id: "user-123",
+    name: "Eduardo García",
+    email: "eduardo@primaryperformance.mx",
+    role: "admin",
+    status: "active",
+    contractedServices: ["group", "kinesiology"],
+  },
+  {
+    id: "user-001",
+    name: "Ana Rodríguez",
+    email: "ana@gmail.com",
+    role: "member",
+    status: "active",
+    assignedCoachId: "coach-001",
+    assignedCoachName: "Juan Pérez",
+    contractedServices: ["group"],
+  },
+  {
+    id: "user-002",
+    name: "Carlos Herrera",
+    email: "carlos@gmail.com",
+    role: "member",
+    status: "inactive",
+    contractedServices: ["group"],
+  },
+  {
+    id: "user-003",
+    name: "María López",
+    email: "maria@gmail.com",
+    role: "member",
+    status: "active",
+    assignedCoachId: "coach-005",
+    assignedCoachName: "Dr. Ramírez",
+    contractedServices: ["group", "kinesiology"],
+  },
+  {
+    id: "user-004",
+    name: "Roberto Sánchez",
+    email: "roberto@gmail.com",
+    role: "member",
+    status: "active",
+    contractedServices: ["group"],
+  },
+  {
+    id: "user-005",
+    name: "Sofía Morales",
+    email: "sofia@gmail.com",
+    role: "member",
+    status: "active",
+    assignedCoachId: "coach-001",
+    assignedCoachName: "Juan Pérez",
+    contractedServices: ["group", "personal_training"],
+  },
+  {
+    id: "coach-001",
+    name: "Juan Pérez",
+    email: "juan@primaryperformance.mx",
+    role: "coach",
+    status: "active",
+    contractedServices: ["group", "personal_training"],
+  },
+  {
+    id: "coach-002",
+    name: "María García",
+    email: "mgarcia@primaryperformance.mx",
+    role: "coach",
+    status: "active",
+    contractedServices: ["group"],
+  },
+  {
+    id: "coach-003",
+    name: "Carlos López",
+    email: "clopez@primaryperformance.mx",
+    role: "coach",
+    status: "active",
+    contractedServices: ["group"],
+  },
+  {
+    id: "coach-004",
+    name: "Laura Martínez",
+    email: "laura@primaryperformance.mx",
+    role: "coach",
+    status: "active",
+    contractedServices: ["group"],
+  },
+  {
+    id: "coach-005",
+    name: "Dr. Ramírez",
+    email: "ramirez@primaryperformance.mx",
+    role: "coach",
+    status: "active",
+    contractedServices: ["kinesiology"],
   },
 ];

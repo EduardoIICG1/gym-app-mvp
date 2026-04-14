@@ -1,4 +1,22 @@
-export const mockClasses = [
+export interface Class {
+  id: string;
+  name: string;
+  coach: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  reserved: number;
+  serviceType: "group" | "personal_training" | "kinesiology";
+}
+
+export interface Reservation {
+  id: string;
+  userId: string;
+  classId: string;
+}
+
+export const mockClasses: Class[] = [
   {
     id: "1",
     name: "Funcional 6am",
@@ -7,7 +25,7 @@ export const mockClasses = [
     startTime: "06:00",
     endTime: "07:00",
     capacity: 20,
-    reserved: 15,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -18,7 +36,7 @@ export const mockClasses = [
     startTime: "07:00",
     endTime: "08:00",
     capacity: 15,
-    reserved: 12,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -29,7 +47,7 @@ export const mockClasses = [
     startTime: "18:00",
     endTime: "19:00",
     capacity: 25,
-    reserved: 18,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -40,7 +58,7 @@ export const mockClasses = [
     startTime: "09:00",
     endTime: "10:00",
     capacity: 20,
-    reserved: 10,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -51,7 +69,7 @@ export const mockClasses = [
     startTime: "17:00",
     endTime: "18:00",
     capacity: 18,
-    reserved: 18,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -62,7 +80,7 @@ export const mockClasses = [
     startTime: "06:00",
     endTime: "07:00",
     capacity: 20,
-    reserved: 8,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -73,7 +91,7 @@ export const mockClasses = [
     startTime: "19:00",
     endTime: "20:00",
     capacity: 16,
-    reserved: 14,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -84,7 +102,7 @@ export const mockClasses = [
     startTime: "18:00",
     endTime: "19:00",
     capacity: 30,
-    reserved: 28,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -95,7 +113,7 @@ export const mockClasses = [
     startTime: "07:00",
     endTime: "08:00",
     capacity: 20,
-    reserved: 20,
+    reserved: 0,
     serviceType: "group",
   },
   {
@@ -106,7 +124,10 @@ export const mockClasses = [
     startTime: "17:00",
     endTime: "18:00",
     capacity: 25,
-    reserved: 5,
+    reserved: 0,
     serviceType: "group",
   },
 ];
+
+// Mock reservations (in memory)
+export let mockReservations: Reservation[] = [];

@@ -9,13 +9,41 @@ const dayNames = [
   "Saturday",
 ];
 
-export function ClassCard({ cls }: { cls: any }) {
-  const occupancy = (cls.reserved / cls.capacity) * 100;
+interface ClassCardProps {
+  id: string;
+  name: string;
+  coach: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  reserved: number;
+  isReserved: boolean;
+  isLoading: boolean;
+  onReserve: (classId: string) => void;
+  onCancel: (classId: string) => void;
+}
+
+export function ClassCard({
+  id,
+  name,
+  coach,
+  dayOfWeek,
+  startTime,
+  endTime,
+  capacity,
+  reserved,
+  isReserved,
+  isLoading,
+  onReserve,
+  onCancel,
+}: ClassCardProps) {
+  const occupancy = (reserved / capacity) * 100;
   const isFull = occupancy >= 100;
   const isAlmostFull = occupancy >= 70;
 
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition overflow-hidden border border-gray-100">
+    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition overflow-hidden border border-gray-100 flex flex-col">
       {/* Header color bar */}
       <div
         className={`h-1 ${
@@ -23,26 +51,26 @@ export function ClassCard({ cls }: { cls: any }) {
         }`}
       ></div>
 
-      <div className="p-6">
+      <div className="p-6 flex-1 flex flex-col">
         {/* Title */}
-        <h3 className="text-xl font-bold text-gray-900 mb-4">{cls.name}</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{name}</h3>
 
         {/* Info grid */}
         <div className="space-y-2 mb-4 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-600">Coach</span>
-            <span className="font-medium text-gray-900">{cls.coach}</span>
+            <span className="font-medium text-gray-900">{coach}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Day</span>
             <span className="font-medium text-gray-900">
-              {dayNames[cls.dayOfWeek]}
+              {dayNames[dayOfWeek]}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Time</span>
             <span className="font-medium text-gray-900">
-              {cls.startTime} - {cls.endTime}
+              {startTime} - {endTime}
             </span>
           </div>
         </div>
@@ -52,7 +80,7 @@ export function ClassCard({ cls }: { cls: any }) {
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs font-medium text-gray-600">CAPACITY</span>
             <span className="text-xs font-bold text-gray-900">
-              {cls.reserved} / {cls.capacity}
+              {reserved} / {capacity}
             </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
@@ -71,7 +99,7 @@ export function ClassCard({ cls }: { cls: any }) {
 
         {/* Status badge */}
         <div
-          className={`text-sm font-semibold py-2 px-3 rounded text-center ${
+          className={`text-sm font-semibold py-2 px-3 rounded text-center mb-4 ${
             isFull
               ? "bg-red-50 text-red-700"
               : isAlmostFull
@@ -81,6 +109,29 @@ export function ClassCard({ cls }: { cls: any }) {
         >
           {isFull ? "Full" : isAlmostFull ? "Almost Full" : "Available"}
         </div>
+
+        {/* Reserve/Cancel Button */}
+        <button
+          onClick={() => (isReserved ? onCancel(id) : onReserve(id))}
+          disabled={isLoading || (isFull && !isReserved)}
+          className={`w-full py-2 px-4 rounded-lg font-semibold text-sm transition-all mt-auto ${
+            isLoading
+              ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+              : isReserved
+                ? "bg-red-500 hover:bg-red-600 text-white"
+                : isFull
+                  ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+          }`}
+        >
+          {isLoading
+            ? "Processing..."
+            : isReserved
+              ? "Cancel Reservation"
+              : isFull
+                ? "Class Full"
+                : "Reserve Class"}
+        </button>
       </div>
     </div>
   );

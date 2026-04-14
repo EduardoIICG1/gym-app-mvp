@@ -3,18 +3,14 @@ import { Navbar } from "@/components/Navbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Primary Performance - Class Booking",
-  description: "Book your fitness classes",
+  title: "Primary Performance",
+  description: "Gestión de clases y reservas",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-gray-50">
+    <html lang="es">
+      <body className="bg-zinc-950 text-white min-h-screen antialiased">
         <Navbar />
         {children}
       </body>

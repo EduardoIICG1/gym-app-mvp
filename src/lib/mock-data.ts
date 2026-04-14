@@ -1,133 +1,338 @@
-export interface Class {
-  id: string;
-  name: string;
-  coach: string;
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  capacity: number;
-  reserved: number;
-  serviceType: "group" | "personal_training" | "kinesiology";
+import { GymClass, Reservation, Membership, User } from "./types";
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function getMondayOfCurrentWeek(): Date {
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + diff);
+  return monday;
 }
 
-export interface Reservation {
-  id: string;
-  userId: string;
-  classId: string;
+function weekDate(dayOfWeek: number, weekOffset = 0): string {
+  const monday = getMondayOfCurrentWeek();
+  const d = new Date(monday);
+  d.setDate(monday.getDate() + dayOfWeek + weekOffset * 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export const mockClasses: Class[] = [
+// ─── Current User ──────────────────────────────────────────────────────────
+export const currentUser: User = {
+  id: "user-123",
+  name: "Eduardo García",
+  email: "eduardo@primaryperformance.mx",
+  role: "student",
+};
+
+// ─── Classes ───────────────────────────────────────────────────────────────
+export const mockClasses: GymClass[] = [
   {
     id: "1",
     name: "Funcional 6am",
-    coach: "Juan Pérez",
+    serviceType: "group",
     dayOfWeek: 0,
     startTime: "06:00",
     endTime: "07:00",
-    capacity: 20,
-    reserved: 0,
-    serviceType: "group",
+    coach: "Juan Pérez",
+    maxCapacity: 20,
+    reservedCount: 12,
+    status: "active",
   },
   {
     id: "2",
     name: "Crossfit 7am",
-    coach: "María García",
+    serviceType: "group",
     dayOfWeek: 0,
     startTime: "07:00",
     endTime: "08:00",
-    capacity: 15,
-    reserved: 0,
-    serviceType: "group",
+    coach: "María García",
+    maxCapacity: 15,
+    reservedCount: 15,
+    status: "active",
   },
   {
     id: "3",
-    name: "Yoga 6pm",
-    coach: "Carlos López",
+    name: "Yoga Flow",
+    serviceType: "group",
     dayOfWeek: 1,
     startTime: "18:00",
     endTime: "19:00",
-    capacity: 25,
-    reserved: 0,
-    serviceType: "group",
+    coach: "Carlos López",
+    maxCapacity: 25,
+    reservedCount: 8,
+    status: "active",
+    note: "Llevar mat y toalla",
   },
   {
     id: "4",
     name: "Pilates 9am",
-    coach: "Laura Martínez",
+    serviceType: "group",
     dayOfWeek: 2,
     startTime: "09:00",
     endTime: "10:00",
-    capacity: 20,
-    reserved: 0,
-    serviceType: "group",
+    coach: "Laura Martínez",
+    maxCapacity: 20,
+    reservedCount: 6,
+    status: "active",
   },
   {
     id: "5",
     name: "HIIT 5pm",
-    coach: "Juan Pérez",
+    serviceType: "group",
     dayOfWeek: 2,
     startTime: "17:00",
     endTime: "18:00",
-    capacity: 18,
-    reserved: 0,
-    serviceType: "group",
+    coach: "Juan Pérez",
+    maxCapacity: 18,
+    reservedCount: 18,
+    status: "active",
   },
   {
     id: "6",
-    name: "Functional 6am",
-    coach: "María García",
-    dayOfWeek: 3,
-    startTime: "06:00",
-    endTime: "07:00",
-    capacity: 20,
-    reserved: 0,
-    serviceType: "group",
+    name: "Kinesio 10am",
+    serviceType: "kinesiology",
+    dayOfWeek: 2,
+    startTime: "10:00",
+    endTime: "11:00",
+    coach: "Dr. Ramírez",
+    maxCapacity: 4,
+    reservedCount: 2,
+    status: "active",
+    note: "Sesión de rehabilitación",
   },
   {
     id: "7",
-    name: "Boxing 7pm",
-    coach: "Carlos López",
-    dayOfWeek: 3,
-    startTime: "19:00",
-    endTime: "20:00",
-    capacity: 16,
-    reserved: 0,
+    name: "Funcional 6am",
     serviceType: "group",
+    dayOfWeek: 3,
+    startTime: "06:00",
+    endTime: "07:00",
+    coach: "María García",
+    maxCapacity: 20,
+    reservedCount: 14,
+    status: "active",
   },
   {
     id: "8",
-    name: "Zumba 6pm",
-    coach: "Laura Martínez",
-    dayOfWeek: 4,
-    startTime: "18:00",
-    endTime: "19:00",
-    capacity: 30,
-    reserved: 0,
+    name: "Boxing 7pm",
     serviceType: "group",
+    dayOfWeek: 3,
+    startTime: "19:00",
+    endTime: "20:00",
+    coach: "Carlos López",
+    maxCapacity: 16,
+    reservedCount: 12,
+    status: "active",
   },
   {
     id: "9",
-    name: "Spinning 7am",
-    coach: "Juan Pérez",
-    dayOfWeek: 5,
-    startTime: "07:00",
-    endTime: "08:00",
-    capacity: 20,
-    reserved: 0,
+    name: "Zumba 6pm",
     serviceType: "group",
+    dayOfWeek: 4,
+    startTime: "18:00",
+    endTime: "19:00",
+    coach: "Laura Martínez",
+    maxCapacity: 30,
+    reservedCount: 19,
+    status: "active",
   },
   {
     id: "10",
+    name: "Spinning 7am",
+    serviceType: "group",
+    dayOfWeek: 5,
+    startTime: "07:00",
+    endTime: "08:00",
+    coach: "Juan Pérez",
+    maxCapacity: 20,
+    reservedCount: 7,
+    status: "active",
+  },
+  {
+    id: "11",
     name: "Stretching 5pm",
-    coach: "María García",
+    serviceType: "group",
     dayOfWeek: 5,
     startTime: "17:00",
     endTime: "18:00",
-    capacity: 25,
-    reserved: 0,
-    serviceType: "group",
+    coach: "María García",
+    maxCapacity: 25,
+    reservedCount: 3,
+    status: "active",
   },
 ];
 
-// Mock reservations (in memory)
-export let mockReservations: Reservation[] = [];
+// ─── Reservations ──────────────────────────────────────────────────────────
+export let mockReservations: Reservation[] = [
+  // Current user – this week
+  {
+    id: "res-1",
+    classId: "1",
+    studentId: "user-123",
+    studentName: "Eduardo García",
+    studentEmail: "eduardo@primaryperformance.mx",
+    classDate: weekDate(0),
+    status: "reserved",
+  },
+  {
+    id: "res-2",
+    classId: "4",
+    studentId: "user-123",
+    studentName: "Eduardo García",
+    studentEmail: "eduardo@primaryperformance.mx",
+    classDate: weekDate(2),
+    status: "reserved",
+  },
+  // Other students – Mon Funcional
+  {
+    id: "res-3",
+    classId: "1",
+    studentId: "user-001",
+    studentName: "Ana Rodríguez",
+    studentEmail: "ana@gmail.com",
+    classDate: weekDate(0),
+    status: "attended",
+  },
+  {
+    id: "res-4",
+    classId: "1",
+    studentId: "user-002",
+    studentName: "Carlos Herrera",
+    studentEmail: "carlos@gmail.com",
+    classDate: weekDate(0),
+    status: "attended",
+  },
+  {
+    id: "res-5",
+    classId: "1",
+    studentId: "user-003",
+    studentName: "María López",
+    studentEmail: "maria@gmail.com",
+    classDate: weekDate(0),
+    status: "reserved",
+  },
+  {
+    id: "res-6",
+    classId: "1",
+    studentId: "user-004",
+    studentName: "Roberto Sánchez",
+    studentEmail: "roberto@gmail.com",
+    classDate: weekDate(0),
+    status: "absent",
+  },
+  // Wed Pilates
+  {
+    id: "res-7",
+    classId: "4",
+    studentId: "user-001",
+    studentName: "Ana Rodríguez",
+    studentEmail: "ana@gmail.com",
+    classDate: weekDate(2),
+    status: "reserved",
+  },
+  {
+    id: "res-8",
+    classId: "4",
+    studentId: "user-005",
+    studentName: "Sofía Morales",
+    studentEmail: "sofia@gmail.com",
+    classDate: weekDate(2),
+    status: "absent",
+  },
+  // Thu Boxing
+  {
+    id: "res-9",
+    classId: "8",
+    studentId: "user-002",
+    studentName: "Carlos Herrera",
+    studentEmail: "carlos@gmail.com",
+    classDate: weekDate(3),
+    status: "reserved",
+  },
+  {
+    id: "res-10",
+    classId: "8",
+    studentId: "user-004",
+    studentName: "Roberto Sánchez",
+    studentEmail: "roberto@gmail.com",
+    classDate: weekDate(3),
+    status: "reserved",
+  },
+];
+
+// ─── Memberships ───────────────────────────────────────────────────────────
+export const mockMemberships: Membership[] = [
+  {
+    id: "mem-1",
+    studentId: "user-123",
+    studentName: "Eduardo García",
+    studentEmail: "eduardo@primaryperformance.mx",
+    plan: "mensual",
+    paymentStatus: "paid",
+    membershipStatus: "active",
+    amount: 1200,
+    startDate: "2026-04-01",
+    endDate: "2026-04-30",
+  },
+  {
+    id: "mem-2",
+    studentId: "user-001",
+    studentName: "Ana Rodríguez",
+    studentEmail: "ana@gmail.com",
+    plan: "trimestral",
+    paymentStatus: "paid",
+    membershipStatus: "active",
+    amount: 3200,
+    startDate: "2026-03-01",
+    endDate: "2026-05-31",
+  },
+  {
+    id: "mem-3",
+    studentId: "user-002",
+    studentName: "Carlos Herrera",
+    studentEmail: "carlos@gmail.com",
+    plan: "mensual",
+    paymentStatus: "overdue",
+    membershipStatus: "expired",
+    amount: 1200,
+    startDate: "2026-03-01",
+    endDate: "2026-03-31",
+  },
+  {
+    id: "mem-4",
+    studentId: "user-003",
+    studentName: "María López",
+    studentEmail: "maria@gmail.com",
+    plan: "semestral",
+    paymentStatus: "paid",
+    membershipStatus: "active",
+    amount: 6500,
+    startDate: "2026-01-01",
+    endDate: "2026-06-30",
+  },
+  {
+    id: "mem-5",
+    studentId: "user-004",
+    studentName: "Roberto Sánchez",
+    studentEmail: "roberto@gmail.com",
+    plan: "mensual",
+    paymentStatus: "pending",
+    membershipStatus: "pending",
+    amount: 1200,
+    startDate: "2026-04-15",
+    endDate: "2026-05-14",
+  },
+  {
+    id: "mem-6",
+    studentId: "user-005",
+    studentName: "Sofía Morales",
+    studentEmail: "sofia@gmail.com",
+    plan: "anual",
+    paymentStatus: "paid",
+    membershipStatus: "active",
+    amount: 12000,
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+  },
+];

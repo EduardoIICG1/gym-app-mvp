@@ -1,99 +1,66 @@
 import { mockClasses, mockReservations } from "@/lib/mock-data";
+import { Reservation } from "@/lib/types";
 
 export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get("userId");
+  const classId = searchParams.get("classId");
 
-    if (!userId) {
-      return Response.json({ error: "userId is required" }, { status: 400 });
-    }
+  let result = [...mockReservations];
+  if (userId) result = result.filter((r) => r.studentId === userId);
+  if (classId) result = result.filter((r) => r.classId === classId);
 
-    const userReservations = mockReservations.filter(
-      (r) => r.userId === userId
-    );
-
-    return Response.json(userReservations);
-  } catch (error) {
-    return Response.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+  return Response.json(result);
 }
 
 export async function POST(request: Request) {
   try {
-    const { classId, userId } = await request.json();
+    const { classId, userId, classDate } = await request.json();
 
-    // Validar que la clase existe
-    const classData = mockClasses.find((c) => c.id === classId);
-    if (!classData) {
-      return Response.json({ error: "Class not found" }, { status: 404 });
-    }
+    const cls = mockClasses.find((c) => c.id === classId);
+    if (!cls) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
+    if (cls.status === "cancelled") return Response.json({ error: "Clase cancelada" }, { status: 400 });
+    if (cls.reservedCount >= cls.maxCapacity) return Response.json({ error: "Clase llena" }, { status: 400 });
 
-    // Validar que no está lleno
-    if (classData.reserved >= classData.capacity) {
-      return Response.json({ error: "Class is full" }, { status: 400 });
-    }
-
-    // Validar que no está ya reservado
-    const alreadyReserved = mockReservations.some(
-      (r) => r.classId === classId && r.userId === userId
+    const duplicate = mockReservations.find(
+      (r) => r.classId === classId && r.studentId === userId && r.classDate === classDate && r.status !== "cancelled"
     );
-    if (alreadyReserved) {
-      return Response.json(
-        { error: "Already reserved" },
-        { status: 400 }
-      );
-    }
+    if (duplicate) return Response.json({ error: "Ya tienes esta clase reservada" }, { status: 400 });
 
-    // Crear reserva
-    const reservation = {
-      id: Math.random().toString(36).substr(2, 9),
-      userId,
+    const reservation: Reservation = {
+      id: `res-${Date.now()}`,
       classId,
+      studentId: userId,
+      studentName: "Eduardo García",
+      studentEmail: "eduardo@primaryperformance.mx",
+      classDate,
+      status: "reserved",
     };
-    mockReservations.push(reservation);
-    classData.reserved += 1;
 
-    return Response.json(reservation);
-  } catch (error) {
-    return Response.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    mockReservations.push(reservation);
+    cls.reservedCount += 1;
+    return Response.json(reservation, { status: 201 });
+  } catch {
+    return Response.json({ error: "Error interno" }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const { classId, userId } = await request.json();
+    const { classId, userId, classDate } = await request.json();
 
-    // Encontrar y eliminar la reserva
-    const index = mockReservations.findIndex(
-      (r) => r.classId === classId && r.userId === userId
+    const idx = mockReservations.findIndex(
+      (r) => r.classId === classId && r.studentId === userId && r.classDate === classDate && r.status !== "cancelled"
     );
-    if (index === -1) {
-      return Response.json(
-        { error: "Reservation not found" },
-        { status: 404 }
-      );
-    }
+    if (idx === -1) return Response.json({ error: "Reserva no encontrada" }, { status: 404 });
 
-    mockReservations.splice(index, 1);
+    mockReservations.splice(idx, 1);
 
-    // Decrementar reserved count
-    const classData = mockClasses.find((c) => c.id === classId);
-    if (classData && classData.reserved > 0) {
-      classData.reserved -= 1;
-    }
+    const cls = mockClasses.find((c) => c.id === classId);
+    if (cls && cls.reservedCount > 0) cls.reservedCount -= 1;
 
     return Response.json({ success: true });
-  } catch (error) {
-    return Response.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  } catch {
+    return Response.json({ error: "Error interno" }, { status: 500 });
   }
 }

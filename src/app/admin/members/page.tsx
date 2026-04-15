@@ -371,33 +371,42 @@ export default function MembersPage() {
                       </span>
                     </div>
 
-                    {/* Active services badge */}
-                    {activeCount > 0 && (
-                      <span className="hidden md:inline-flex text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 shrink-0">
-                        {activeCount} activo{activeCount !== 1 ? "s" : ""}
-                      </span>
+                    {/* Context: active services + coach — hidden for coaches */}
+                    {m.role !== "coach" ? (
+                      <div className="hidden md:flex flex-col gap-0.5 shrink-0 min-w-[130px]">
+                        {activeCount > 0 ? (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 w-fit">
+                            {activeCount} activo{activeCount !== 1 ? "s" : ""}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-700 text-xs">Sin servicios activos</span>
+                        )}
+                        {m.assignedCoachName && (
+                          <p className="text-zinc-500 text-xs">
+                            <span className="text-zinc-700">Coach: </span>
+                            {m.assignedCoachName}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="hidden md:block min-w-[130px] shrink-0" />
                     )}
 
-                    {/* Coach */}
-                    <div className="hidden lg:block w-24 shrink-0">
-                      {m.assignedCoachName
-                        ? <p className="text-zinc-400 text-xs truncate">{m.assignedCoachName}</p>
-                        : <p className="text-zinc-700 text-xs">—</p>}
-                    </div>
-
-                    {/* Service pills */}
-                    <div className="hidden xl:flex items-center gap-1 shrink-0">
-                      {visibleServices.slice(0, 2).map((s) => (
-                        <span key={s} className={`text-xs px-1.5 py-0.5 rounded font-medium ${SERVICE_COLORS[s]}`}>
-                          {SERVICE_LABELS[s]}
-                        </span>
-                      ))}
-                      {visibleServices.length > 2 && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
-                          +{visibleServices.length - 2}
-                        </span>
-                      )}
-                    </div>
+                    {/* Service pills — xl+, members only */}
+                    {m.role !== "coach" && (
+                      <div className="hidden xl:flex items-center gap-1 shrink-0">
+                        {visibleServices.slice(0, 2).map((s) => (
+                          <span key={s} className={`text-xs px-1.5 py-0.5 rounded font-medium ${SERVICE_COLORS[s]}`}>
+                            {SERVICE_LABELS[s]}
+                          </span>
+                        ))}
+                        {visibleServices.length > 2 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                            +{visibleServices.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
@@ -683,13 +692,27 @@ export default function MembersPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setEditing(null)}>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-white">{editing.name}</h2>
-                  <p className="text-zinc-500 text-xs mt-0.5">{editing.email}</p>
-                </div>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold text-white">Editar miembro</h2>
                 <button onClick={() => setEditing(null)} className="text-zinc-500 hover:text-white text-2xl leading-none">×</button>
               </div>
+
+              {/* Read-only identity block */}
+              <div className="bg-zinc-800/50 border border-zinc-700/40 rounded-xl p-4 mb-5">
+                <p className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider mb-3">Datos del miembro</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-zinc-600 text-[10px] mb-0.5">Nombre</p>
+                    <p className="text-zinc-200 text-sm font-medium truncate">{editing.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-600 text-[10px] mb-0.5">Email</p>
+                    <p className="text-zinc-400 text-xs truncate">{editing.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider mb-3">Configuración operativa</p>
 
               <div className="space-y-4">
                 <div>

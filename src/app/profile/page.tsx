@@ -111,6 +111,15 @@ function ProfileContent() {
 
   const activeMemberships = memberships.filter((m) => m.membershipStatus === "active");
 
+  // Derive active services from real memberships — source of truth, not contractedServices
+  const activeServiceTypes = [
+    ...new Set(
+      activeMemberships
+        .map((m) => m.serviceType)
+        .filter((s): s is ServiceType => !!s && s !== "blocked_time")
+    ),
+  ];
+
   if (loading) {
     return <div className="text-center py-24 text-zinc-600">Cargando perfil...</div>;
   }
@@ -162,12 +171,12 @@ function ProfileContent() {
             </div>
           )}
 
-          {/* Servicios contratados */}
-          {member && member.contractedServices.length > 0 && (
+          {/* Servicios activos — derivados de membresías activas reales */}
+          {activeServiceTypes.length > 0 && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <p className="text-zinc-500 text-xs font-medium mb-3">Servicios Contratados</p>
+              <p className="text-zinc-500 text-xs font-medium mb-3">Servicios Activos</p>
               <div className="space-y-2">
-                {member.contractedServices.filter(s => s !== "blocked_time").map((s) => (
+                {activeServiceTypes.map((s) => (
                   <div key={s} className="flex items-center gap-2">
                     <span className={`text-xs px-2 py-1 rounded font-medium ${SERVICE_COLORS[s]}`}>
                       {SERVICE_LABELS[s]}

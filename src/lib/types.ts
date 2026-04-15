@@ -68,3 +68,36 @@ export interface Member {
   contractedServices: ServiceType[];
   notes?: string;
 }
+
+export interface PostComment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: "admin" | "coach" | "member";
+  content: string;
+  createdAt: string; // ISO
+}
+
+export interface Post {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: "admin" | "coach" | "member";
+  createdAt: string; // ISO
+  content: string;
+  mediaType?: "image" | "gif" | "video" | "link";
+  mediaUrl?: string;
+  likesCount: number;
+  comments: PostComment[];
+}
+
+export interface QuickLink {
+  label: string;
+  href: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  emoji: string;
+}

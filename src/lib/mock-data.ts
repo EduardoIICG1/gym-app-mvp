@@ -1,4 +1,4 @@
-import { GymClass, Reservation, Membership, Member, User } from "./types";
+import { GymClass, Reservation, Membership, Member, User, Post, QuickLink, Group } from "./types";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function getMondayOfCurrentWeek(): Date {
@@ -468,5 +468,103 @@ export let mockMembers: Member[] = [
     role: "coach",
     status: "active",
     contractedServices: ["kinesiology"],
+  },
+];
+
+// ─── Community ─────────────────────────────────────────────────────────────
+export const mockQuickLinks: QuickLink[] = [
+  { label: "Calendario semanal", href: "/calendar" },
+  { label: "Gestión de clases", href: "/admin/classes" },
+  { label: "Lista de miembros", href: "/admin/members" },
+  { label: "Control de membresías", href: "/admin/memberships" },
+];
+
+export const mockGroups: Group[] = [
+  { id: "g1", name: "Morning Team", emoji: "🌅" },
+  { id: "g2", name: "HIIT Group", emoji: "🔥" },
+  { id: "g3", name: "Kinesio", emoji: "🏥" },
+];
+
+const _now = Date.now();
+
+export let mockPosts: Post[] = [
+  {
+    id: "post-1",
+    authorId: "coach-001",
+    authorName: "Juan Pérez",
+    authorRole: "coach",
+    createdAt: new Date(_now - 2 * 3_600_000).toISOString(),
+    content:
+      "Buenos días equipo 💪 Mañana hay clase especial de HIIT a las 6am. Vengan con toda la energía — va a ser una sesión intensa. ¡Los espero!",
+    likesCount: 8,
+    comments: [
+      {
+        id: "c1",
+        authorId: "user-001",
+        authorName: "Ana Rodríguez",
+        authorRole: "member",
+        content: "Ahí estaré! 🔥",
+        createdAt: new Date(_now - 1.5 * 3_600_000).toISOString(),
+      },
+      {
+        id: "c2",
+        authorId: "user-003",
+        authorName: "María López",
+        authorRole: "member",
+        content: "Yo también voy!",
+        createdAt: new Date(_now - 3_600_000).toISOString(),
+      },
+    ],
+  },
+  {
+    id: "post-2",
+    authorId: "user-123",
+    authorName: "Eduardo García",
+    authorRole: "admin",
+    createdAt: new Date(_now - 5 * 3_600_000).toISOString(),
+    content:
+      "📊 Resultado de la semana: 85% de asistencia en clases grupales. Excelente trabajo a toda la comunidad Primary Performance. ¡Sigamos así! 🏋️",
+    likesCount: 12,
+    comments: [
+      {
+        id: "c3",
+        authorId: "coach-002",
+        authorName: "María García",
+        authorRole: "coach",
+        content: "Muy buenos números, felicitaciones a todos!",
+        createdAt: new Date(_now - 4 * 3_600_000).toISOString(),
+      },
+    ],
+  },
+  {
+    id: "post-3",
+    authorId: "user-123",
+    authorName: "Eduardo García",
+    authorRole: "admin",
+    createdAt: new Date(_now - 24 * 3_600_000).toISOString(),
+    content:
+      "⚠️ Aviso: el área de kinesio estará en mantenimiento este jueves de 10am a 12pm. Las sesiones de ese horario se reprogramarán. Los contactamos por separado.",
+    likesCount: 5,
+    comments: [],
+  },
+  {
+    id: "post-4",
+    authorId: "coach-002",
+    authorName: "María García",
+    authorRole: "coach",
+    createdAt: new Date(_now - 2 * 24 * 3_600_000).toISOString(),
+    content:
+      "Nuevo plan de entrenamiento funcional para abril ya disponible. Este mes nos enfocamos en fuerza de core y movilidad. ¡Va a ser un mes increíble! 🎯",
+    likesCount: 15,
+    comments: [
+      {
+        id: "c4",
+        authorId: "user-005",
+        authorName: "Sofía Morales",
+        authorRole: "member",
+        content: "Justo lo que necesitaba, gracias María!",
+        createdAt: new Date(_now - 1.9 * 24 * 3_600_000).toISOString(),
+      },
+    ],
   },
 ];

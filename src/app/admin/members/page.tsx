@@ -698,21 +698,24 @@ export default function MembersPage() {
               </div>
 
               {/* Read-only identity block */}
-              <div className="bg-zinc-800/50 border border-zinc-700/40 rounded-xl p-4 mb-5">
-                <p className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider mb-3">Datos del miembro</p>
+              <div className="bg-zinc-800/40 border border-zinc-700/30 rounded-xl p-4 mb-5 pointer-events-none select-none">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider">Datos del miembro</p>
+                  <span className="text-zinc-700 text-[10px] font-medium">solo lectura</span>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-zinc-600 text-[10px] mb-0.5">Nombre</p>
-                    <p className="text-zinc-200 text-sm font-medium truncate">{editing.name}</p>
+                    <p className="text-zinc-700 text-[10px] mb-0.5">Nombre</p>
+                    <p className="text-zinc-300 text-sm font-medium truncate">{editing.name}</p>
                   </div>
                   <div>
-                    <p className="text-zinc-600 text-[10px] mb-0.5">Email</p>
-                    <p className="text-zinc-400 text-xs truncate">{editing.email}</p>
+                    <p className="text-zinc-700 text-[10px] mb-0.5">Email</p>
+                    <p className="text-zinc-500 text-xs truncate">{editing.email}</p>
                   </div>
                 </div>
               </div>
 
-              <p className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider mb-3">Configuración operativa</p>
+              <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-3">Configuración operativa</p>
 
               <div className="space-y-4">
                 <div>

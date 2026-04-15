@@ -35,12 +35,16 @@ export interface Membership {
   studentId: string;
   studentName: string;
   studentEmail: string;
+  serviceType: ServiceType;
   plan: MembershipPlan;
   paymentStatus: PaymentStatus;
   membershipStatus: MembershipStatus;
   amount: number;
   startDate: string;
   endDate: string;
+  coachId?: string;
+  coachName?: string;
+  notes?: string;
 }
 
 export interface User {
@@ -62,4 +66,5 @@ export interface Member {
   assignedCoachId?: string;
   assignedCoachName?: string;
   contractedServices: ServiceType[];
+  notes?: string;
 }

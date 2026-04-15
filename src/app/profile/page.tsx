@@ -216,8 +216,18 @@ function ProfileContent() {
                   <div key={ms.id} className="border border-zinc-800 rounded-lg p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <p className="text-white font-semibold text-sm">{PLAN_LABELS[ms.plan] ?? ms.plan}</p>
-                        <p className="text-zinc-500 text-xs mt-0.5">${ms.amount.toLocaleString()}</p>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          {ms.serviceType && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${SERVICE_COLORS[ms.serviceType]}`}>
+                              {SERVICE_LABELS[ms.serviceType]}
+                            </span>
+                          )}
+                          <p className="text-white font-semibold text-sm">{PLAN_LABELS[ms.plan] ?? ms.plan}</p>
+                        </div>
+                        <p className="text-zinc-500 text-xs">${ms.amount.toLocaleString()}</p>
+                        {ms.coachName && (
+                          <p className="text-zinc-600 text-xs mt-0.5">Prof: <span className="text-zinc-400">{ms.coachName}</span></p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-medium ${PAY_COLORS[ms.paymentStatus]}`}>

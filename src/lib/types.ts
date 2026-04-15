@@ -51,7 +51,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "owner" | "admin" | "coach" | "student";
+  role: "owner" | "admin" | "coach" | "member";
 }
 
 export type MemberRole = "admin" | "coach" | "member";

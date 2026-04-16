@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
+import { DevPanel } from "@/components/DevPanel";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,15 +11,24 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body className="bg-zinc-950 text-white min-h-screen antialiased">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        {/* Flash-prevention: runs before React hydrates — no dark→light flicker on reload */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('pp_theme');if(t!=='light')document.documentElement.classList.add('dark');})()`,
+          }}
+        />
+      </head>
+      <body className="bg-zinc-950 text-white min-h-screen antialiased overflow-x-hidden">
         <Navbar />
         <div className="flex">
           <Sidebar />
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-x-hidden">
             {children}
           </div>
         </div>
+        <DevPanel />
       </body>
     </html>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Member, Membership, Reservation, MembershipStatus, PaymentStatus, ServiceType } from "@/lib/types";
 import { currentUser } from "@/lib/mock-data";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const SERVICE_LABELS: Record<ServiceType, string> = {
@@ -72,9 +73,10 @@ function initials(name: string) {
 
 // ─── Inner component (uses useSearchParams) ────────────────────────────────
 function ProfileContent() {
+  const activeUser = useCurrentUser();
   const searchParams = useSearchParams();
-  const viewUserId = searchParams.get("userId") ?? currentUser.id;
-  const isOwnProfile = viewUserId === currentUser.id;
+  const viewUserId = searchParams.get("userId") ?? activeUser.id;
+  const isOwnProfile = viewUserId === activeUser.id;
 
   const [member, setMember] = useState<Member | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -124,9 +126,9 @@ function ProfileContent() {
     return <div className="text-center py-24 text-zinc-600">Cargando perfil...</div>;
   }
 
-  const displayName = member?.name ?? (isOwnProfile ? currentUser.name : "Usuario");
-  const displayEmail = member?.email ?? (isOwnProfile ? currentUser.email : "");
-  const displayRole = member?.role ?? currentUser.role;
+  const displayName = member?.name ?? (isOwnProfile ? activeUser.name : "Usuario");
+  const displayEmail = member?.email ?? (isOwnProfile ? activeUser.email : "");
+  const displayRole = member?.role ?? activeUser.role;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

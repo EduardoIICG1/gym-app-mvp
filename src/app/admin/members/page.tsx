@@ -6,6 +6,7 @@ import {
   Member, MemberRole, MemberStatus, ServiceType,
   MembershipPlan, MembershipStatus, PaymentStatus,
 } from "@/lib/types";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const ROLE_LABELS: Record<MemberRole, string> = {
@@ -54,6 +55,7 @@ function addDays(date: string, days: number): string {
 
 // ─── Form types ────────────────────────────────────────────────────────────
 interface EditState {
+  name: string; email: string;
   role: MemberRole; status: MemberStatus;
   assignedCoachId: string; assignedCoachName: string;
   contractedServices: ServiceType[];
@@ -81,6 +83,7 @@ const defaultAddService = (studentId = ""): AddServiceForm => ({
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function MembersPage() {
+  const currentUser = useCurrentUser();
   const [members, setMembers] = useState<Member[]>([]);
   const [activeCountMap, setActiveCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -144,6 +147,7 @@ export default function MembersPage() {
   const openEdit = (m: Member) => {
     setEditing(m);
     setEditState({
+      name: m.name, email: m.email,
       role: m.role, status: m.status,
       assignedCoachId: m.assignedCoachId ?? "", assignedCoachName: m.assignedCoachName ?? "",
       contractedServices: [...m.contractedServices],
@@ -163,11 +167,15 @@ export default function MembersPage() {
     if (!editing || !editState) return;
     setSaving(true);
     const coachObj = editState.assignedCoachId ? coaches.find((c) => c.id === editState.assignedCoachId) : null;
-    const body: Partial<Member> = {
+    const body: Partial<Member> & { _callerRole?: string } = {
       role: editState.role, status: editState.status,
       contractedServices: editState.contractedServices,
       assignedCoachId: coachObj?.id,
       assignedCoachName: coachObj?.name,
+      // Solo admin puede enviar name y email
+      ...(currentUser.role === "admin" && editState.name.trim() && { name: editState.name.trim() }),
+      ...(currentUser.role === "admin" && editState.email.trim() && { email: editState.email.trim() }),
+      _callerRole: currentUser.role,
     };
     const res = await fetch(`/api/members/${editing.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -697,20 +705,46 @@ export default function MembersPage() {
                 <button onClick={() => setEditing(null)} className="text-zinc-500 hover:text-white text-2xl leading-none">×</button>
               </div>
 
-              {/* Read-only identity block */}
-              <div className="bg-zinc-800/40 border border-zinc-700/30 rounded-xl p-4 mb-5 pointer-events-none select-none">
+              {/* Identity block — editable for admin, read-only for others */}
+              <div className={`rounded-xl p-4 mb-5 ${
+                currentUser.role === "admin"
+                  ? "bg-zinc-800/60 border border-zinc-700/50"
+                  : "bg-zinc-800/40 border border-zinc-700/30 pointer-events-none select-none"
+              }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider">Datos del miembro</p>
-                  <span className="text-zinc-700 text-[10px] font-medium">solo lectura</span>
+                  <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Datos del miembro</p>
+                  {currentUser.role === "admin" ? (
+                    <span className="text-blue-500/70 text-[10px] font-medium">editable</span>
+                  ) : (
+                    <span className="text-zinc-700 text-[10px] font-medium">solo lectura</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-zinc-700 text-[10px] mb-0.5">Nombre</p>
-                    <p className="text-zinc-300 text-sm font-medium truncate">{editing.name}</p>
+                    <label className="text-zinc-600 text-[10px] block mb-1">Nombre</label>
+                    {currentUser.role === "admin" ? (
+                      <input
+                        type="text"
+                        value={editState.name}
+                        onChange={(e) => setEditState({ ...editState, name: e.target.value })}
+                        className="w-full bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-zinc-500"
+                      />
+                    ) : (
+                      <p className="text-zinc-300 text-sm font-medium truncate">{editing.name}</p>
+                    )}
                   </div>
                   <div>
-                    <p className="text-zinc-700 text-[10px] mb-0.5">Email</p>
-                    <p className="text-zinc-500 text-xs truncate">{editing.email}</p>
+                    <label className="text-zinc-600 text-[10px] block mb-1">Email</label>
+                    {currentUser.role === "admin" ? (
+                      <input
+                        type="email"
+                        value={editState.email}
+                        onChange={(e) => setEditState({ ...editState, email: e.target.value })}
+                        className="w-full bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-500"
+                      />
+                    ) : (
+                      <p className="text-zinc-500 text-xs truncate">{editing.email}</p>
+                    )}
                   </div>
                 </div>
               </div>

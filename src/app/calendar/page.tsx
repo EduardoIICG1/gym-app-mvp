@@ -2,11 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { GymClass, Reservation, ServiceType } from "@/lib/types";
-import { currentUser } from "@/lib/mock-data";
-
-// ─── Constants ─────────────────────────────────────────────────────────────
-const CURRENT_USER_ID = currentUser.id;
-const IS_ADMIN_OR_COACH = currentUser.role === "admin" || currentUser.role === "coach";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 const DAY_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -62,6 +58,10 @@ function defaultCreate(dayOfWeek: number): CreateState {
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function CalendarPage() {
+  const currentUser = useCurrentUser();
+  const CURRENT_USER_ID = currentUser.id;
+  const IS_ADMIN_OR_COACH = currentUser.role === "admin" || currentUser.role === "coach";
+
   const [weekOffset, setWeekOffset] = useState(0);
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);

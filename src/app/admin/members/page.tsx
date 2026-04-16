@@ -300,18 +300,18 @@ export default function MembersPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-8">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 sm:p-4">
           <p className="text-zinc-500 text-xs font-medium mb-1">Total Miembros</p>
           <p className="text-2xl font-bold text-blue-400">{totalMembers}</p>
           <p className="text-zinc-600 text-xs mt-0.5">{activeMembers} activos</p>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 sm:p-4">
           <p className="text-zinc-500 text-xs font-medium mb-1">Coaches</p>
           <p className="text-2xl font-bold text-orange-400">{totalCoaches}</p>
           <p className="text-zinc-600 text-xs mt-0.5">en plantilla</p>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 sm:p-4">
           <p className="text-zinc-500 text-xs font-medium mb-1">Total Usuarios</p>
           <p className="text-2xl font-bold text-zinc-300">{members.length}</p>
           <p className="text-zinc-600 text-xs mt-0.5">en el sistema</p>
@@ -419,12 +419,12 @@ export default function MembersPage() {
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
                       <Link href={`/profile?userId=${m.id}`}
-                        className="text-xs text-zinc-500 hover:text-blue-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-zinc-800/60">
+                        className="hidden sm:block text-xs text-zinc-500 hover:text-blue-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-zinc-800/60">
                         Perfil
                       </Link>
                       <button
                         onClick={() => openAddService(m)}
-                        className="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-2.5 py-1.5 rounded-lg transition-colors font-medium border border-emerald-500/20"
+                        className="hidden sm:block text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-2.5 py-1.5 rounded-lg transition-colors font-medium border border-emerald-500/20"
                       >
                         + Servicio
                       </button>
@@ -698,7 +698,7 @@ export default function MembersPage() {
       {/* ─── Edit Member Modal ─────────────────────────────────────────────── */}
       {editing && editState && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setEditing(null)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-bold text-white">Editar miembro</h2>

@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Navbar />
         <div className="flex">
           <Sidebar />
-          <div className="flex-1 min-w-0 overflow-x-hidden">
+          <div className="flex-1 min-w-0 overflow-x-hidden pb-16 lg:pb-0">
             {children}
           </div>
         </div>

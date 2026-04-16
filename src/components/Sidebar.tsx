@@ -113,7 +113,11 @@ export function Sidebar() {
     item.roles.includes(user.role)
   );
 
+  // Bottom nav caps at 5 items — profile is reachable via Navbar avatar
+  const bottomItems = visibleItems.slice(0, 5);
+
   return (
+    <>
     <aside
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -172,5 +176,33 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+
+    {/* ── Mobile bottom navigation (lg:hidden) ───────────────────────── */}
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-sm safe-area-bottom">
+      <div className={`flex items-center justify-around px-1 h-16 ${bottomItems.length <= 3 ? "max-w-xs mx-auto" : ""}`}>
+        {bottomItems.map(({ href, label, exact, Icon }) => {
+          const active = exact ? pathname === href : pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 rounded-xl transition-colors ${
+                active
+                  ? "text-white"
+                  : "text-zinc-500 active:text-zinc-300"
+              }`}
+            >
+              <span className={`transition-colors ${active ? "text-blue-400" : ""}`}>
+                <Icon />
+              </span>
+              <span className={`text-[9px] font-medium leading-none ${active ? "text-blue-400" : ""}`}>
+                {label === "Mi Perfil" ? "Perfil" : label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+    </>
   );
 }

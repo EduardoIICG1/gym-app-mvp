@@ -72,9 +72,19 @@ export default function CalendarPage() {
   const [coachFilter, setCoachFilter] = useState("all");
   const [createModal, setCreateModal] = useState<CreateState | null>(null);
   const [creating, setCreating] = useState(false);
+  // Mobile: selected day index (0=Mon…5=Sat). Resets to today or 0 on week change.
+  const [selectedDay, setSelectedDay] = useState(0);
 
   const weekDates = getWeekDates(weekOffset);
   const todayStr = toDateStr(new Date());
+
+  // When week changes, jump to today if it's in this week, else day 0
+  useEffect(() => {
+    const todayIdx = weekDates.findIndex((d) => d.dateStr === todayStr);
+    setSelectedDay(todayIdx >= 0 ? todayIdx : 0);
+  // weekOffset is the meaningful dep — weekDates/todayStr are derived/stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekOffset]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -170,7 +180,7 @@ export default function CalendarPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setWeekOffset((w) => w - 1)} className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors flex items-center justify-center text-sm">←</button>
-          <span className="text-sm font-medium text-white min-w-[170px] text-center bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5">{weekLabel}</span>
+          <span className="text-xs sm:text-sm font-medium text-white min-w-[140px] sm:min-w-[170px] text-center bg-zinc-900 border border-zinc-800 rounded-lg px-2 sm:px-3 py-1.5">{weekLabel}</span>
           <button onClick={() => setWeekOffset((w) => w + 1)} className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors flex items-center justify-center text-sm">→</button>
           {weekOffset !== 0 && (
             <button onClick={() => setWeekOffset(0)} className="text-xs text-blue-400 hover:text-blue-300 transition-colors px-2">Hoy</button>
@@ -203,82 +213,177 @@ export default function CalendarPage() {
       {loading ? (
         <div className="text-center py-24 text-zinc-600">Cargando clases...</div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {weekDates.map(({ date, dateStr, dayOfWeek }) => {
-            const allDayClasses = classes
-              .filter((c) => c.dayOfWeek === dayOfWeek && c.status === "active")
-              .sort((a, b) => a.startTime.localeCompare(b.startTime));
+        <>
+          {/* ── Mobile: day selector + single-day view (lg:hidden) ──────── */}
+          <div className="lg:hidden">
+            {/* Horizontal day pills */}
+            <div className="flex gap-2 overflow-x-auto pb-3 mb-4" style={{ scrollbarWidth: "none" }}>
+              {weekDates.map(({ date, dateStr, dayOfWeek }, idx) => {
+                const isToday = dateStr === todayStr;
+                const isSelected = idx === selectedDay;
+                return (
+                  <button
+                    key={dateStr}
+                    onClick={() => setSelectedDay(idx)}
+                    className={`flex flex-col items-center px-3.5 py-2 rounded-xl shrink-0 transition-colors ${
+                      isSelected
+                        ? "bg-blue-600 text-white"
+                        : isToday
+                        ? "bg-blue-600/15 border border-blue-500/30 text-blue-400"
+                        : "bg-zinc-900 text-zinc-400 border border-zinc-800"
+                    }`}
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wide">{DAY_SHORT[dayOfWeek]}</span>
+                    <span className="text-lg font-bold leading-tight">{date.getDate()}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-            const dayClasses = coachFilter === "all"
-              ? allDayClasses
-              : allDayClasses.filter((c) => c.coach === coachFilter);
+            {/* Classes for selected day */}
+            {(() => {
+              const { dateStr, dayOfWeek } = weekDates[selectedDay];
+              const allDayClasses = classes
+                .filter((c) => c.dayOfWeek === dayOfWeek && c.status === "active")
+                .sort((a, b) => a.startTime.localeCompare(b.startTime));
+              const dayClasses = coachFilter === "all"
+                ? allDayClasses
+                : allDayClasses.filter((c) => c.coach === coachFilter);
 
-            const isToday = dateStr === todayStr;
+              if (dayClasses.length === 0) {
+                return IS_ADMIN_OR_COACH ? (
+                  <button
+                    onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                    className="w-full text-center text-zinc-500 text-sm py-10 border border-dashed border-zinc-800 rounded-xl hover:border-zinc-600 hover:text-zinc-400 transition-colors"
+                  >
+                    + Agregar clase
+                  </button>
+                ) : (
+                  <p className="text-center text-zinc-600 text-sm py-12">Sin clases este día</p>
+                );
+              }
 
-            return (
-              <div key={dateStr}>
-                {/* Day header */}
-                <div className={`text-center mb-3 py-2 rounded-lg ${isToday ? "bg-blue-600/15 border border-blue-500/30" : ""}`}>
-                  <p className={`text-xs font-medium ${isToday ? "text-blue-400" : "text-zinc-500"}`}>{DAY_SHORT[dayOfWeek]}</p>
-                  <p className={`text-xl font-bold ${isToday ? "text-blue-400" : "text-white"}`}>{date.getDate()}</p>
-                </div>
-
-                {/* Class cards */}
-                <div className="space-y-2 min-h-[40px]">
-                  {dayClasses.length === 0 ? (
-                    IS_ADMIN_OR_COACH ? (
+              return (
+                <div className="space-y-3">
+                  {dayClasses.map((cls) => {
+                    const reserved = isReserved(cls.id, dateStr);
+                    const info = occupancyInfo(cls.reservedCount, cls.maxCapacity);
+                    return (
                       <button
-                        onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
-                        className="w-full text-center text-zinc-700 text-xs py-3 border border-dashed border-zinc-800 rounded-lg hover:border-zinc-600 hover:text-zinc-500 transition-colors"
+                        key={cls.id}
+                        onClick={() => setModal({ cls, dateStr })}
+                        className={`w-full text-left rounded-xl border p-4 transition-all active:scale-[0.99] ${
+                          reserved
+                            ? "bg-blue-600/10 border-blue-500/40"
+                            : `bg-zinc-900 ${info.border} ${info.cardBg}`
+                        }`}
                       >
-                        + clase
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0 pr-3">
+                            <p className="font-semibold text-white text-sm leading-tight">{cls.name}</p>
+                            <p className="text-zinc-500 text-xs mt-1">{cls.coach}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-white text-sm font-semibold">{cls.startTime}</p>
+                            <p className="text-zinc-600 text-xs">{cls.endTime}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${reserved ? "bg-blue-400" : info.dot}`} />
+                          <span className={`text-xs font-medium ${reserved ? "text-blue-400" : info.text}`}>
+                            {reserved ? "Reservado" : info.label}
+                          </span>
+                          <span className={`ml-auto text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[cls.serviceType]}`}>
+                            {SERVICE_LABELS[cls.serviceType]}
+                          </span>
+                        </div>
                       </button>
-                    ) : (
-                      <p className="text-center text-zinc-700 text-xs py-3">—</p>
-                    )
-                  ) : (
-                    <>
-                      {dayClasses.map((cls) => {
-                        const reserved = isReserved(cls.id, dateStr);
-                        const info = occupancyInfo(cls.reservedCount, cls.maxCapacity);
-                        return (
-                          <button
-                            key={cls.id}
-                            onClick={() => setModal({ cls, dateStr })}
-                            className={`w-full text-left rounded-lg border p-2.5 transition-all hover:ring-1 hover:ring-zinc-600 ${
-                              reserved
-                                ? "bg-blue-600/10 border-blue-500/40"
-                                : `bg-zinc-900 ${info.border} ${info.cardBg}`
-                            }`}
-                          >
-                            <p className="font-semibold text-white text-xs leading-tight truncate">{cls.name}</p>
-                            <p className="text-zinc-500 text-xs mt-0.5">{cls.startTime}</p>
-                            <p className="text-zinc-600 text-xs truncate">{cls.coach.split(" ")[0]}</p>
-                            <div className="flex items-center gap-1 mt-1.5">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${reserved ? "bg-blue-400" : info.dot}`} />
-                              <span className={`text-xs font-medium ${reserved ? "text-blue-400" : info.text}`}>
-                                {reserved ? "Reservado" : info.label}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {/* Admin: add another class to a day that already has classes */}
-                      {IS_ADMIN_OR_COACH && (
-                        <button
-                          onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
-                          className="w-full text-center text-zinc-700 text-xs py-1.5 border border-dashed border-zinc-800 rounded-lg hover:border-zinc-600 hover:text-zinc-500 transition-colors"
-                        >
-                          +
-                        </button>
-                      )}
-                    </>
+                    );
+                  })}
+                  {IS_ADMIN_OR_COACH && (
+                    <button
+                      onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                      className="w-full text-center text-zinc-600 text-xs py-3 border border-dashed border-zinc-800 rounded-xl hover:border-zinc-600 hover:text-zinc-400 transition-colors"
+                    >
+                      + Agregar clase
+                    </button>
                   )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })()}
+          </div>
+
+          {/* ── Desktop: 6-column week grid (hidden on mobile) ──────────── */}
+          <div className="hidden lg:grid grid-cols-6 gap-3">
+            {weekDates.map(({ date, dateStr, dayOfWeek }) => {
+              const allDayClasses = classes
+                .filter((c) => c.dayOfWeek === dayOfWeek && c.status === "active")
+                .sort((a, b) => a.startTime.localeCompare(b.startTime));
+              const dayClasses = coachFilter === "all"
+                ? allDayClasses
+                : allDayClasses.filter((c) => c.coach === coachFilter);
+              const isToday = dateStr === todayStr;
+              return (
+                <div key={dateStr}>
+                  <div className={`text-center mb-3 py-2 rounded-lg ${isToday ? "bg-blue-600/15 border border-blue-500/30" : ""}`}>
+                    <p className={`text-xs font-medium ${isToday ? "text-blue-400" : "text-zinc-500"}`}>{DAY_SHORT[dayOfWeek]}</p>
+                    <p className={`text-xl font-bold ${isToday ? "text-blue-400" : "text-white"}`}>{date.getDate()}</p>
+                  </div>
+                  <div className="space-y-2 min-h-[40px]">
+                    {dayClasses.length === 0 ? (
+                      IS_ADMIN_OR_COACH ? (
+                        <button
+                          onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                          className="w-full text-center text-zinc-700 text-xs py-3 border border-dashed border-zinc-800 rounded-lg hover:border-zinc-600 hover:text-zinc-500 transition-colors"
+                        >
+                          + clase
+                        </button>
+                      ) : (
+                        <p className="text-center text-zinc-700 text-xs py-3">—</p>
+                      )
+                    ) : (
+                      <>
+                        {dayClasses.map((cls) => {
+                          const reserved = isReserved(cls.id, dateStr);
+                          const info = occupancyInfo(cls.reservedCount, cls.maxCapacity);
+                          return (
+                            <button
+                              key={cls.id}
+                              onClick={() => setModal({ cls, dateStr })}
+                              className={`w-full text-left rounded-lg border p-2.5 transition-all hover:ring-1 hover:ring-zinc-600 ${
+                                reserved
+                                  ? "bg-blue-600/10 border-blue-500/40"
+                                  : `bg-zinc-900 ${info.border} ${info.cardBg}`
+                              }`}
+                            >
+                              <p className="font-semibold text-white text-xs leading-tight truncate">{cls.name}</p>
+                              <p className="text-zinc-500 text-xs mt-0.5">{cls.startTime}</p>
+                              <p className="text-zinc-600 text-xs truncate">{cls.coach.split(" ")[0]}</p>
+                              <div className="flex items-center gap-1 mt-1.5">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${reserved ? "bg-blue-400" : info.dot}`} />
+                                <span className={`text-xs font-medium ${reserved ? "text-blue-400" : info.text}`}>
+                                  {reserved ? "Reservado" : info.label}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {IS_ADMIN_OR_COACH && (
+                          <button
+                            onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                            className="w-full text-center text-zinc-700 text-xs py-1.5 border border-dashed border-zinc-800 rounded-lg hover:border-zinc-600 hover:text-zinc-500 transition-colors"
+                          >
+                            +
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ─── Class Detail Modal ──────────────────────────────────────────── */}

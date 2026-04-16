@@ -3,16 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  currentUser,
   mockClasses,
   mockReservations,
   mockPosts as seedPosts,
 } from "@/lib/mock-data";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 import type { Post } from "@/lib/types";
-
-// ─── Constants ─────────────────────────────────────────────────────────────
-const IS_ADMIN_OR_COACH =
-  currentUser.role === "admin" || currentUser.role === "coach";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -80,6 +76,9 @@ function ClassCard({ name, day, time, coach, reserved, max }: {
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function HomePage() {
+  const currentUser = useCurrentUser();
+  const isAdminOrCoach = currentUser.role === "admin" || currentUser.role === "coach";
+
   // ── Feed state ────────────────────────────────────────────────────────
   const [posts, setPosts] = useState<Post[]>(seedPosts);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
@@ -197,7 +196,7 @@ export default function HomePage() {
         <main className="flex flex-col gap-4 min-w-0">
 
           {/* Create Post — admin / coach only */}
-          {IS_ADMIN_OR_COACH && (
+          {isAdminOrCoach && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <div className="flex gap-3">
                 <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-semibold text-xs shrink-0">
@@ -258,7 +257,7 @@ export default function HomePage() {
                         {ROLE_LABELS[post.authorRole] ?? post.authorRole}
                       </span>
                     </div>
-                    <p className="text-zinc-500 text-xs mt-0.5">{timeAgo(post.createdAt)}</p>
+                    <p className="text-zinc-500 text-xs mt-0.5" suppressHydrationWarning>{timeAgo(post.createdAt)}</p>
                   </div>
                 </div>
 
@@ -300,7 +299,7 @@ export default function HomePage() {
                             <div className="flex-1 bg-zinc-800/60 rounded-lg px-3 py-2">
                               <div className="flex items-center gap-2 mb-0.5">
                                 <span className="text-white text-xs font-semibold">{c.authorName}</span>
-                                <span className="text-zinc-600 text-[10px]">{timeAgo(c.createdAt)}</span>
+                                <span className="text-zinc-600 text-[10px]" suppressHydrationWarning>{timeAgo(c.createdAt)}</span>
                               </div>
                               <p className="text-zinc-300 text-xs">{c.content}</p>
                             </div>

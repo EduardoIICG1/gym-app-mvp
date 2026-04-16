@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { currentUser } from "@/lib/mock-data";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 // ─── Icons (inline SVG, stroke-based, 18×18) ──────────────────────────────
 function IconHome() {
@@ -88,33 +88,41 @@ const NAV_ITEMS = [
   { href: "/calendar",           label: "Calendario",  exact: false, roles: ["admin", "coach", "member"], Icon: IconCalendar },
   { href: "/admin/classes",      label: "Clases",      exact: false, roles: ["admin", "coach"],           Icon: IconClasses },
   { href: "/admin/members",      label: "Miembros",    exact: false, roles: ["admin", "coach"],           Icon: IconMembers },
-  { href: "/admin/memberships",  label: "Membresías",  exact: false, roles: ["admin"],                   Icon: IconMemberships },
+  { href: "/admin/memberships",  label: "Membresías",  exact: false, roles: ["admin"],                    Icon: IconMemberships },
   { href: "/profile",            label: "Mi Perfil",   exact: false, roles: ["admin", "coach", "member"], Icon: IconProfile },
 ];
 
 // ─── Component ─────────────────────────────────────────────────────────────
 export function Sidebar() {
   const pathname = usePathname();
+  const user = useCurrentUser();
 
   // Expanded on home, collapsed on any module — user can toggle manually
   const [collapsed, setCollapsed] = useState(() => pathname !== "/");
+  // Temporary hover-expand while pointer is inside sidebar
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     setCollapsed(pathname !== "/");
   }, [pathname]);
 
+  // Visual state: expanded when not collapsed OR when hovering while collapsed
+  const isExpanded = !collapsed || hovered;
+
   const visibleItems = NAV_ITEMS.filter((item) =>
-    item.roles.includes(currentUser.role)
+    item.roles.includes(user.role)
   );
 
   return (
     <aside
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-800 bg-zinc-950 sticky top-14 h-[calc(100vh-3.5rem)] transition-[width] duration-200 ease-in-out ${
-        collapsed ? "w-16" : "w-60"
+        isExpanded ? "w-60" : "w-16"
       }`}
     >
       {/* Nav links */}
-      <nav className="flex flex-col gap-0.5 p-2 flex-1 overflow-y-auto">
+      <nav className="flex flex-col gap-0.5 p-2 flex-1 overflow-y-auto overflow-x-hidden">
         {visibleItems.map(({ href, label, exact, Icon }) => {
           const active = exact
             ? pathname === href
@@ -125,7 +133,7 @@ export function Sidebar() {
               href={href}
               title={label}
               className={`flex items-center gap-3 rounded-lg font-medium transition-colors ${
-                collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2.5"
+                isExpanded ? "justify-start px-3 py-2.5" : "justify-center px-0 py-2.5"
               } ${
                 active
                   ? "bg-zinc-800 text-white"
@@ -135,7 +143,7 @@ export function Sidebar() {
               <span className="shrink-0">
                 <Icon />
               </span>
-              {!collapsed && (
+              {isExpanded && (
                 <span className="text-sm truncate">{label}</span>
               )}
             </Link>
@@ -149,14 +157,17 @@ export function Sidebar() {
           onClick={() => setCollapsed((c) => !c)}
           title={collapsed ? "Expandir menú" : "Colapsar menú"}
           className={`w-full flex items-center rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/60 transition-colors py-2 ${
-            collapsed ? "justify-center px-0" : "gap-2 px-3"
+            isExpanded ? "gap-2 px-3" : "justify-center px-0"
           }`}
         >
-          {collapsed ? <IconChevronRight /> : (
+          {isExpanded ? (
             <>
               <IconChevronLeft />
-              <span className="text-xs">Colapsar</span>
+              {!hovered && <span className="text-xs">Colapsar</span>}
+              {hovered && collapsed && <span className="text-xs text-zinc-700">Click para fijar</span>}
             </>
+          ) : (
+            <IconChevronRight />
           )}
         </button>
       </div>

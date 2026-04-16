@@ -485,7 +485,10 @@ export const mockGroups: Group[] = [
   { id: "g3", name: "Kinesio", emoji: "🏥" },
 ];
 
-const _now = Date.now();
+// Fixed reference timestamp — prevents SSR/client hydration mismatches.
+// Dynamic Date.now() evaluated at different times on server vs client produces
+// different createdAt strings, which breaks React hydration for timeAgo output.
+const _now = new Date("2026-04-15T12:00:00.000Z").getTime();
 
 export let mockPosts: Post[] = [
   {

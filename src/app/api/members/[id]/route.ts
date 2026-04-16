@@ -11,14 +11,27 @@ export async function PUT(
     const idx = mockMembers.findIndex((m) => m.id === id);
     if (idx === -1) return Response.json({ error: "Miembro no encontrado" }, { status: 404 });
 
-    // Whitelist — name and email are identity fields, never updated here
+    // Determinar si la llamada viene de un admin (rol del usuario logueado mock)
+    const callerRole: string = body._callerRole ?? "member";
+    const isAdmin = callerRole === "admin";
+
     const updates: Partial<Member> = {};
-    if (body.role !== undefined)               updates.role               = body.role;
-    if (body.status !== undefined)             updates.status             = body.status;
+
+    // name y email: solo admin puede actualizarlos
+    if (isAdmin && body.name !== undefined && String(body.name).trim()) {
+      updates.name  = String(body.name).trim();
+    }
+    if (isAdmin && body.email !== undefined && String(body.email).trim()) {
+      updates.email = String(body.email).trim();
+    }
+
+    // Campos operativos: cualquier llamada puede actualizarlos
+    if (body.role               !== undefined) updates.role               = body.role;
+    if (body.status             !== undefined) updates.status             = body.status;
     if (body.contractedServices !== undefined) updates.contractedServices = body.contractedServices;
-    if (body.assignedCoachId !== undefined)    updates.assignedCoachId    = body.assignedCoachId;
-    if (body.assignedCoachName !== undefined)  updates.assignedCoachName  = body.assignedCoachName;
-    if (body.notes !== undefined)              updates.notes              = body.notes;
+    if (body.assignedCoachId    !== undefined) updates.assignedCoachId    = body.assignedCoachId;
+    if (body.assignedCoachName  !== undefined) updates.assignedCoachName  = body.assignedCoachName;
+    if (body.notes              !== undefined) updates.notes              = body.notes;
 
     mockMembers[idx] = { ...mockMembers[idx], ...updates };
     return Response.json(mockMembers[idx]);

@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { Member, Membership, Reservation, MembershipStatus, PaymentStatus, ServiceType } from "@/lib/types";
+import { Member, Membership, Reservation, GymClass, MembershipStatus, PaymentStatus, ServiceType } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { computeMembershipCycle } from "@/lib/cycleHelpers";
 
 import { ServiceBadge, MembershipBadge, PaymentBadge, RoleBadge } from "@/components/Badge";
 
@@ -39,19 +40,23 @@ function ProfileContent() {
   const [member, setMember] = useState<Member | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [allClasses, setAllClasses] = useState<GymClass[]>([]);
+  const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [membersRes, memshipsRes, resvRes] = await Promise.all([
+    const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
       fetch("/api/members"),
       fetch(`/api/memberships?studentId=${viewUserId}`),
       fetch(`/api/reservations?userId=${viewUserId}`),
+      fetch("/api/classes"),
     ]);
     const allMembers: Member[] = await membersRes.json();
     setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
     setMemberships(await memshipsRes.json());
     setReservations(await resvRes.json());
+    setAllClasses(await classesRes.json());
     setLoading(false);
   }, [viewUserId]);
 
@@ -219,6 +224,135 @@ function ProfileContent() {
               </div>
             )}
           </motion.div>
+
+          {/* Membership cycles */}
+          {memberships.length > 0 && (() => {
+            const cycles = memberships.map((ms) => computeMembershipCycle(ms, reservations, allClasses));
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+                className="rounded-xl p-5 border"
+                style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--text-secondary)" }}>
+                  Ciclos de Membresía
+                </p>
+                <div className="space-y-5">
+                  {cycles.map((cycle) => {
+                    const pct = cycle.totalCredits > 0 ? Math.min((cycle.usedCredits / cycle.totalCredits) * 100, 100) : 0;
+                    const isExpanded = expandedCycles.has(cycle.cycleId);
+                    return (
+                      <div key={cycle.cycleId}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{cycle.membershipName}</p>
+                          <span
+                            className="text-xs px-2 py-0.5 rounded font-semibold"
+                            style={cycle.status === "active"
+                              ? { background: "#22c55e20", color: "#22c55e" }
+                              : cycle.status === "expired"
+                              ? { background: "#ef444420", color: "#ef4444" }
+                              : { background: "#71717a20", color: "#71717a" }}
+                          >
+                            {cycle.status === "active" ? "Activo" : cycle.status === "expired" ? "Vencido" : "Completado"}
+                          </span>
+                        </div>
+
+                        {/* Credits bar */}
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${pct}%`, background: pct >= 100 ? "#ef4444" : "#22c55e" }}
+                            />
+                          </div>
+                          <span className="text-xs tabular-nums shrink-0" style={{ color: "var(--text-secondary)" }}>
+                            {cycle.usedCredits}/{cycle.totalCredits}
+                          </span>
+                        </div>
+
+                        {/* Stats row */}
+                        <div className="grid grid-cols-4 gap-2 mb-3">
+                          {[
+                            { label: "Asistidas", value: cycle.usedCredits, color: "#22c55e" },
+                            { label: "Ausentes", value: cycle.absentCount, color: "#ef4444" },
+                            { label: "Pendientes", value: cycle.pendingCount, color: "#f59e0b" },
+                            { label: "Recuperables", value: cycle.recoverableCount, color: "#a78bfa" },
+                          ].map(({ label, value, color }) => (
+                            <div key={label} className="rounded-lg p-2 text-center" style={{ background: "rgba(0,0,0,0.15)" }}>
+                              <p className="text-sm font-bold" style={{ color }}>{value}</p>
+                              <p className="text-xs leading-tight mt-0.5" style={{ color: "var(--text-secondary)" }}>{label}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Toggle entry list */}
+                        {cycle.entries.length > 0 && (
+                          <>
+                            <button
+                              onClick={() => setExpandedCycles((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(cycle.cycleId)) next.delete(cycle.cycleId);
+                                else next.add(cycle.cycleId);
+                                return next;
+                              })}
+                              className="text-xs font-medium transition-opacity hover:opacity-70"
+                              style={{ color: "#4fc3f7" }}
+                            >
+                              {isExpanded ? "▲ Ocultar entradas" : `▼ Ver ${cycle.entries.length} entradas`}
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-3 space-y-0">
+                                {cycle.entries.map((entry) => (
+                                  <div
+                                    key={entry.reservationId}
+                                    className="flex items-center justify-between py-2"
+                                    style={{ borderBottom: "1px solid var(--card-border)" }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs tabular-nums font-mono w-5 text-right shrink-0" style={{ color: "var(--text-secondary)" }}>
+                                        #{entry.entryNumber}
+                                      </span>
+                                      <div>
+                                        <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>{entry.className}</p>
+                                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{entry.classDate}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      {entry.eligibleForMakeup && (
+                                        <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#a78bfa20", color: "#a78bfa" }}>↺</span>
+                                      )}
+                                      <span
+                                        className="text-xs px-2 py-0.5 rounded font-semibold"
+                                        style={
+                                          entry.displayStatus === "attended"
+                                            ? { background: "#22c55e20", color: "#22c55e" }
+                                            : entry.displayStatus === "absent"
+                                            ? { background: "#ef444420", color: "#ef4444" }
+                                            : entry.displayStatus === "pending_attendance"
+                                            ? { background: "#f59e0b20", color: "#f59e0b" }
+                                            : { background: "#4fc3f720", color: "#4fc3f7" }
+                                        }
+                                      >
+                                        {entry.displayStatus === "attended" ? "Asistió"
+                                          : entry.displayStatus === "absent" ? "Ausente"
+                                          : entry.displayStatus === "pending_attendance" ? "Pendiente"
+                                          : "Reservado"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* Upcoming reservations */}
           <motion.div

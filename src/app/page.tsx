@@ -1,33 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
-  mockClasses,
-  mockReservations,
-  mockPosts as seedPosts,
-} from "@/lib/mock-data";
+  Heart, MessageCircle, Image as ImageIcon, Link as LinkIcon,
+  Users, TrendingUp, BookOpen,
+} from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { mockPosts as seedPosts, mockClasses, mockReservations } from "@/lib/mock-data";
+import { OccupancyBadge, RoleBadge } from "@/components/Badge";
 import type { Post } from "@/lib/types";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  coach: "Coach",
-  member: "Miembro",
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-purple-500/15 text-purple-400",
-  coach: "bg-orange-500/15 text-orange-400",
-  member: "bg-blue-500/15 text-blue-400",
-};
-
-const DAY_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-
-// ─── Helpers ───────────────────────────────────────────────────────────────
-function initials(name: string) {
-  return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-}
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -39,448 +21,459 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-function occupancyColor(reserved: number, max: number): string {
-  const pct = reserved / max;
-  if (pct >= 1) return "bg-red-500";
-  if (pct >= 0.7) return "bg-yellow-500";
-  return "bg-blue-500";
-}
-
-// ─── Right-panel class card ─────────────────────────────────────────────────
-function ClassCard({ name, day, time, coach, reserved, max }: {
-  name: string; day?: string; time: string; coach: string; reserved: number; max: number;
-}) {
-  const pct = Math.round((reserved / max) * 100);
-  return (
-    <div className="pb-3 border-b border-zinc-800 last:border-0 last:pb-0">
-      <div className="flex items-start justify-between mb-1">
-        <div>
-          <p className="text-white text-sm font-medium leading-tight">{name}</p>
-          {day && <p className="text-zinc-600 text-[10px] mt-0.5">{day}</p>}
-        </div>
-        <span className="text-zinc-500 text-xs shrink-0 ml-2">{time}</span>
-      </div>
-      <p className="text-zinc-500 text-xs mb-1.5">{coach}</p>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${occupancyColor(reserved, max)}`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <span className="text-zinc-600 text-[10px] shrink-0">{reserved}/{max}</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Page ──────────────────────────────────────────────────────────────────
-export default function HomePage() {
-  const currentUser = useCurrentUser();
-  const isAdminOrCoach = currentUser.role === "admin" || currentUser.role === "coach";
-
-  // ── Feed state ────────────────────────────────────────────────────────
+export default function Home() {
+  const activeUser = useCurrentUser();
+  const [mounted, setMounted] = useState(false);
   const [posts, setPosts] = useState<Post[]>(seedPosts);
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [postContent, setPostContent] = useState("");
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
-  const [newContent, setNewContent] = useState("");
 
-  // ── Right panel — role-based classes ──────────────────────────────────
-  const jsDay = new Date().getDay();           // 0=Sun
-  const gymDay = jsDay === 0 ? -1 : jsDay - 1; // 0=Mon…5=Sat, -1=closed
+  useEffect(() => { setMounted(true); }, []);
 
-  const activeClasses = mockClasses.filter((c) => c.status === "active");
+  const canPost = activeUser.role === "admin" || activeUser.role === "coach";
 
-  const adminClasses =
-    gymDay >= 0
-      ? activeClasses
-          .filter((c) => c.dayOfWeek >= gymDay)
-          .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime))
-          .slice(0, 5)
-      : [];
+  // Today's classes by day-of-week
+  const todayDow = new Date().getDay(); // 0=Sun
+  const gymDow = todayDow === 0 ? 6 : todayDow - 1; // Mon=0
+  const todaysClasses = mockClasses
+    .filter(c => c.dayOfWeek === gymDow && c.status === "active")
+    .slice(0, 4);
+  const upcomingClasses = mockClasses
+    .filter(c => c.dayOfWeek > gymDow && c.status === "active")
+    .slice(0, 3);
 
-  const coachClasses =
-    gymDay >= 0
-      ? activeClasses
-          .filter((c) => c.dayOfWeek >= gymDay && c.coach === currentUser.name)
-          .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime))
-          .slice(0, 5)
-      : [];
+  const todayStr = new Date().toISOString().split("T")[0];
+  const upcomingReservations = mockReservations
+    .filter(r => r.studentId === activeUser.id && r.classDate >= todayStr && r.status === "reserved")
+    .slice(0, 4);
 
-  const memberReservations = mockReservations
-    .filter(
-      (r) =>
-        r.studentId === currentUser.id &&
-        r.status !== "cancelled" &&
-        r.classDate >= new Date().toISOString().slice(0, 10)
-    )
-    .sort((a, b) => a.classDate.localeCompare(b.classDate))
-    .slice(0, 5);
-
-  const todayLabel = gymDay >= 0 ? DAY_NAMES[gymDay] : "Domingo";
-
-  // Admin summary stats
-  const totalActive = activeClasses.length;
-  const todayClasses = gymDay >= 0 ? activeClasses.filter((c) => c.dayOfWeek === gymDay) : [];
-  const avgOccupancy =
-    totalActive > 0
-      ? Math.round(
-          (activeClasses.reduce((acc, c) => acc + c.reservedCount / c.maxCapacity, 0) / totalActive) * 100
-        )
-      : 0;
-
-  // ── Handlers ──────────────────────────────────────────────────────────
-  function toggleLike(postId: string) {
-    const wasLiked = likedIds.has(postId);
-    setLikedIds((prev) => {
+  function handleLike(postId: string) {
+    const wasLiked = likedPosts.has(postId);
+    setLikedPosts(prev => {
       const next = new Set(prev);
       wasLiked ? next.delete(postId) : next.add(postId);
       return next;
     });
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId ? { ...p, likesCount: p.likesCount + (wasLiked ? -1 : 1) } : p
-      )
-    );
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, likesCount: p.likesCount + (wasLiked ? -1 : 1) } : p
+    ));
   }
 
-  function toggleExpanded(postId: string) {
-    setExpanded((prev) => {
+  function toggleComments(postId: string) {
+    setExpandedComments(prev => {
       const next = new Set(prev);
       next.has(postId) ? next.delete(postId) : next.add(postId);
       return next;
     });
   }
 
-  function submitComment(postId: string) {
-    const text = (commentInputs[postId] ?? "").trim();
+  function addComment(postId: string) {
+    const text = commentInputs[postId]?.trim();
     if (!text) return;
-    const comment = {
-      id: `c-${Date.now()}`,
-      authorId: currentUser.id,
-      authorName: currentUser.name,
-      authorRole: currentUser.role as "admin" | "coach" | "member",
-      content: text,
-      createdAt: new Date().toISOString(),
-    };
-    setPosts((prev) =>
-      prev.map((p) => p.id === postId ? { ...p, comments: [...p.comments, comment] } : p)
-    );
-    setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
-    setExpanded((prev) => new Set([...prev, postId]));
+    setPosts(prev => prev.map(p =>
+      p.id === postId
+        ? {
+            ...p, comments: [...p.comments, {
+              id: Date.now().toString(),
+              authorId: activeUser.id,
+              authorName: activeUser.name,
+              authorRole: activeUser.role as "admin" | "coach" | "member",
+              content: text,
+              createdAt: new Date().toISOString(),
+            }]
+          }
+        : p
+    ));
+    setCommentInputs(prev => ({ ...prev, [postId]: "" }));
   }
 
-  function publishPost() {
-    const text = newContent.trim();
-    if (!text) return;
-    const post: Post = {
-      id: `post-${Date.now()}`,
-      authorId: currentUser.id,
-      authorName: currentUser.name,
-      authorRole: currentUser.role as "admin" | "coach" | "member",
-      createdAt: new Date().toISOString(),
-      content: text,
-      likesCount: 0,
-      comments: [],
-    };
-    setPosts((prev) => [post, ...prev]);
-    setNewContent("");
-  }
+  if (!mounted) return null;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
+    <div className="p-6" style={{ paddingBottom: "5rem" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
+        <div className="grid grid-cols-1 gap-6" style={{ gridTemplateColumns: "1fr" }}>
+          <div className="lg:grid lg:gap-6" style={{ gridTemplateColumns: "1fr 380px" }}>
 
-        {/* ── CENTER FEED ─────────────────────────────────────────────── */}
-        <main className="flex flex-col gap-4 min-w-0">
+            {/* ── Left: Community Feed ──────────────────────────────── */}
+            <div className="space-y-5">
 
-          {/* Create Post — admin / coach only */}
-          {isAdminOrCoach && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <div className="flex gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-semibold text-xs shrink-0">
-                  {initials(currentUser.name)}
-                </div>
-                <div className="flex-1 min-w-0">
+              {/* Post creation */}
+              {canPost && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl p-6 border"
+                  style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+                >
+                  <h3 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)" }}>
+                    Crear publicación
+                  </h3>
                   <textarea
-                    value={newContent}
-                    onChange={(e) => setNewContent(e.target.value)}
-                    placeholder="¿Qué quieres compartir con la comunidad?"
+                    value={postContent}
+                    onChange={e => setPostContent(e.target.value)}
+                    placeholder="Comparte una novedad con tu comunidad..."
                     rows={3}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-500 resize-none focus:outline-none focus:border-zinc-600 transition-colors"
+                    className="w-full px-4 py-3 rounded-xl text-sm resize-none outline-none transition-colors"
+                    style={{
+                      background: "var(--background)",
+                      border: "1px solid var(--card-border)",
+                      color: "var(--text-primary)",
+                    }}
                   />
-                  <div className="flex items-center justify-between mt-2.5">
-                    <div className="flex items-center gap-1">
-                      <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
-                        📷 Imagen
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="flex gap-1">
+                      <button
+                        className="p-2 rounded-lg transition-colors hover:bg-white/5"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <ImageIcon className="w-5 h-5" />
                       </button>
-                      <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
-                        🔗 Link
+                      <button
+                        className="p-2 rounded-lg transition-colors hover:bg-white/5"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <LinkIcon className="w-5 h-5" />
                       </button>
                     </div>
-                    <button
-                      onClick={publishPost}
-                      disabled={!newContent.trim()}
-                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="px-6 py-2 text-white rounded-xl font-semibold text-sm"
+                      style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}
                     >
                       Publicar
-                    </button>
+                    </motion.button>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              )}
 
-          {/* Posts */}
-          {posts.map((post) => {
-            const isLiked = likedIds.has(post.id);
-            const showComments = expanded.has(post.id);
-            return (
-              <article
-                key={post.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl p-5"
-              >
-                {/* Header */}
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-white font-semibold text-xs shrink-0">
-                    {initials(post.authorName)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-white text-sm font-semibold">{post.authorName}</span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                          ROLE_COLORS[post.authorRole] ?? "bg-zinc-700 text-zinc-400"
-                        }`}
-                      >
-                        {ROLE_LABELS[post.authorRole] ?? post.authorRole}
-                      </span>
-                    </div>
-                    <p className="text-zinc-500 text-xs mt-0.5" suppressHydrationWarning>{timeAgo(post.createdAt)}</p>
-                  </div>
-                </div>
+              {/* Posts */}
+              <div className="space-y-4">
+                {posts.map((post, i) => {
+                  const inits = post.authorName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                  const liked = likedPosts.has(post.id);
+                  const commentsOpen = expandedComments.has(post.id);
 
-                {/* Content */}
-                <p className="text-zinc-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap">
-                  {post.content}
-                </p>
-
-                {/* Actions */}
-                <div className="border-t border-zinc-800 pt-3 flex items-center gap-4">
-                  <button
-                    onClick={() => toggleLike(post.id)}
-                    className={`flex items-center gap-1.5 text-xs font-medium transition-all select-none ${
-                      isLiked ? "text-red-400 scale-105" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    {isLiked ? "❤️" : "🤍"} {post.likesCount}
-                  </button>
-                  <button
-                    onClick={() => toggleExpanded(post.id)}
-                    className={`flex items-center gap-1.5 text-xs font-medium transition-colors select-none ${
-                      showComments ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    💬 {post.comments.length}
-                  </button>
-                </div>
-
-                {/* Comments */}
-                {showComments && (
-                  <div className="mt-4 space-y-3">
-                    {post.comments.length > 0 && (
-                      <div className="space-y-2">
-                        {post.comments.map((c) => (
-                          <div key={c.id} className="flex gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-white font-semibold text-[10px] shrink-0 mt-0.5">
-                              {initials(c.authorName)}
-                            </div>
-                            <div className="flex-1 bg-zinc-800/60 rounded-lg px-3 py-2">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-white text-xs font-semibold">{c.authorName}</span>
-                                <span className="text-zinc-600 text-[10px]" suppressHydrationWarning>{timeAgo(c.createdAt)}</span>
-                              </div>
-                              <p className="text-zinc-300 text-xs">{c.content}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* New comment */}
-                    <div className="flex gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-semibold text-[10px] shrink-0 mt-0.5">
-                        {initials(currentUser.name)}
-                      </div>
-                      <div className="flex-1 flex gap-2">
-                        <input
-                          type="text"
-                          value={commentInputs[post.id] ?? ""}
-                          onChange={(e) =>
-                            setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))
-                          }
-                          onKeyDown={(e) => e.key === "Enter" && submitComment(post.id)}
-                          placeholder="Escribe un comentario..."
-                          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
-                        />
-                        <button
-                          onClick={() => submitComment(post.id)}
-                          disabled={!(commentInputs[post.id] ?? "").trim()}
-                          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-300 text-xs font-medium rounded-lg transition-colors border border-zinc-700"
+                  return (
+                    <motion.div
+                      key={post.id}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.07 }}
+                      className="rounded-2xl p-6 border"
+                      style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+                    >
+                      {/* Header */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                          style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
                         >
-                          ↩
+                          {inits}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+                              {post.authorName}
+                            </span>
+                            <RoleBadge role={post.authorRole} />
+                          </div>
+                          <p className="text-xs" style={{ color: "var(--text-secondary)" }} suppressHydrationWarning>
+                            {timeAgo(post.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--text-primary)" }}>
+                        {post.content}
+                      </p>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-4 pt-4" style={{ borderTop: "1px solid var(--card-border)" }}>
+                        <button
+                          onClick={() => handleLike(post.id)}
+                          className="flex items-center gap-1.5 text-sm transition-colors"
+                          style={{ color: liked ? "#ef4444" : "var(--text-secondary)" }}
+                        >
+                          <Heart
+                            className="w-4 h-4"
+                            style={{ fill: liked ? "#ef4444" : "none" }}
+                          />
+                          <span>{post.likesCount}</span>
+                        </button>
+                        <button
+                          onClick={() => toggleComments(post.id)}
+                          className="flex items-center gap-1.5 text-sm transition-colors hover:text-functional"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          <span>{post.comments.length}</span>
                         </button>
                       </div>
+
+                      {/* Comments */}
+                      <AnimatePresence>
+                        {commentsOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-4 space-y-3">
+                              {post.comments.map(c => (
+                                <div key={c.id} className="flex items-start gap-2">
+                                  <div
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                                  >
+                                    {c.authorName[0]}
+                                  </div>
+                                  <div className="flex-1 rounded-xl px-3 py-2" style={{ background: "var(--background)" }}>
+                                    <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>
+                                      {c.authorName}
+                                    </span>
+                                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                      {c.content}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="flex gap-2">
+                                <input
+                                  value={commentInputs[post.id] ?? ""}
+                                  onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                                  onKeyDown={e => e.key === "Enter" && addComment(post.id)}
+                                  placeholder="Escribe un comentario..."
+                                  className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+                                  style={{
+                                    background: "var(--background)",
+                                    border: "1px solid var(--card-border)",
+                                    color: "var(--text-primary)",
+                                  }}
+                                />
+                                <button
+                                  onClick={() => addComment(post.id)}
+                                  className="px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                                  style={{ background: "#4fc3f720", color: "#4fc3f7" }}
+                                >
+                                  ↩
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Right panel ───────────────────────────────────────── */}
+            <div className="space-y-5 mt-5 lg:mt-0">
+
+              {/* Today's classes */}
+              <motion.div
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="rounded-2xl p-6 border"
+                style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg" style={{ color: "var(--text-primary)" }}>
+                    Clases de hoy
+                  </h3>
+                  <a href="/calendar" className="text-xs hover:underline" style={{ color: "#4fc3f7" }}>
+                    Ver todas →
+                  </a>
+                </div>
+
+                {todaysClasses.length === 0 ? (
+                  <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>
+                    No hay clases hoy
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {todaysClasses.map(cls => {
+                      const pct = cls.maxCapacity > 0
+                        ? (cls.reservedCount / cls.maxCapacity) * 100
+                        : 0;
+                      const barColor = pct >= 100 ? "#ef4444" : pct >= 80 ? "#f59e0b" : "#22c55e";
+                      return (
+                        <div
+                          key={cls.id}
+                          className="p-3 rounded-xl border"
+                          style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+                                {cls.name}
+                              </p>
+                              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                {cls.startTime} — {cls.coach}
+                              </p>
+                            </div>
+                            <OccupancyBadge reserved={cls.reservedCount} capacity={cls.maxCapacity} />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${pct}%` }}
+                                transition={{ duration: 0.5, delay: 0.2 }}
+                                className="h-full rounded-full"
+                                style={{ backgroundColor: barColor }}
+                              />
+                            </div>
+                            <span className="text-xs shrink-0" style={{ color: "var(--text-secondary)" }}>
+                              {cls.reservedCount}/{cls.maxCapacity}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {upcomingClasses.length > 0 && (
+                  <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--card-border)" }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>
+                      Próximamente
+                    </p>
+                    <div className="space-y-2">
+                      {upcomingClasses.map(cls => (
+                        <div key={cls.id} className="flex items-center gap-2">
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                            style={{ background: "#4fc3f720", color: "#4fc3f7" }}
+                          >
+                            {cls.coach.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                              {cls.name}
+                            </p>
+                            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                              {cls.startTime}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
-              </article>
-            );
-          })}
-        </main>
+              </motion.div>
 
-        {/* ── RIGHT PANEL ─────────────────────────────────────────────── */}
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-20">
-
-          {/* ── ADMIN ── */}
-          {currentUser.role === "admin" && (
-            <>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-zinc-500 text-xs font-medium">Próximas clases</p>
-                  <span className="text-zinc-600 text-xs">{todayLabel}</span>
-                </div>
-                {gymDay < 0 ? (
-                  <p className="text-zinc-600 text-sm">Sin clases los domingos.</p>
-                ) : adminClasses.length === 0 ? (
-                  <p className="text-zinc-600 text-sm">Sin clases para el resto de la semana.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {adminClasses.map((cls) => (
-                      <ClassCard
-                        key={cls.id}
-                        name={cls.name}
-                        day={DAY_NAMES[cls.dayOfWeek]}
-                        time={cls.startTime}
-                        coach={cls.coach}
-                        reserved={cls.reservedCount}
-                        max={cls.maxCapacity}
-                      />
+              {/* Member: upcoming reservations */}
+              {activeUser.role === "member" && upcomingReservations.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="rounded-2xl p-6 border"
+                  style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+                >
+                  <h3 className="font-bold text-lg mb-4" style={{ color: "var(--text-primary)" }}>
+                    Mis próximas reservas
+                  </h3>
+                  <div className="space-y-2">
+                    {upcomingReservations.map(r => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between p-3 rounded-xl border"
+                        style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
+                      >
+                        <div>
+                          <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>{r.classDate}</p>
+                          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Clase reservada</p>
+                        </div>
+                        <span
+                          className="text-xs px-2 py-0.5 rounded font-semibold"
+                          style={{ background: "#22c55e20", color: "#22c55e" }}
+                        >
+                          Reservado
+                        </span>
+                      </div>
                     ))}
                   </div>
-                )}
-                <Link
-                  href="/calendar"
-                  className="mt-4 flex items-center justify-center gap-1.5 w-full py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs text-zinc-300 hover:text-white font-medium transition-colors"
+                </motion.div>
+              )}
+
+              {/* Admin: operational summary */}
+              {activeUser.role === "admin" && (
+                <motion.div
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="rounded-2xl p-6 border"
+                  style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
                 >
-                  Ver más en calendario →
-                </Link>
-              </div>
-
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-                <p className="text-zinc-500 text-xs font-medium mb-3">Resumen operativo</p>
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500 text-xs">Clases activas</span>
-                    <span className="text-white font-semibold text-xs">{totalActive}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500 text-xs">Clases hoy</span>
-                    <span className="text-white font-semibold text-xs">{todayClasses.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500 text-xs">Ocupación media</span>
-                    <span className="text-white font-semibold text-xs">{avgOccupancy}%</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  {[
-                    { href: "/admin/classes",      label: "Gestión de clases" },
-                    { href: "/admin/members",      label: "Lista de miembros" },
-                    { href: "/admin/memberships",  label: "Membresías" },
-                  ].map(({ href, label }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      className="text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg px-2.5 py-1.5 transition-colors"
-                    >
-                      → {label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── COACH ── */}
-          {currentUser.role === "coach" && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-zinc-500 text-xs font-medium">Mis clases</p>
-                <span className="text-zinc-600 text-xs">{todayLabel}</span>
-              </div>
-              {gymDay < 0 ? (
-                <p className="text-zinc-600 text-sm">Sin clases los domingos.</p>
-              ) : coachClasses.length === 0 ? (
-                <p className="text-zinc-600 text-sm">Sin clases asignadas esta semana.</p>
-              ) : (
-                <div className="space-y-3">
-                  {coachClasses.map((cls) => (
-                    <ClassCard
-                      key={cls.id}
-                      name={cls.name}
-                      day={DAY_NAMES[cls.dayOfWeek]}
-                      time={cls.startTime}
-                      coach={cls.coach}
-                      reserved={cls.reservedCount}
-                      max={cls.maxCapacity}
-                    />
-                  ))}
-                </div>
-              )}
-              <Link
-                href="/calendar"
-                className="mt-4 flex items-center justify-center gap-1.5 w-full py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs text-zinc-300 hover:text-white font-medium transition-colors"
-              >
-                Ver más en calendario →
-              </Link>
-            </div>
-          )}
-
-          {/* ── MEMBER ── */}
-          {currentUser.role === "member" && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <p className="text-zinc-500 text-xs font-medium mb-3">Mis próximas reservas</p>
-              {memberReservations.length === 0 ? (
-                <p className="text-zinc-600 text-sm">No tienes clases reservadas próximamente.</p>
-              ) : (
-                <div className="space-y-3">
-                  {memberReservations.map((r) => {
-                    const cls = mockClasses.find((c) => c.id === r.classId);
-                    if (!cls) return null;
-                    return (
-                      <div key={r.id} className="pb-3 border-b border-zinc-800 last:border-0 last:pb-0">
-                        <div className="flex items-start justify-between mb-1">
-                          <p className="text-white text-sm font-medium leading-tight">{cls.name}</p>
-                          <span className="text-zinc-500 text-xs shrink-0 ml-2">{cls.startTime}</span>
+                  <h3 className="font-bold text-lg mb-4" style={{ color: "var(--text-primary)" }}>
+                    Resumen operativo
+                  </h3>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        label: "Clases activas",
+                        value: mockClasses.filter(c => c.status === "active").length,
+                        icon: BookOpen,
+                        color: "#4fc3f7",
+                      },
+                      {
+                        label: "Ocupación promedio",
+                        value: (() => {
+                          const active = mockClasses.filter(c => c.status === "active");
+                          if (!active.length) return "0%";
+                          const avg = active.reduce((s, c) => s + (c.reservedCount / c.maxCapacity) * 100, 0) / active.length;
+                          return `${Math.round(avg)}%`;
+                        })(),
+                        icon: TrendingUp,
+                        color: "#22c55e",
+                      },
+                      {
+                        label: "Reservas hoy",
+                        value: mockReservations.filter(r => r.classDate === todayStr).length,
+                        icon: Users,
+                        color: "#f59e0b",
+                      },
+                    ].map(item => {
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={item.label}
+                          className="flex items-center justify-between p-3 rounded-xl border"
+                          style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center"
+                              style={{ background: `${item.color}20` }}
+                            >
+                              <Icon className="w-4 h-4" style={{ color: item.color }} />
+                            </div>
+                            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                              {item.label}
+                            </span>
+                          </div>
+                          <span className="font-bold text-sm" style={{ color: item.color }}>
+                            {item.value}
+                          </span>
                         </div>
-                        <p className="text-zinc-500 text-xs mb-0.5">{cls.coach}</p>
-                        <p className="text-zinc-600 text-[10px]">{r.classDate}</p>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
               )}
-              <Link
-                href="/calendar"
-                className="mt-4 flex items-center justify-center gap-1.5 w-full py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs text-zinc-300 hover:text-white font-medium transition-colors"
-              >
-                Ver más en calendario →
-              </Link>
             </div>
-          )}
-        </aside>
+
+          </div>
+        </div>
       </div>
     </div>
   );

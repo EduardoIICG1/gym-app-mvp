@@ -2,33 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "motion/react";
+import { Plus, Search, UserPlus } from "lucide-react";
 import {
   Member, MemberRole, MemberStatus, ServiceType,
   MembershipPlan, MembershipStatus, PaymentStatus,
 } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { RoleBadge } from "@/components/Badge";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const ROLE_LABELS: Record<MemberRole, string> = {
-  admin: "Admin", coach: "Coach", member: "Miembro",
-};
-const ROLE_COLORS: Record<MemberRole, string> = {
-  admin: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  coach: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  member: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-};
-const STATUS_COLORS: Record<MemberStatus, string> = {
-  active: "bg-green-500/15 text-green-400 border-green-500/30",
-  inactive: "bg-zinc-600/30 text-zinc-400 border-zinc-600/30",
-};
 const SERVICE_LABELS: Record<ServiceType, string> = {
   group: "Grupal", personal_training: "Personal", kinesiology: "Kinesio", blocked_time: "Bloqueado",
-};
-const SERVICE_COLORS: Record<ServiceType, string> = {
-  group: "bg-blue-500/10 text-blue-400",
-  personal_training: "bg-orange-500/10 text-orange-400",
-  kinesiology: "bg-purple-500/10 text-purple-400",
-  blocked_time: "bg-zinc-700/30 text-zinc-500",
 };
 const PLAN_LABELS: Record<MembershipPlan, string> = {
   mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
@@ -44,21 +29,21 @@ const PAY_LABELS: Record<PaymentStatus, string> = {
 };
 const ALL_SERVICES: ServiceType[] = ["group", "personal_training", "kinesiology"];
 
+const ROLE_COLOR: Record<MemberRole, string> = {
+  admin: "#4fc3f7", coach: "#22c55e", member: "#71717a",
+};
+
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 }
 function todayStr(): string { return new Date().toISOString().slice(0, 10); }
 function addDays(date: string, days: number): string {
-  const d = new Date(date); d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const d = new Date(date); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10);
 }
 
-// ─── Form types ────────────────────────────────────────────────────────────
 interface EditState {
-  name: string; email: string;
-  role: MemberRole; status: MemberStatus;
-  assignedCoachId: string; assignedCoachName: string;
-  contractedServices: ServiceType[];
+  name: string; email: string; role: MemberRole; status: MemberStatus;
+  assignedCoachId: string; assignedCoachName: string; contractedServices: ServiceType[];
 }
 interface NewMemberForm {
   name: string; email: string; role: MemberRole; status: MemberStatus;
@@ -81,7 +66,9 @@ const defaultAddService = (studentId = ""): AddServiceForm => ({
   coachId: "", notes: "",
 });
 
-// ─── Page ──────────────────────────────────────────────────────────────────
+const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40";
+const inputStyle = { background: "var(--card-border)", border: "1px solid var(--card-border)", color: "var(--text-primary)" };
+
 export default function MembersPage() {
   const currentUser = useCurrentUser();
   const [members, setMembers] = useState<Member[]>([]);
@@ -91,29 +78,24 @@ export default function MembersPage() {
   const [filterRole, setFilterRole] = useState<MemberRole | "all">("all");
   const [filterStatus, setFilterStatus] = useState<MemberStatus | "all">("all");
 
-  // Edit member
   const [editing, setEditing] = useState<Member | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // New member
   const [showNewMember, setShowNewMember] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState<NewMemberForm>(defaultNewMember());
   const [creating, setCreating] = useState(false);
 
-  // Add service
   const [addServiceFor, setAddServiceFor] = useState<Member | null>(null);
   const [addServiceForm, setAddServiceForm] = useState<AddServiceForm>(defaultAddService());
   const [addingService, setAddingService] = useState(false);
 
-  // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const coaches = members.filter((m) => m.role === "coach");
 
   const showToast = (msg: string, ok = true) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3000);
+    setToast({ msg, ok }); setTimeout(() => setToast(null), 3000);
   };
 
   const fetchData = useCallback(async () => {
@@ -125,9 +107,7 @@ export default function MembersPage() {
     const allMembers: Member[] = await membersRes.json();
     const activeMemberships: { studentId: string }[] = await msRes.json();
     const countMap: Record<string, number> = {};
-    activeMemberships.forEach((ms) => {
-      countMap[ms.studentId] = (countMap[ms.studentId] ?? 0) + 1;
-    });
+    activeMemberships.forEach((ms) => { countMap[ms.studentId] = (countMap[ms.studentId] ?? 0) + 1; });
     setMembers(allMembers);
     setActiveCountMap(countMap);
     setLoading(false);
@@ -143,12 +123,10 @@ export default function MembersPage() {
     return true;
   });
 
-  // ─── Edit member ─────────────────────────────────────────────────────────
   const openEdit = (m: Member) => {
     setEditing(m);
     setEditState({
-      name: m.name, email: m.email,
-      role: m.role, status: m.status,
+      name: m.name, email: m.email, role: m.role, status: m.status,
       assignedCoachId: m.assignedCoachId ?? "", assignedCoachName: m.assignedCoachName ?? "",
       contractedServices: [...m.contractedServices],
     });
@@ -156,12 +134,7 @@ export default function MembersPage() {
   const toggleEditService = (svc: ServiceType) => {
     if (!editState) return;
     const has = editState.contractedServices.includes(svc);
-    setEditState({
-      ...editState,
-      contractedServices: has
-        ? editState.contractedServices.filter((s) => s !== svc)
-        : [...editState.contractedServices, svc],
-    });
+    setEditState({ ...editState, contractedServices: has ? editState.contractedServices.filter((s) => s !== svc) : [...editState.contractedServices, svc] });
   };
   const handleSave = async () => {
     if (!editing || !editState) return;
@@ -170,9 +143,7 @@ export default function MembersPage() {
     const body: Partial<Member> & { _callerRole?: string } = {
       role: editState.role, status: editState.status,
       contractedServices: editState.contractedServices,
-      assignedCoachId: coachObj?.id,
-      assignedCoachName: coachObj?.name,
-      // Solo admin puede enviar name y email
+      assignedCoachId: coachObj?.id, assignedCoachName: coachObj?.name,
       ...(currentUser.role === "admin" && editState.name.trim() && { name: editState.name.trim() }),
       ...(currentUser.role === "admin" && editState.email.trim() && { email: editState.email.trim() }),
       _callerRole: currentUser.role,
@@ -184,22 +155,14 @@ export default function MembersPage() {
       const updated: Member = await res.json();
       setMembers((prev) => prev.map((m) => m.id === updated.id ? updated : m));
       showToast("Miembro actualizado");
-    } else {
-      showToast("Error al actualizar", false);
-    }
-    setSaving(false);
-    setEditing(null);
-    setEditState(null);
+    } else { showToast("Error al actualizar", false); }
+    setSaving(false); setEditing(null); setEditState(null);
   };
 
-  // ─── New member ──────────────────────────────────────────────────────────
   const toggleNewService = (svc: ServiceType) => {
     const has = newMemberForm.contractedServices.includes(svc);
     setNewMemberForm((f) => ({
-      ...f,
-      contractedServices: has
-        ? f.contractedServices.filter((s) => s !== svc)
-        : [...f.contractedServices, svc],
+      ...f, contractedServices: has ? f.contractedServices.filter((s) => s !== svc) : [...f.contractedServices, svc],
     }));
   };
   const handleCreateMember = async (andAddService = false) => {
@@ -207,9 +170,7 @@ export default function MembersPage() {
       showToast("Nombre y email son requeridos", false); return;
     }
     setCreating(true);
-    const coachObj = newMemberForm.assignedCoachId
-      ? coaches.find((c) => c.id === newMemberForm.assignedCoachId)
-      : null;
+    const coachObj = newMemberForm.assignedCoachId ? coaches.find((c) => c.id === newMemberForm.assignedCoachId) : null;
     const body = {
       name: newMemberForm.name.trim(), email: newMemberForm.email.trim(),
       role: newMemberForm.role, status: newMemberForm.status,
@@ -217,225 +178,192 @@ export default function MembersPage() {
       ...(coachObj && { assignedCoachId: coachObj.id, assignedCoachName: coachObj.name }),
       ...(newMemberForm.notes.trim() && { notes: newMemberForm.notes.trim() }),
     };
-    const res = await fetch("/api/members", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    });
+    const res = await fetch("/api/members", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setCreating(false);
     if (res.ok) {
       const newMember: Member = await res.json();
       setMembers((prev) => [...prev, newMember]);
-      setShowNewMember(false);
-      setNewMemberForm(defaultNewMember());
+      setShowNewMember(false); setNewMemberForm(defaultNewMember());
       showToast("Miembro creado correctamente");
-      if (andAddService) {
-        setAddServiceFor(newMember);
-        setAddServiceForm(defaultAddService(newMember.id));
-      }
+      if (andAddService) { setAddServiceFor(newMember); setAddServiceForm(defaultAddService(newMember.id)); }
     } else {
       const err = await res.json();
       showToast(err.error || "Error al crear el miembro", false);
     }
   };
 
-  // ─── Add service ─────────────────────────────────────────────────────────
-  const openAddService = (m: Member) => {
-    setAddServiceFor(m);
-    setAddServiceForm(defaultAddService(m.id));
-  };
+  const openAddService = (m: Member) => { setAddServiceFor(m); setAddServiceForm(defaultAddService(m.id)); };
   const handleAddService = async () => {
     if (!addServiceFor) return;
     setAddingService(true);
-    const coachObj = addServiceForm.coachId
-      ? coaches.find((c) => c.id === addServiceForm.coachId)
-      : null;
-    const body = {
-      ...addServiceForm,
-      amount: Number(addServiceForm.amount),
-      ...(coachObj && { coachId: coachObj.id, coachName: coachObj.name }),
-    };
-    const res = await fetch("/api/memberships", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    });
+    const coachObj = addServiceForm.coachId ? coaches.find((c) => c.id === addServiceForm.coachId) : null;
+    const body = { ...addServiceForm, amount: Number(addServiceForm.amount), ...(coachObj && { coachId: coachObj.id, coachName: coachObj.name }) };
+    const res = await fetch("/api/memberships", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setAddingService(false);
-    if (res.ok) {
-      setAddServiceFor(null);
-      showToast("Servicio agregado correctamente");
-      await fetchData();
-    } else {
-      const err = await res.json();
-      showToast(err.error || "Error al agregar servicio", false);
-    }
+    if (res.ok) { setAddServiceFor(null); showToast("Servicio agregado correctamente"); await fetchData(); }
+    else { const err = await res.json(); showToast(err.error || "Error al agregar servicio", false); }
   };
 
-  // KPIs
   const totalMembers = members.filter((m) => m.role === "member").length;
   const activeMembers = members.filter((m) => m.role === "member" && m.status === "active").length;
   const totalCoaches = members.filter((m) => m.role === "coach").length;
 
+  const kpis = [
+    { label: "Total Miembros", value: totalMembers, sub: `${activeMembers} activos`, accent: "#4fc3f7" },
+    { label: "Coaches", value: totalCoaches, sub: "en plantilla", accent: "#22c55e" },
+    { label: "Total Usuarios", value: members.length, sub: "en el sistema", accent: "#a78bfa" },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
-          toast.ok
-            ? "bg-green-500/20 border border-green-500/30 text-green-400"
-            : "bg-red-500/20 border border-red-500/30 text-red-400"
-        }`}>
-          {toast.msg}
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Miembros</h1>
-          <p className="text-zinc-500 text-sm mt-0.5">Gestiona roles, servicios y asignaciones</p>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Miembros</h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>Gestiona roles, servicios y asignaciones</p>
         </div>
         <button
           onClick={() => { setShowNewMember(true); setNewMemberForm(defaultNewMember()); }}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
         >
-          + Nuevo miembro
+          <UserPlus className="w-4 h-4" />
+          Nuevo miembro
         </button>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3 mb-8">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <p className="text-zinc-500 text-xs font-medium mb-1">Total Miembros</p>
-          <p className="text-2xl font-bold text-blue-400">{totalMembers}</p>
-          <p className="text-zinc-600 text-xs mt-0.5">{activeMembers} activos</p>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <p className="text-zinc-500 text-xs font-medium mb-1">Coaches</p>
-          <p className="text-2xl font-bold text-orange-400">{totalCoaches}</p>
-          <p className="text-zinc-600 text-xs mt-0.5">en plantilla</p>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <p className="text-zinc-500 text-xs font-medium mb-1">Total Usuarios</p>
-          <p className="text-2xl font-bold text-zinc-300">{members.length}</p>
-          <p className="text-zinc-600 text-xs mt-0.5">en el sistema</p>
-        </div>
+        {kpis.map(({ label, value, sub, accent }) => (
+          <div key={label} className="rounded-xl p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+            <p className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</p>
+            <p className="text-2xl font-bold" style={{ color: accent }}>{value}</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
+          </div>
+        ))}
       </div>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <input
-          type="text" placeholder="Buscar por nombre o email..."
-          value={search} onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600"
-        />
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-secondary)" }} />
+          <input
+            type="text" placeholder="Buscar por nombre o email..."
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}
+          />
+        </div>
         <select value={filterRole} onChange={(e) => setFilterRole(e.target.value as MemberRole | "all")}
-          className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600">
+          className="rounded-lg px-3 py-2 text-sm focus:outline-none"
+          style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}>
           <option value="all">Todos los roles</option>
           <option value="member">Miembro</option>
           <option value="coach">Coach</option>
           <option value="admin">Admin</option>
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as MemberStatus | "all")}
-          className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600">
+          className="rounded-lg px-3 py-2 text-sm focus:outline-none"
+          style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}>
           <option value="all">Todos los estados</option>
           <option value="active">Activo</option>
           <option value="inactive">Inactivo</option>
         </select>
       </div>
 
-      <p className="text-zinc-600 text-xs mb-4">
+      <p className="text-xs mb-4" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
         {loading ? "Cargando..." : `${filtered.length} usuario${filtered.length !== 1 ? "s" : ""}`}
       </p>
 
-      {/* Members Table */}
+      {/* Members list */}
       {loading ? (
-        <div className="text-center py-24 text-zinc-600">Cargando miembros...</div>
+        <div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>Cargando miembros...</div>
       ) : (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
           {filtered.length === 0 ? (
-            <div className="text-center py-16 text-zinc-600">No se encontraron usuarios</div>
+            <div className="text-center py-16" style={{ color: "var(--text-secondary)" }}>No se encontraron usuarios</div>
           ) : (
-            <div className="divide-y divide-zinc-800">
-              {filtered.map((m) => {
+            <div>
+              {filtered.map((m, i) => {
                 const activeCount = activeCountMap[m.id] ?? 0;
-                const visibleServices = m.contractedServices.filter((s) => s !== "blocked_time");
+                const accentColor = ROLE_COLOR[m.role] ?? "#71717a";
                 return (
-                  <div key={m.id} className="flex items-center gap-3 px-5 py-4 hover:bg-zinc-800/40 transition-colors">
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03, duration: 0.2 }}
+                    className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-white/[0.02]"
+                    style={{ borderBottom: "1px solid var(--card-border)" }}
+                  >
                     {/* Avatar */}
-                    <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-white font-semibold text-xs shrink-0">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
+                      style={{ background: `${accentColor}30`, color: accentColor }}
+                    >
                       {initials(m.name)}
                     </div>
 
                     {/* Name + email */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-semibold truncate">{m.name}</p>
-                      <p className="text-zinc-500 text-xs truncate">{m.email}</p>
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{m.email}</p>
                     </div>
 
                     {/* Role + Status */}
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ROLE_COLORS[m.role]}`}>
-                        {ROLE_LABELS[m.role]}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLORS[m.status]}`}>
+                      <RoleBadge role={m.role} />
+                      <span
+                        className="text-xs px-2 py-0.5 rounded font-semibold"
+                        style={m.status === "active"
+                          ? { background: "#22c55e20", color: "#22c55e" }
+                          : { background: "#71717a20", color: "#71717a" }}
+                      >
                         {m.status === "active" ? "Activo" : "Inactivo"}
                       </span>
                     </div>
 
-                    {/* Context: active services + coach — hidden for coaches */}
+                    {/* Active services */}
                     {m.role !== "coach" ? (
-                      <div className="hidden md:flex flex-col gap-0.5 shrink-0 min-w-[130px]">
+                      <div className="hidden md:flex flex-col gap-0.5 shrink-0 min-w-[120px]">
                         {activeCount > 0 ? (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 w-fit">
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium w-fit" style={{ background: "#22c55e15", color: "#22c55e" }}>
                             {activeCount} activo{activeCount !== 1 ? "s" : ""}
                           </span>
                         ) : (
-                          <span className="text-zinc-700 text-xs">Sin servicios activos</span>
+                          <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>Sin servicios activos</span>
                         )}
                         {m.assignedCoachName && (
-                          <p className="text-zinc-500 text-xs">
-                            <span className="text-zinc-700">Coach: </span>
-                            {m.assignedCoachName}
-                          </p>
+                          <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Coach: {m.assignedCoachName}</p>
                         )}
                       </div>
                     ) : (
-                      <div className="hidden md:block min-w-[130px] shrink-0" />
-                    )}
-
-                    {/* Service pills — xl+, members only */}
-                    {m.role !== "coach" && (
-                      <div className="hidden xl:flex items-center gap-1 shrink-0">
-                        {visibleServices.slice(0, 2).map((s) => (
-                          <span key={s} className={`text-xs px-1.5 py-0.5 rounded font-medium ${SERVICE_COLORS[s]}`}>
-                            {SERVICE_LABELS[s]}
-                          </span>
-                        ))}
-                        {visibleServices.length > 2 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
-                            +{visibleServices.length - 2}
-                          </span>
-                        )}
-                      </div>
+                      <div className="hidden md:block min-w-[120px] shrink-0" />
                     )}
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
                       <Link href={`/profile?userId=${m.id}`}
-                        className="text-xs text-zinc-500 hover:text-blue-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-zinc-800/60">
+                        className="text-xs px-2 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+                        style={{ color: "var(--text-secondary)" }}>
                         Perfil
                       </Link>
                       <button
                         onClick={() => openAddService(m)}
-                        className="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-2.5 py-1.5 rounded-lg transition-colors font-medium border border-emerald-500/20"
+                        className="text-xs px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80 font-medium"
+                        style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e20" }}
                       >
-                        + Servicio
+                        <Plus className="w-3 h-3 inline mr-1" />Servicio
                       </button>
                       <button
                         onClick={() => openEdit(m)}
-                        className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                        className="text-xs px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
+                        style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
                       >
                         Editar
                       </button>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -443,379 +371,389 @@ export default function MembersPage() {
         </div>
       )}
 
-      {/* ─── New Member Modal ──────────────────────────────────────────────── */}
-      {showNewMember && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowNewMember(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">Nuevo Miembro</h2>
-                <button onClick={() => setShowNewMember(false)} className="text-zinc-500 hover:text-white text-2xl leading-none">×</button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+      {/* New Member Modal */}
+      <AnimatePresence>
+        {showNewMember && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => setShowNewMember(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Nuevo Miembro</h2>
+                  <button onClick={() => setShowNewMember(false)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Nombre *</label>
+                      <input type="text" placeholder="Nombre completo" value={newMemberForm.name}
+                        onChange={(e) => setNewMemberForm((f) => ({ ...f, name: e.target.value }))}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Email *</label>
+                      <input type="email" placeholder="email@ejemplo.com" value={newMemberForm.email}
+                        onChange={(e) => setNewMemberForm((f) => ({ ...f, email: e.target.value }))}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Rol</label>
+                      <select value={newMemberForm.role}
+                        onChange={(e) => setNewMemberForm((f) => ({ ...f, role: e.target.value as MemberRole, assignedCoachId: "" }))}
+                        className={inputCls} style={inputStyle}>
+                        <option value="member">Miembro</option>
+                        <option value="coach">Coach</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Estado</label>
+                      <select value={newMemberForm.status}
+                        onChange={(e) => setNewMemberForm((f) => ({ ...f, status: e.target.value as MemberStatus }))}
+                        className={inputCls} style={inputStyle}>
+                        <option value="active">Activo</option>
+                        <option value="inactive">Inactivo</option>
+                      </select>
+                    </div>
+                  </div>
+                  {newMemberForm.role === "member" && (
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach asignado</label>
+                      <select value={newMemberForm.assignedCoachId}
+                        onChange={(e) => setNewMemberForm((f) => ({ ...f, assignedCoachId: e.target.value }))}
+                        className={inputCls} style={inputStyle}>
+                        <option value="">Sin coach asignado</option>
+                        {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Nombre *</label>
-                    <input type="text" placeholder="Nombre completo"
-                      value={newMemberForm.name}
-                      onChange={(e) => setNewMemberForm((f) => ({ ...f, name: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-                    />
+                    <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Servicios contratados (opcional)</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {ALL_SERVICES.map((svc) => {
+                        const isActive = newMemberForm.contractedServices.includes(svc);
+                        return (
+                          <button key={svc} type="button" onClick={() => toggleNewService(svc)}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                            style={isActive
+                              ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
+                              : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                            {SERVICE_LABELS[svc]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Email *</label>
-                    <input type="email" placeholder="email@ejemplo.com"
-                      value={newMemberForm.email}
-                      onChange={(e) => setNewMemberForm((f) => ({ ...f, email: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-                    />
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Observaciones (opcional)</label>
+                    <textarea value={newMemberForm.notes} rows={2} placeholder="Notas internas..."
+                      onChange={(e) => setNewMemberForm((f) => ({ ...f, notes: e.target.value }))}
+                      className={`${inputCls} resize-none`} style={inputStyle} />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => setShowNewMember(false)}
+                    className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
+                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={() => handleCreateMember(false)} disabled={creating}
+                    className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                    style={{ background: "var(--card-border)", color: "var(--text-primary)" }}>
+                    {creating ? "Guardando..." : "Guardar"}
+                  </button>
+                  <button onClick={() => handleCreateMember(true)} disabled={creating}
+                    className="flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}>
+                    {creating ? "..." : "Guardar + Servicio →"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Service Modal */}
+      <AnimatePresence>
+        {addServiceFor && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => setAddServiceFor(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Añadir Servicio</h2>
+                  <button onClick={() => setAddServiceFor(null)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                </div>
+                <p className="text-xs mb-6" style={{ color: "var(--text-secondary)" }}>
+                  Para: <span className="font-medium" style={{ color: "var(--text-primary)" }}>{addServiceFor.name}</span>
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Tipo de servicio</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {ALL_SERVICES.map((svc) => (
+                        <button key={svc} type="button"
+                          onClick={() => setAddServiceForm((f) => ({ ...f, serviceType: svc }))}
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                          style={addServiceForm.serviceType === svc
+                            ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
+                            : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                          {SERVICE_LABELS[svc]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Plan</label>
+                      <select value={addServiceForm.plan}
+                        onChange={(e) => {
+                          const plan = e.target.value as MembershipPlan;
+                          const endDate = addDays(addServiceForm.startDate || todayStr(), PLAN_DAYS[plan]);
+                          setAddServiceForm((f) => ({ ...f, plan, endDate }));
+                        }}
+                        className={inputCls} style={inputStyle}>
+                        {(["mensual", "trimestral", "semestral", "anual"] as const).map((v) => (
+                          <option key={v} value={v}>{PLAN_LABELS[v]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Monto ($)</label>
+                      <input type="number" value={addServiceForm.amount}
+                        onChange={(e) => setAddServiceForm((f) => ({ ...f, amount: e.target.value }))}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Estado membresía</label>
+                      <select value={addServiceForm.membershipStatus}
+                        onChange={(e) => setAddServiceForm((f) => ({ ...f, membershipStatus: e.target.value as MembershipStatus }))}
+                        className={inputCls} style={inputStyle}>
+                        {(["active", "pending", "expired", "cancelled"] as const).map((v) => (
+                          <option key={v} value={v}>{MS_STATUS_LABELS[v]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Estado pago</label>
+                      <select value={addServiceForm.paymentStatus}
+                        onChange={(e) => setAddServiceForm((f) => ({ ...f, paymentStatus: e.target.value as PaymentStatus }))}
+                        className={inputCls} style={inputStyle}>
+                        {(["paid", "pending", "overdue"] as const).map((v) => (
+                          <option key={v} value={v}>{PAY_LABELS[v]}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Fecha inicio</label>
+                      <input type="date" value={addServiceForm.startDate}
+                        onChange={(e) => { const startDate = e.target.value; setAddServiceForm((f) => ({ ...f, startDate, endDate: addDays(startDate, PLAN_DAYS[f.plan]) })); }}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Fecha fin</label>
+                      <input type="date" value={addServiceForm.endDate}
+                        onChange={(e) => setAddServiceForm((f) => ({ ...f, endDate: e.target.value }))}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                  </div>
+                  {(addServiceForm.serviceType === "personal_training" || addServiceForm.serviceType === "kinesiology") && (
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach / Profesional</label>
+                      <select value={addServiceForm.coachId}
+                        onChange={(e) => setAddServiceForm((f) => ({ ...f, coachId: e.target.value }))}
+                        className={inputCls} style={inputStyle}>
+                        <option value="">Sin asignar</option>
+                        {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Notas (opcional)</label>
+                    <textarea value={addServiceForm.notes} rows={2} placeholder="Observaciones del servicio..."
+                      onChange={(e) => setAddServiceForm((f) => ({ ...f, notes: e.target.value }))}
+                      className={`${inputCls} resize-none`} style={inputStyle} />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => setAddServiceFor(null)}
+                    className="flex-1 py-2 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
+                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={handleAddService} disabled={addingService}
+                    className="flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}>
+                    {addingService ? "Guardando..." : "Agregar servicio"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Member Modal */}
+      <AnimatePresence>
+        {editing && editState && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => setEditing(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-md rounded-2xl border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Editar miembro</h2>
+                  <button onClick={() => setEditing(null)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                </div>
+
+                {/* Identity block */}
+                <div className="rounded-xl p-4 mb-5 border" style={{ background: "rgba(0,0,0,0.2)", borderColor: "var(--card-border)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Datos del miembro</p>
+                    <span className="text-[10px] font-medium" style={{ color: currentUser.role === "admin" ? "#4fc3f7" : "var(--text-secondary)" }}>
+                      {currentUser.role === "admin" ? "editable" : "solo lectura"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] block mb-1" style={{ color: "var(--text-secondary)" }}>Nombre</label>
+                      {currentUser.role === "admin" ? (
+                        <input type="text" value={editState.name}
+                          onChange={(e) => setEditState({ ...editState, name: e.target.value })}
+                          className={inputCls} style={inputStyle} />
+                      ) : (
+                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{editing.name}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-[10px] block mb-1" style={{ color: "var(--text-secondary)" }}>Email</label>
+                      {currentUser.role === "admin" ? (
+                        <input type="email" value={editState.email}
+                          onChange={(e) => setEditState({ ...editState, email: e.target.value })}
+                          className={inputCls} style={inputStyle} />
+                      ) : (
+                        <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{editing.email}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>Configuración operativa</p>
+                <div className="space-y-4">
                   <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Rol</label>
-                    <select value={newMemberForm.role}
-                      onChange={(e) => setNewMemberForm((f) => ({ ...f, role: e.target.value as MemberRole, assignedCoachId: "" }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Rol</label>
+                    <select value={editState.role}
+                      onChange={(e) => setEditState({ ...editState, role: e.target.value as MemberRole })}
+                      className={inputCls} style={inputStyle}>
                       <option value="member">Miembro</option>
                       <option value="coach">Coach</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Estado</label>
-                    <select value={newMemberForm.status}
-                      onChange={(e) => setNewMemberForm((f) => ({ ...f, status: e.target.value as MemberStatus }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Estado</label>
+                    <select value={editState.status}
+                      onChange={(e) => setEditState({ ...editState, status: e.target.value as MemberStatus })}
+                      className={inputCls} style={inputStyle}>
                       <option value="active">Activo</option>
                       <option value="inactive">Inactivo</option>
                     </select>
                   </div>
-                </div>
-
-                {newMemberForm.role === "member" && (
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Coach asignado</label>
-                    <select value={newMemberForm.assignedCoachId}
-                      onChange={(e) => setNewMemberForm((f) => ({ ...f, assignedCoachId: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                      <option value="">Sin coach asignado</option>
-                      {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-zinc-400 text-xs font-medium block mb-2">Servicios contratados (opcional)</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {ALL_SERVICES.map((svc) => {
-                      const active = newMemberForm.contractedServices.includes(svc);
-                      return (
-                        <button key={svc} type="button" onClick={() => toggleNewService(svc)}
-                          className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors ${
-                            active
-                              ? "bg-blue-600/20 border-blue-500/50 text-blue-300"
-                              : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600"
-                          }`}>
-                          {SERVICE_LABELS[svc]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-zinc-400 text-xs font-medium block mb-1.5">Observaciones (opcional)</label>
-                  <textarea value={newMemberForm.notes} rows={2} placeholder="Notas internas..."
-                    onChange={(e) => setNewMemberForm((f) => ({ ...f, notes: e.target.value }))}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setShowNewMember(false)}
-                  className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white text-sm font-medium transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={() => handleCreateMember(false)} disabled={creating}
-                  className="flex-1 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                  {creating ? "Guardando..." : "Guardar"}
-                </button>
-                <button onClick={() => handleCreateMember(true)} disabled={creating}
-                  className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                  {creating ? "..." : "Guardar + Servicio →"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Add Service Modal ────────────────────────────────────────────── */}
-      {addServiceFor && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setAddServiceFor(null)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-lg font-bold text-white">Añadir Servicio</h2>
-                <button onClick={() => setAddServiceFor(null)} className="text-zinc-500 hover:text-white text-2xl leading-none">×</button>
-              </div>
-              <p className="text-zinc-500 text-xs mb-6">
-                Para: <span className="text-zinc-300 font-medium">{addServiceFor.name}</span>
-              </p>
-
-              <div className="space-y-4">
-                {/* Service type */}
-                <div>
-                  <label className="text-zinc-400 text-xs font-medium block mb-2">Tipo de servicio</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {ALL_SERVICES.map((svc) => (
-                      <button key={svc} type="button"
-                        onClick={() => setAddServiceForm((f) => ({ ...f, serviceType: svc }))}
-                        className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors ${
-                          addServiceForm.serviceType === svc
-                            ? "bg-blue-600/20 border-blue-500/50 text-blue-300"
-                            : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600"
-                        }`}>
-                        {SERVICE_LABELS[svc]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Plan + amount */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Plan</label>
-                    <select value={addServiceForm.plan}
-                      onChange={(e) => {
-                        const plan = e.target.value as MembershipPlan;
-                        const endDate = addDays(addServiceForm.startDate || todayStr(), PLAN_DAYS[plan]);
-                        setAddServiceForm((f) => ({ ...f, plan, endDate }));
-                      }}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                      {(["mensual", "trimestral", "semestral", "anual"] as const).map((v) => (
-                        <option key={v} value={v}>{PLAN_LABELS[v]}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Monto ($)</label>
-                    <input type="number" value={addServiceForm.amount}
-                      onChange={(e) => setAddServiceForm((f) => ({ ...f, amount: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Membership + payment status */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Estado membresía</label>
-                    <select value={addServiceForm.membershipStatus}
-                      onChange={(e) => setAddServiceForm((f) => ({ ...f, membershipStatus: e.target.value as MembershipStatus }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                      {(["active", "pending", "expired", "cancelled"] as const).map((v) => (
-                        <option key={v} value={v}>{MS_STATUS_LABELS[v]}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Estado pago</label>
-                    <select value={addServiceForm.paymentStatus}
-                      onChange={(e) => setAddServiceForm((f) => ({ ...f, paymentStatus: e.target.value as PaymentStatus }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                      {(["paid", "pending", "overdue"] as const).map((v) => (
-                        <option key={v} value={v}>{PAY_LABELS[v]}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Dates */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Fecha inicio</label>
-                    <input type="date" value={addServiceForm.startDate}
-                      onChange={(e) => {
-                        const startDate = e.target.value;
-                        const endDate = addDays(startDate, PLAN_DAYS[addServiceForm.plan]);
-                        setAddServiceForm((f) => ({ ...f, startDate, endDate }));
-                      }}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Fecha fin</label>
-                    <input type="date" value={addServiceForm.endDate}
-                      onChange={(e) => setAddServiceForm((f) => ({ ...f, endDate: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Coach (for PT or Kinesio) */}
-                {(addServiceForm.serviceType === "personal_training" || addServiceForm.serviceType === "kinesiology") && (
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Coach / Profesional</label>
-                    <select value={addServiceForm.coachId}
-                      onChange={(e) => setAddServiceForm((f) => ({ ...f, coachId: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                      <option value="">Sin asignar</option>
-                      {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                {/* Notes */}
-                <div>
-                  <label className="text-zinc-400 text-xs font-medium block mb-1.5">Notas (opcional)</label>
-                  <textarea value={addServiceForm.notes} rows={2} placeholder="Observaciones del servicio..."
-                    onChange={(e) => setAddServiceForm((f) => ({ ...f, notes: e.target.value }))}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setAddServiceFor(null)}
-                  className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white text-sm font-medium transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleAddService} disabled={addingService}
-                  className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                  {addingService ? "Guardando..." : "Agregar servicio"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Edit Member Modal ─────────────────────────────────────────────── */}
-      {editing && editState && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setEditing(null)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-white">Editar miembro</h2>
-                <button onClick={() => setEditing(null)} className="text-zinc-500 hover:text-white text-2xl leading-none">×</button>
-              </div>
-
-              {/* Identity block — editable for admin, read-only for others */}
-              <div className={`rounded-xl p-4 mb-5 ${
-                currentUser.role === "admin"
-                  ? "bg-zinc-800/60 border border-zinc-700/50"
-                  : "bg-zinc-800/40 border border-zinc-700/30 pointer-events-none select-none"
-              }`}>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Datos del miembro</p>
-                  {currentUser.role === "admin" ? (
-                    <span className="text-blue-500/70 text-[10px] font-medium">editable</span>
-                  ) : (
-                    <span className="text-zinc-700 text-[10px] font-medium">solo lectura</span>
+                  {editState.role === "member" && (
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach asignado</label>
+                      <select value={editState.assignedCoachId}
+                        onChange={(e) => setEditState({ ...editState, assignedCoachId: e.target.value })}
+                        className={inputCls} style={inputStyle}>
+                        <option value="">Sin coach asignado</option>
+                        {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
                   )}
+                  <div>
+                    <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Servicios contratados</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {ALL_SERVICES.map((svc) => {
+                        const isActive = editState.contractedServices.includes(svc);
+                        return (
+                          <button key={svc} type="button" onClick={() => toggleEditService(svc)}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                            style={isActive
+                              ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
+                              : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                            {SERVICE_LABELS[svc]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-zinc-600 text-[10px] block mb-1">Nombre</label>
-                    {currentUser.role === "admin" ? (
-                      <input
-                        type="text"
-                        value={editState.name}
-                        onChange={(e) => setEditState({ ...editState, name: e.target.value })}
-                        className="w-full bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-zinc-500"
-                      />
-                    ) : (
-                      <p className="text-zinc-300 text-sm font-medium truncate">{editing.name}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-zinc-600 text-[10px] block mb-1">Email</label>
-                    {currentUser.role === "admin" ? (
-                      <input
-                        type="email"
-                        value={editState.email}
-                        onChange={(e) => setEditState({ ...editState, email: e.target.value })}
-                        className="w-full bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-500"
-                      />
-                    ) : (
-                      <p className="text-zinc-500 text-xs truncate">{editing.email}</p>
-                    )}
-                  </div>
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => setEditing(null)}
+                    className="flex-1 py-2 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
+                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={handleSave} disabled={saving}
+                    className="flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}>
+                    {saving ? "Guardando..." : "Guardar"}
+                  </button>
                 </div>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-3">Configuración operativa</p>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-zinc-400 text-xs font-medium block mb-1.5">Rol</label>
-                  <select value={editState.role}
-                    onChange={(e) => setEditState({ ...editState, role: e.target.value as MemberRole })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                    <option value="member">Miembro</option>
-                    <option value="coach">Coach</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-zinc-400 text-xs font-medium block mb-1.5">Estado</label>
-                  <select value={editState.status}
-                    onChange={(e) => setEditState({ ...editState, status: e.target.value as MemberStatus })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                    <option value="active">Activo</option>
-                    <option value="inactive">Inactivo</option>
-                  </select>
-                </div>
-                {editState.role === "member" && (
-                  <div>
-                    <label className="text-zinc-400 text-xs font-medium block mb-1.5">Coach asignado</label>
-                    <select value={editState.assignedCoachId}
-                      onChange={(e) => setEditState({ ...editState, assignedCoachId: e.target.value })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500">
-                      <option value="">Sin coach asignado</option>
-                      {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label className="text-zinc-400 text-xs font-medium block mb-2">Servicios contratados</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {ALL_SERVICES.map((svc) => {
-                      const active = editState.contractedServices.includes(svc);
-                      return (
-                        <button key={svc} type="button" onClick={() => toggleEditService(svc)}
-                          className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors ${
-                            active
-                              ? "bg-blue-600/20 border-blue-500/50 text-blue-300"
-                              : "bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600"
-                          }`}>
-                          {SERVICE_LABELS[svc]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setEditing(null)}
-                  className="flex-1 py-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white text-sm font-medium transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleSave} disabled={saving}
-                  className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                  {saving ? "Guardando..." : "Guardar"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 right-6 px-4 py-3 rounded-xl text-sm font-semibold z-50 shadow-2xl"
+            style={toast.ok ? { background: "#22c55e", color: "#fff" } : { background: "#ef4444", color: "#fff" }}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

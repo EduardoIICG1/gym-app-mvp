@@ -1,33 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Play, Pause } from "lucide-react";
 import { GymClass, Reservation, ServiceType, DayOfWeek } from "@/lib/types";
+import { ServiceBadge } from "@/components/Badge";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const DAY_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-
-const SERVICE_LABELS: Record<ServiceType, string> = {
-  group: "Grupal", personal_training: "Personal",
-  kinesiology: "Kinesio", blocked_time: "Bloqueado",
-};
-const SERVICE_COLORS: Record<ServiceType, string> = {
-  group: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  personal_training: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  kinesiology: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  blocked_time: "bg-zinc-600/20 text-zinc-400 border-zinc-600/30",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-500/20 text-green-400",
-  cancelled: "bg-red-500/20 text-red-400",
-};
-
-const ATTENDANCE_COLORS: Record<string, string> = {
-  reserved: "text-zinc-400",
-  attended: "text-green-400",
-  absent: "text-red-400",
-  cancelled: "text-zinc-600",
-};
 
 const EMPTY_FORM = {
   name: "", serviceType: "group" as ServiceType,
@@ -51,7 +31,14 @@ function weekDateForDay(dayOfWeek: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
+// ─── Shared input style ───────────────────────────────────────────────────
+const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40";
+const inputStyle = {
+  background: "var(--card-border)",
+  border: "1px solid var(--card-border)",
+  color: "var(--text-primary)",
+};
+
 export default function AdminClassesPage() {
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -65,10 +52,7 @@ export default function AdminClassesPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [cRes, rRes] = await Promise.all([
-      fetch("/api/classes"),
-      fetch("/api/reservations"),
-    ]);
+    const [cRes, rRes] = await Promise.all([fetch("/api/classes"), fetch("/api/reservations")]);
     setClasses(await cRes.json());
     setReservations(await rRes.json());
     setLoading(false);
@@ -108,11 +92,7 @@ export default function AdminClassesPage() {
     setSaving(true);
     const method = editingClass ? "PUT" : "POST";
     const url = editingClass ? `/api/classes/${editingClass.id}` : "/api/classes";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     if (res.ok) {
       await fetchData();
       setIsModalOpen(false);
@@ -127,8 +107,7 @@ export default function AdminClassesPage() {
   const handleToggleStatus = async (cls: GymClass) => {
     const newStatus = cls.status === "active" ? "cancelled" : "active";
     const res = await fetch(`/api/classes/${cls.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
     if (res.ok) {
@@ -145,9 +124,7 @@ export default function AdminClassesPage() {
 
   const handleAttendance = async (reservationId: string, status: "attended" | "absent") => {
     const res = await fetch(`/api/reservations/${reservationId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -156,85 +133,105 @@ export default function AdminClassesPage() {
     }
   };
 
+  const kpis = [
+    { label: "Clases activas", value: active.length, sub: `${classes.length} totales`, accent: "#4fc3f7" },
+    { label: "Ocupación promedio", value: `${avgOccupancy}%`, sub: `${totalReserved}/${totalCapacity} cupos`, accent: "#22c55e" },
+    { label: "Reservas hoy", value: todayReservations.length, sub: "esta semana", accent: "#f97316" },
+    { label: "Canceladas", value: classes.filter((c) => c.status === "cancelled").length, sub: "de total", accent: "#ef4444" },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* ─── Header ──────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Gestión de Clases</h1>
-          <p className="text-zinc-500 text-sm mt-0.5">Administra horarios, cupos y asistencia</p>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+            Gestión de Clases
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>Administra horarios, cupos y asistencia</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-          + Nueva Clase
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+        >
+          <Plus className="w-4 h-4" />
+          Nueva Clase
         </button>
       </div>
 
-      {/* ─── KPIs ────────────────────────────────────────────────────────── */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        {[
-          { label: "Clases activas", value: active.length, sub: `${classes.length} totales` },
-          { label: "Ocupación promedio", value: `${avgOccupancy}%`, sub: `${totalReserved}/${totalCapacity} cupos` },
-          { label: "Reservas hoy", value: todayReservations.length, sub: "esta semana" },
-          { label: "Clases canceladas", value: classes.filter((c) => c.status === "cancelled").length, sub: "de total" },
-        ].map(({ label, value, sub }) => (
-          <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-            <p className="text-zinc-500 text-xs mb-1">{label}</p>
-            <p className="text-2xl font-bold text-white">{value}</p>
-            <p className="text-zinc-600 text-xs mt-0.5">{sub}</p>
+        {kpis.map(({ label, value, sub, accent }) => (
+          <div key={label} className="rounded-xl p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+            <p className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</p>
+            <p className="text-2xl font-bold" style={{ color: accent }}>{value}</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
           </div>
         ))}
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-zinc-600">Cargando clases...</div>
+        <div className="text-center py-20" style={{ color: "var(--text-secondary)" }}>Cargando clases...</div>
       ) : (
-        /* ─── Classes by Day ─────────────────────────────────────────────── */
         <div className="space-y-8">
           {DAY_NAMES.map((dayName, dayIdx) => {
             const dayClasses = classes.filter((c) => c.dayOfWeek === dayIdx).sort((a, b) => a.startTime.localeCompare(b.startTime));
             if (dayClasses.length === 0) return null;
             return (
               <div key={dayName}>
-                <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">{dayName}</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-secondary)" }}>
+                  {dayName}
+                </h2>
                 <div className="space-y-2">
                   {dayClasses.map((cls) => {
                     const pct = cls.maxCapacity > 0 ? (cls.reservedCount / cls.maxCapacity) * 100 : 0;
+                    const barColor = pct >= 100 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
                     const classReservations = reservations.filter(
                       (r) => r.classId === cls.id && r.classDate === weekDateForDay(cls.dayOfWeek) && r.status !== "cancelled"
                     );
                     const isExpanded = expandedId === cls.id;
 
                     return (
-                      <div key={cls.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                      <motion.div
+                        key={cls.id}
+                        layout
+                        className="rounded-xl overflow-hidden border"
+                        style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+                      >
                         {/* Class row */}
                         <div className="flex items-center gap-3 p-4">
-                          {/* Type badge */}
-                          <span className={`text-xs px-2 py-0.5 rounded border font-medium shrink-0 ${SERVICE_COLORS[cls.serviceType]}`}>
-                            {SERVICE_LABELS[cls.serviceType]}
-                          </span>
+                          <ServiceBadge type={cls.serviceType} />
 
-                          {/* Name + details */}
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-white text-sm truncate">{cls.name}</p>
-                            <p className="text-zinc-500 text-xs">{cls.startTime}–{cls.endTime} · {cls.coach}</p>
+                            <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{cls.name}</p>
+                            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{cls.startTime}–{cls.endTime} · {cls.coach}</p>
                           </div>
 
                           {/* Occupancy bar */}
                           <div className="hidden sm:flex flex-col items-end gap-1 w-32 shrink-0">
                             <div className="flex items-center gap-2 w-full">
-                              <div className="flex-1 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full ${pct >= 100 ? "bg-red-500" : pct >= 70 ? "bg-yellow-500" : "bg-green-500"}`}
-                                  style={{ width: `${Math.min(pct, 100)}%` }}
+                              <div className="flex-1 rounded-full h-1.5 overflow-hidden" style={{ background: "var(--card-border)" }}>
+                                <motion.div
+                                  className="h-full rounded-full"
+                                  style={{ backgroundColor: barColor }}
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${Math.min(pct, 100)}%` }}
+                                  transition={{ duration: 0.6, ease: "easeOut" }}
                                 />
                               </div>
-                              <span className="text-xs text-zinc-400 shrink-0">{Math.round(pct)}%</span>
+                              <span className="text-xs shrink-0" style={{ color: "var(--text-secondary)" }}>{Math.round(pct)}%</span>
                             </div>
-                            <p className="text-zinc-600 text-xs">{cls.reservedCount}/{cls.maxCapacity}</p>
+                            <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{cls.reservedCount}/{cls.maxCapacity}</p>
                           </div>
 
-                          {/* Status badge */}
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[cls.status]}`}>
+                          {/* Status */}
+                          <span
+                            className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                            style={cls.status === "active"
+                              ? { background: "#22c55e20", color: "#22c55e" }
+                              : { background: "#ef444420", color: "#ef4444" }}
+                          >
                             {cls.status === "active" ? "Activa" : "Cancelada"}
                           </span>
 
@@ -242,65 +239,88 @@ export default function AdminClassesPage() {
                           <div className="flex items-center gap-1 shrink-0">
                             <button
                               onClick={() => setExpandedId(isExpanded ? null : cls.id)}
-                              className="px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                              className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
+                              style={{ color: "var(--text-secondary)" }}
                               title="Ver inscritos"
                             >
-                              {isExpanded ? "▲" : `▼ ${classReservations.length}`}
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             </button>
-                            <button onClick={() => openEdit(cls)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors" title="Editar">✏️</button>
-                            <button onClick={() => handleToggleStatus(cls)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors" title={cls.status === "active" ? "Cancelar clase" : "Activar clase"}>
-                              {cls.status === "active" ? "⏸" : "▶️"}
+                            <button onClick={() => openEdit(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
+                              <Pencil className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDelete(cls.id)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors" title="Eliminar">🗑</button>
+                            <button onClick={() => handleToggleStatus(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
+                              {cls.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                            </button>
+                            <button onClick={() => handleDelete(cls.id)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
 
-                        {/* ─── Attendance panel ─────────────────────────── */}
-                        {isExpanded && (
-                          <div className="border-t border-zinc-800 bg-zinc-950/50">
-                            <div className="px-4 py-2 flex items-center justify-between">
-                              <p className="text-xs font-medium text-zinc-400">Inscritos — {weekDateForDay(cls.dayOfWeek)}</p>
-                              <p className="text-xs text-zinc-600">{classReservations.length} alumnos</p>
-                            </div>
-                            {classReservations.length === 0 ? (
-                              <p className="text-xs text-zinc-600 px-4 pb-4">Sin reservas para esta fecha.</p>
-                            ) : (
-                              <div className="divide-y divide-zinc-800">
-                                {classReservations.map((r) => (
-                                  <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
-                                    <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 shrink-0">
-                                      {r.studentName.charAt(0)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm text-white font-medium truncate">{r.studentName}</p>
-                                      <p className="text-xs text-zinc-600 truncate">{r.studentEmail}</p>
-                                    </div>
-                                    <span className={`text-xs font-medium ${ATTENDANCE_COLORS[r.status]}`}>
-                                      {r.status === "reserved" ? "Reservado" : r.status === "attended" ? "Asistió" : r.status === "absent" ? "Ausente" : "Cancelado"}
-                                    </span>
-                                    {(r.status === "reserved" || r.status === "attended" || r.status === "absent") && (
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={() => handleAttendance(r.id, "attended")}
-                                          className={`text-xs px-2 py-0.5 rounded transition-colors ${r.status === "attended" ? "bg-green-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-green-600/20 hover:text-green-400"}`}
-                                        >
-                                          ✓
-                                        </button>
-                                        <button
-                                          onClick={() => handleAttendance(r.id, "absent")}
-                                          className={`text-xs px-2 py-0.5 rounded transition-colors ${r.status === "absent" ? "bg-red-600 text-white" : "bg-zinc-800 text-zinc-400 hover:bg-red-600/20 hover:text-red-400"}`}
-                                        >
-                                          ✗
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                        {/* Attendance panel */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                              style={{ borderTop: "1px solid var(--card-border)", background: "rgba(0,0,0,0.2)" }}
+                            >
+                              <div className="px-4 py-2 flex items-center justify-between">
+                                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                                  Inscritos — {weekDateForDay(cls.dayOfWeek)}
+                                </p>
+                                <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>{classReservations.length} alumnos</p>
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                              {classReservations.length === 0 ? (
+                                <p className="text-xs px-4 pb-4" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>Sin reservas para esta fecha.</p>
+                              ) : (
+                                <div style={{ borderTop: "1px solid var(--card-border)" }}>
+                                  {classReservations.map((r) => (
+                                    <div key={r.id} className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
+                                      <div
+                                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                        style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                                      >
+                                        {r.studentName.charAt(0)}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{r.studentName}</p>
+                                        <p className="text-xs truncate" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{r.studentEmail}</p>
+                                      </div>
+                                      <span className="text-xs font-medium" style={{
+                                        color: r.status === "attended" ? "#22c55e" : r.status === "absent" ? "#ef4444" : "var(--text-secondary)"
+                                      }}>
+                                        {r.status === "reserved" ? "Reservado" : r.status === "attended" ? "Asistió" : r.status === "absent" ? "Ausente" : "Cancelado"}
+                                      </span>
+                                      {(r.status === "reserved" || r.status === "attended" || r.status === "absent") && (
+                                        <div className="flex gap-1">
+                                          <button
+                                            onClick={() => handleAttendance(r.id, "attended")}
+                                            className="text-xs px-2 py-0.5 rounded transition-colors font-semibold"
+                                            style={r.status === "attended"
+                                              ? { background: "#22c55e", color: "#fff" }
+                                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}
+                                          >✓</button>
+                                          <button
+                                            onClick={() => handleAttendance(r.id, "absent")}
+                                            className="text-xs px-2 py-0.5 rounded transition-colors font-semibold"
+                                            style={r.status === "absent"
+                                              ? { background: "#ef4444", color: "#fff" }
+                                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}
+                                          >✗</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
                     );
                   })}
                 </div>
@@ -310,84 +330,114 @@ export default function AdminClassesPage() {
         </div>
       )}
 
-      {/* ─── Create / Edit Modal ─────────────────────────────────────────── */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setIsModalOpen(false)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-zinc-800 sticky top-0 bg-zinc-900">
-              <h2 className="text-lg font-bold text-white">{editingClass ? "Editar Clase" : "Nueva Clase"}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white text-2xl">×</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Nombre *</label>
-                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="ej. Funcional 6am"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Tipo de clase</label>
-                  <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value as ServiceType })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                    <option value="group">Grupal</option>
-                    <option value="personal_training">Personal</option>
-                    <option value="kinesiology">Kinesio</option>
-                    <option value="blocked_time">Bloqueado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Día de la semana</label>
-                  <select value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) as DayOfWeek })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                    {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"].map((d, i) => (
-                      <option key={d} value={i}>{d}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Hora inicio *</label>
-                  <input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Hora fin *</label>
-                  <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Coach *</label>
-                  <input value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value })}
-                    placeholder="Nombre del coach"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Capacidad máxima</label>
-                  <input type="number" min={1} value={form.maxCapacity} onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">Nota (opcional)</label>
-                  <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
-                    rows={2} placeholder="Información adicional..."
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500 resize-none" />
-                </div>
+      {/* Create / Edit Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => setIsModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-6 sticky top-0 border-b" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+                <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                  {editingClass ? "Editar Clase" : "Nueva Clase"}
+                </h2>
+                <button onClick={() => setIsModalOpen(false)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
-              <button onClick={handleSave} disabled={saving}
-                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors disabled:opacity-50">
-                {saving ? "Guardando..." : editingClass ? "Guardar cambios" : "Crear clase"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nombre *</label>
+                    <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="ej. Funcional 6am" className={inputCls} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de clase</label>
+                    <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value as ServiceType })}
+                      className={inputCls} style={inputStyle}>
+                      <option value="group">Grupal</option>
+                      <option value="personal_training">Personal</option>
+                      <option value="kinesiology">Kinesio</option>
+                      <option value="blocked_time">Bloqueado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Día de la semana</label>
+                    <select value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) as DayOfWeek })}
+                      className={inputCls} style={inputStyle}>
+                      {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"].map((d, i) => (
+                        <option key={d} value={i}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora inicio *</label>
+                    <input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora fin *</label>
+                    <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach *</label>
+                    <input value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value })}
+                      placeholder="Nombre del coach" className={inputCls} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Capacidad máxima</label>
+                    <input type="number" min={1} value={form.maxCapacity} onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nota (opcional)</label>
+                    <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
+                      rows={2} placeholder="Información adicional..."
+                      className={`${inputCls} resize-none`} style={inputStyle} />
+                  </div>
+                </div>
+                <button
+                  onClick={handleSave} disabled={saving}
+                  className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-opacity disabled:opacity-50 hover:opacity-90"
+                  style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+                >
+                  {saving ? "Guardando..." : editingClass ? "Guardar cambios" : "Crear clase"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ─── Toast ───────────────────────────────────────────────────────── */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-xl text-sm font-medium z-50 shadow-2xl ${toast.ok ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>
-          {toast.msg}
-        </div>
-      )}
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 right-6 px-4 py-3 rounded-xl text-sm font-semibold z-50 shadow-2xl"
+            style={toast.ok
+              ? { background: "#22c55e", color: "#fff" }
+              : { background: "#ef4444", color: "#fff" }}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

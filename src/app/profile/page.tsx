@@ -2,76 +2,34 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion } from "motion/react";
 import { Member, Membership, Reservation, MembershipStatus, PaymentStatus, ServiceType } from "@/lib/types";
-import { currentUser } from "@/lib/mock-data";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+
+import { ServiceBadge, MembershipBadge, PaymentBadge, RoleBadge } from "@/components/Badge";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const SERVICE_LABELS: Record<ServiceType, string> = {
-  group: "Grupal",
-  personal_training: "Entrenamiento Personal",
-  kinesiology: "Kinesiología",
-  blocked_time: "Bloqueado",
+  group: "Grupal", personal_training: "Entrenamiento Personal",
+  kinesiology: "Kinesiología", blocked_time: "Bloqueado",
 };
-
-const SERVICE_COLORS: Record<ServiceType, string> = {
-  group: "bg-blue-500/15 text-blue-400",
-  personal_training: "bg-orange-500/15 text-orange-400",
-  kinesiology: "bg-purple-500/15 text-purple-400",
-  blocked_time: "bg-zinc-700/30 text-zinc-500",
-};
-
-const MS_STATUS_COLORS: Record<MembershipStatus, string> = {
-  active: "bg-green-500/15 text-green-400 border-green-500/30",
-  expired: "bg-red-500/15 text-red-400 border-red-500/30",
-  cancelled: "bg-zinc-600/30 text-zinc-400 border-zinc-600/30",
-  pending: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-};
-
 const MS_STATUS_LABELS: Record<MembershipStatus, string> = {
-  active: "Activa",
-  expired: "Vencida",
-  cancelled: "Cancelada",
-  pending: "Pendiente",
+  active: "Activa", expired: "Vencida", cancelled: "Cancelada", pending: "Pendiente",
 };
-
-const PAY_COLORS: Record<PaymentStatus, string> = {
-  paid: "text-green-400",
-  pending: "text-yellow-400",
-  overdue: "text-red-400",
-};
-
 const PAY_LABELS: Record<PaymentStatus, string> = {
-  paid: "Pagado",
-  pending: "Pendiente",
-  overdue: "Vencido",
+  paid: "Pagado", pending: "Pendiente", overdue: "Vencido",
 };
-
 const PLAN_LABELS: Record<string, string> = {
-  mensual: "Mensual",
-  trimestral: "Trimestral",
-  semestral: "Semestral",
-  anual: "Anual",
+  mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
 };
-
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Administrador",
-  coach: "Coach",
-  member: "Miembro",
-  student: "Estudiante",
-  owner: "Owner",
+  admin: "Administrador", coach: "Coach", member: "Miembro", student: "Estudiante", owner: "Owner",
 };
 
-function formatDate(s: string) {
-  const [y, m, d] = s.split("-");
-  return `${d}/${m}/${y}`;
-}
+function formatDate(s: string) { const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; }
+function initials(name: string) { return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase(); }
 
-function initials(name: string) {
-  return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-}
-
-// ─── Inner component (uses useSearchParams) ────────────────────────────────
+// ─── Inner component ───────────────────────────────────────────────────────
 function ProfileContent() {
   const activeUser = useCurrentUser();
   const searchParams = useSearchParams();
@@ -90,10 +48,8 @@ function ProfileContent() {
       fetch(`/api/memberships?studentId=${viewUserId}`),
       fetch(`/api/reservations?userId=${viewUserId}`),
     ]);
-
     const allMembers: Member[] = await membersRes.json();
-    const found = allMembers.find((m) => m.id === viewUserId) ?? null;
-    setMember(found);
+    setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
     setMemberships(await memshipsRes.json());
     setReservations(await resvRes.json());
     setLoading(false);
@@ -101,29 +57,14 @@ function ProfileContent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const upcoming = reservations
-    .filter((r) => r.status === "reserved" && new Date(r.classDate) >= today)
-    .sort((a, b) => a.classDate.localeCompare(b.classDate));
-  const past = reservations
-    .filter((r) => r.status !== "reserved" || new Date(r.classDate) < today)
-    .sort((a, b) => b.classDate.localeCompare(a.classDate))
-    .slice(0, 8);
-
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const upcoming = reservations.filter((r) => r.status === "reserved" && new Date(r.classDate) >= today).sort((a, b) => a.classDate.localeCompare(b.classDate));
+  const past = reservations.filter((r) => r.status !== "reserved" || new Date(r.classDate) < today).sort((a, b) => b.classDate.localeCompare(a.classDate)).slice(0, 8);
   const activeMemberships = memberships.filter((m) => m.membershipStatus === "active");
-
-  // Derive active services from real memberships — source of truth, not contractedServices
-  const activeServiceTypes = [
-    ...new Set(
-      activeMemberships
-        .map((m) => m.serviceType)
-        .filter((s): s is ServiceType => !!s && s !== "blocked_time")
-    ),
-  ];
+  const activeServiceTypes = [...new Set(activeMemberships.map((m) => m.serviceType).filter((s): s is ServiceType => !!s && s !== "blocked_time"))];
 
   if (loading) {
-    return <div className="text-center py-24 text-zinc-600">Cargando perfil...</div>;
+    return <div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>Cargando perfil...</div>;
   }
 
   const displayName = member?.name ?? (isOwnProfile ? activeUser.name : "Usuario");
@@ -132,179 +73,208 @@ function ProfileContent() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex items-start gap-5 mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center text-white font-bold text-xl shrink-0">
+      {/* Profile header */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-start gap-5 mb-8"
+      >
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shrink-0"
+          style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+        >
           {initials(displayName)}
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white">{displayName}</h1>
-          <p className="text-zinc-500 text-sm mt-0.5">{displayEmail}</p>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+            {displayName}
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{displayEmail}</p>
           <div className="flex items-center gap-2 mt-2">
-            <span className="text-xs px-2 py-0.5 rounded-full border bg-purple-500/15 text-purple-400 border-purple-500/30 font-medium">
-              {ROLE_LABELS[displayRole] ?? displayRole}
-            </span>
+            <RoleBadge role={displayRole} />
             {member?.status && (
-              <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                member.status === "active"
-                  ? "bg-green-500/15 text-green-400 border-green-500/30"
-                  : "bg-zinc-600/30 text-zinc-400 border-zinc-600/30"
-              }`}>
+              <span
+                className="text-xs px-2 py-0.5 rounded font-semibold"
+                style={member.status === "active"
+                  ? { background: "#22c55e20", color: "#22c55e" }
+                  : { background: "#71717a20", color: "#71717a" }}
+              >
                 {member.status === "active" ? "Activo" : "Inactivo"}
               </span>
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left col */}
-        <div className="space-y-6">
-          {/* Coach asignado */}
+        <div className="space-y-4">
+          {/* Coach */}
           {member?.assignedCoachName && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <p className="text-zinc-500 text-xs font-medium mb-3">Coach Asignado</p>
+            <motion.div
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 }}
+              className="rounded-xl p-5 border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>Coach Asignado</p>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-white font-semibold text-xs shrink-0">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
+                  style={{ background: "linear-gradient(135deg, #22c55e, #4fc3f7)" }}
+                >
                   {initials(member.assignedCoachName)}
                 </div>
-                <p className="text-white font-semibold text-sm">{member.assignedCoachName}</p>
+                <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{member.assignedCoachName}</p>
               </div>
-            </div>
+            </motion.div>
           )}
 
-          {/* Servicios activos — derivados de membresías activas reales */}
+          {/* Active services */}
           {activeServiceTypes.length > 0 && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <p className="text-zinc-500 text-xs font-medium mb-3">Servicios Activos</p>
+            <motion.div
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
+              className="rounded-xl p-5 border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>Servicios Activos</p>
               <div className="space-y-2">
                 {activeServiceTypes.map((s) => (
                   <div key={s} className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-1 rounded font-medium ${SERVICE_COLORS[s]}`}>
-                      {SERVICE_LABELS[s]}
-                    </span>
+                    <ServiceBadge type={s} />
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{SERVICE_LABELS[s]}</span>
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
-          {/* Estadísticas rápidas */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <p className="text-zinc-500 text-xs font-medium mb-3">Estadísticas</p>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Membresías activas</span>
-                <span className="text-white font-semibold">{activeMemberships.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Total reservas</span>
-                <span className="text-white font-semibold">{reservations.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Próximas clases</span>
-                <span className="text-white font-semibold">{upcoming.length}</span>
-              </div>
+          {/* Stats */}
+          <motion.div
+            initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
+            className="rounded-xl p-5 border"
+            style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>Estadísticas</p>
+            <div className="space-y-3">
+              {[
+                { label: "Membresías activas", value: activeMemberships.length, accent: "#22c55e" },
+                { label: "Total reservas", value: reservations.length, accent: "#4fc3f7" },
+                { label: "Próximas clases", value: upcoming.length, accent: "#f97316" },
+              ].map(({ label, value, accent }) => (
+                <div key={label} className="flex justify-between items-center">
+                  <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{label}</span>
+                  <span className="text-sm font-bold" style={{ color: accent }}>{value}</span>
+                </div>
+              ))}
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Right col */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Membresías */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <p className="text-zinc-500 text-xs font-medium mb-4">
-              Membresías
+        <div className="lg:col-span-2 space-y-5">
+          {/* Memberships */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="rounded-xl p-5 border"
+            style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Membresías</p>
               {memberships.length > 1 && (
-                <span className="ml-2 px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400">{memberships.length}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                  {memberships.length}
+                </span>
               )}
-            </p>
+            </div>
             {memberships.length === 0 ? (
-              <p className="text-zinc-600 text-sm">Sin membresías registradas</p>
+              <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Sin membresías registradas</p>
             ) : (
               <div className="space-y-3">
                 {memberships.map((ms) => (
-                  <div key={ms.id} className="border border-zinc-800 rounded-lg p-4">
+                  <div key={ms.id} className="rounded-lg p-4 border" style={{ borderColor: "var(--card-border)", background: "rgba(0,0,0,0.15)" }}>
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
-                          {ms.serviceType && (
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${SERVICE_COLORS[ms.serviceType]}`}>
-                              {SERVICE_LABELS[ms.serviceType]}
-                            </span>
-                          )}
-                          <p className="text-white font-semibold text-sm">{PLAN_LABELS[ms.plan] ?? ms.plan}</p>
+                          {ms.serviceType && <ServiceBadge type={ms.serviceType} />}
+                          <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{PLAN_LABELS[ms.plan] ?? ms.plan}</p>
                         </div>
-                        <p className="text-zinc-500 text-xs">${ms.amount.toLocaleString()}</p>
+                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>${ms.amount.toLocaleString()}</p>
                         {ms.coachName && (
-                          <p className="text-zinc-600 text-xs mt-0.5">Prof: <span className="text-zinc-400">{ms.coachName}</span></p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
+                            Prof: <span style={{ color: "var(--text-primary)" }}>{ms.coachName}</span>
+                          </p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-medium ${PAY_COLORS[ms.paymentStatus]}`}>
-                          {PAY_LABELS[ms.paymentStatus]}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${MS_STATUS_COLORS[ms.membershipStatus]}`}>
-                          {MS_STATUS_LABELS[ms.membershipStatus]}
-                        </span>
+                        <PaymentBadge status={ms.paymentStatus} />
+                        <MembershipBadge status={ms.membershipStatus} />
                       </div>
                     </div>
-                    <div className="flex gap-4 text-xs text-zinc-500">
-                      <span>Inicio: <span className="text-zinc-300">{formatDate(ms.startDate)}</span></span>
-                      <span>Vence: <span className="text-zinc-300">{formatDate(ms.endDate)}</span></span>
+                    <div className="flex gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+                      <span>Inicio: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.startDate)}</span></span>
+                      <span>Vence: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.endDate)}</span></span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </motion.div>
 
-          {/* Próximas clases */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <p className="text-zinc-500 text-xs font-medium mb-4">Próximas Reservas</p>
+          {/* Upcoming reservations */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="rounded-xl p-5 border"
+            style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--text-secondary)" }}>Próximas Reservas</p>
             {upcoming.length === 0 ? (
-              <p className="text-zinc-600 text-sm">Sin reservas próximas</p>
+              <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Sin reservas próximas</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-0">
                 {upcoming.slice(0, 5).map((r) => (
-                  <div key={r.id} className="flex items-center justify-between py-2 border-b border-zinc-800 last:border-0">
+                  <div key={r.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
                     <div>
-                      <p className="text-white text-sm font-medium">{r.classDate}</p>
-                      <p className="text-zinc-500 text-xs">Clase #{r.classId}</p>
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.classDate}</p>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Clase #{r.classId}</p>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                    <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>
                       Reservado
                     </span>
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </motion.div>
 
-          {/* Historial */}
+          {/* History */}
           {past.length > 0 && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-              <p className="text-zinc-500 text-xs font-medium mb-4">Historial Reciente</p>
-              <div className="space-y-2">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="rounded-xl p-5 border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--text-secondary)" }}>Historial Reciente</p>
+              <div className="space-y-0">
                 {past.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between py-2 border-b border-zinc-800 last:border-0">
+                  <div key={r.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
                     <div>
-                      <p className="text-white text-sm font-medium">{r.classDate}</p>
-                      <p className="text-zinc-500 text-xs">Clase #{r.classId}</p>
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.classDate}</p>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Clase #{r.classId}</p>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                      r.status === "attended"
-                        ? "bg-green-500/15 text-green-400 border-green-500/30"
+                    <span
+                      className="text-xs px-2 py-0.5 rounded font-semibold"
+                      style={r.status === "attended"
+                        ? { background: "#22c55e20", color: "#22c55e" }
                         : r.status === "absent"
-                        ? "bg-red-500/15 text-red-400 border-red-500/30"
-                        : "bg-zinc-600/30 text-zinc-400 border-zinc-600/30"
-                    }`}>
+                        ? { background: "#ef444420", color: "#ef4444" }
+                        : { background: "#71717a20", color: "#71717a" }}
+                    >
                       {r.status === "attended" ? "Asistió" : r.status === "absent" ? "Ausente" : "Cancelado"}
                     </span>
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
@@ -312,10 +282,9 @@ function ProfileContent() {
   );
 }
 
-// ─── Page (wraps with Suspense for useSearchParams) ────────────────────────
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div className="text-center py-24 text-zinc-600">Cargando...</div>}>
+    <Suspense fallback={<div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>Cargando...</div>}>
       <ProfileContent />
     </Suspense>
   );

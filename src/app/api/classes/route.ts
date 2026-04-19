@@ -8,7 +8,10 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, serviceType, dayOfWeek, startTime, endTime, coach, maxCapacity, note } = body;
+    const {
+      name, serviceType, dayOfWeek, startTime, endTime, coach, maxCapacity, note,
+      hasBookingCutoff, bookingCutoffValue, bookingCutoffUnit, bookingMode,
+    } = body;
 
     if (!name || !startTime || !endTime || !coach) {
       return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
@@ -26,6 +29,10 @@ export async function POST(request: Request) {
       reservedCount: 0,
       status: "active",
       note: note || undefined,
+      hasBookingCutoff: hasBookingCutoff !== false,
+      bookingCutoffValue: Number(bookingCutoffValue) || 3,
+      bookingCutoffUnit: bookingCutoffUnit || "hours",
+      bookingMode: bookingMode || "regular",
     };
 
     mockClasses.push(newClass);

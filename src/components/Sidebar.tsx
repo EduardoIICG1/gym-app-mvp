@@ -3,206 +3,212 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  Home, Calendar, BookOpen, Users, CreditCard, User,
+  ChevronLeft, ChevronRight,
+} from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 
-// ─── Icons (inline SVG, stroke-based, 18×18) ──────────────────────────────
-function IconHome() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-
-function IconCalendar() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-
-function IconClasses() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" />
-      <rect x="14" y="3" width="7" height="7" />
-      <rect x="14" y="14" width="7" height="7" />
-      <rect x="3" y="14" width="7" height="7" />
-    </svg>
-  );
-}
-
-function IconMembers() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
-function IconMemberships() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-      <line x1="1" y1="10" x2="23" y2="10" />
-    </svg>
-  );
-}
-
-function IconProfile() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-
-function IconChevronLeft() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="15 18 9 12 15 6" />
-    </svg>
-  );
-}
-
-function IconChevronRight() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
-}
-
-// ─── Nav items ─────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { href: "/",                   label: "Inicio",      exact: true,  roles: ["admin", "coach", "member"], Icon: IconHome },
-  { href: "/calendar",           label: "Calendario",  exact: false, roles: ["admin", "coach", "member"], Icon: IconCalendar },
-  { href: "/admin/classes",      label: "Clases",      exact: false, roles: ["admin", "coach"],           Icon: IconClasses },
-  { href: "/admin/members",      label: "Miembros",    exact: false, roles: ["admin", "coach"],           Icon: IconMembers },
-  { href: "/admin/memberships",  label: "Membresías",  exact: false, roles: ["admin"],                    Icon: IconMemberships },
-  { href: "/profile",            label: "Mi Perfil",   exact: false, roles: ["admin", "coach", "member"], Icon: IconProfile },
+  { path: "/",                  label: "Inicio",     icon: Home,       roles: ["admin", "coach", "member", "owner"] },
+  { path: "/calendar",          label: "Calendario", icon: Calendar,   roles: ["admin", "coach", "member", "owner"] },
+  { path: "/admin/classes",     label: "Clases",     icon: BookOpen,   roles: ["admin", "coach"] },
+  { path: "/admin/members",     label: "Miembros",   icon: Users,      roles: ["admin", "coach"] },
+  { path: "/admin/memberships", label: "Membresías", icon: CreditCard, roles: ["admin"] },
+  { path: "/profile",           label: "Mi Perfil",  icon: User,       roles: ["admin", "coach", "member", "owner"] },
 ];
 
-// ─── Component ─────────────────────────────────────────────────────────────
+const ROLE_COLOR: Record<string, string> = {
+  admin:  "#4fc3f7",
+  coach:  "#22c55e",
+  member: "#71717a",
+  owner:  "#a78bfa",
+};
+
 export function Sidebar() {
   const pathname = usePathname();
-  const user = useCurrentUser();
-
-  // Expanded on home, collapsed on any module — user can toggle manually
-  const [collapsed, setCollapsed] = useState(() => pathname !== "/");
-  // Temporary hover-expand while pointer is inside sidebar
+  const activeUser = useCurrentUser();
+  const changeRole = activeUser.changeRole;
+  const [collapsed, setCollapsed] = useState(pathname !== "/");
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     setCollapsed(pathname !== "/");
   }, [pathname]);
 
-  // Visual state: expanded when not collapsed OR when hovering while collapsed
   const isExpanded = !collapsed || hovered;
+  const accentColor = ROLE_COLOR[activeUser.role] ?? "#4fc3f7";
 
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    item.roles.includes(user.role)
-  );
+  const visibleItems = NAV_ITEMS.filter(item => item.roles.includes(activeUser.role));
 
-  // Bottom nav caps at 5 items — profile is reachable via Navbar avatar
-  const bottomItems = visibleItems.slice(0, 5);
+  const isActive = (path: string) =>
+    path === "/" ? pathname === "/" : pathname.startsWith(path);
 
   return (
     <>
-    <aside
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className={`hidden lg:flex flex-col shrink-0 border-r border-zinc-800 bg-zinc-950 sticky top-14 h-[calc(100vh-3.5rem)] transition-[width] duration-200 ease-in-out ${
-        isExpanded ? "w-60" : "w-16"
-      }`}
-    >
-      {/* Nav links */}
-      <nav className="flex flex-col gap-0.5 p-2 flex-1 overflow-y-auto overflow-x-hidden">
-        {visibleItems.map(({ href, label, exact, Icon }) => {
-          const active = exact
-            ? pathname === href
-            : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={label}
-              className={`flex items-center gap-3 rounded-lg font-medium transition-colors ${
-                isExpanded ? "justify-start px-3 py-2.5" : "justify-center px-0 py-2.5"
-              } ${
-                active
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/60"
-              }`}
+      {/* ── Desktop sidebar ──────────────────────────────────────────── */}
+      <aside
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className="hidden lg:flex flex-col shrink-0 border-r sticky top-14 h-[calc(100vh-3.5rem)] transition-[width] duration-300 ease-in-out overflow-hidden"
+        style={{
+          width: isExpanded ? "16rem" : "4rem",
+          borderColor: "var(--card-border)",
+          background: "var(--card)",
+        }}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-3 p-4 border-b overflow-hidden" style={{ borderColor: "var(--card-border)", minHeight: "64px" }}>
+          <Link href="/" className="shrink-0 group">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
+              style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e, #f97316)" }}
             >
-              <span className="shrink-0">
-                <Icon />
-              </span>
-              {isExpanded && (
-                <span className="text-sm truncate">{label}</span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+              <span className="text-white font-bold text-base" style={{ fontFamily: "var(--font-display)" }}>P</span>
+            </div>
+          </Link>
+          <AnimatePresence>
+            {isExpanded && (
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.15 }}
+                className="overflow-hidden whitespace-nowrap min-w-0"
+              >
+                <p className="font-bold text-sm leading-tight" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
+                  Primary Performance
+                </p>
+                <p className="text-xs capitalize" style={{ color: "var(--text-secondary)" }}>
+                  {activeUser.role} Dashboard
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-      {/* Collapse toggle */}
-      <div className="p-2 border-t border-zinc-800">
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          title={collapsed ? "Expandir menú" : "Colapsar menú"}
-          className={`w-full flex items-center rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/60 transition-colors py-2 ${
-            isExpanded ? "gap-2 px-3" : "justify-center px-0"
-          }`}
-        >
-          {isExpanded ? (
-            <>
-              <IconChevronLeft />
-              {!hovered && <span className="text-xs">Colapsar</span>}
-              {hovered && collapsed && <span className="text-xs text-zinc-700">Click para fijar</span>}
-            </>
-          ) : (
-            <IconChevronRight />
+        {/* Nav links */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
+          {visibleItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
+            return (
+              <Link
+                key={item.path}
+                href={item.path}
+                title={!isExpanded ? item.label : undefined}
+                className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-white/5"
+              >
+                {active && (
+                  <motion.div
+                    layoutId="activeSidebar"
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      backgroundColor: `${accentColor}15`,
+                      border: `1px solid ${accentColor}30`,
+                    }}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <Icon
+                  className="w-5 h-5 shrink-0 relative z-10"
+                  style={{ color: active ? accentColor : "var(--text-secondary)" }}
+                />
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.1 }}
+                      className="text-sm font-medium relative z-10 whitespace-nowrap"
+                      style={{ color: active ? accentColor : "var(--text-secondary)" }}
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Role switcher — visible when expanded */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-3 border-t"
+              style={{ borderColor: "var(--card-border)", background: "rgba(0,0,0,0.2)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: "var(--text-secondary)" }}>
+                Demo: Rol
+              </p>
+              <div className="flex gap-1">
+                {(["admin", "coach", "member"] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => changeRole(r)}
+                    className="flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all capitalize"
+                    style={
+                      activeUser.role === r
+                        ? { backgroundColor: "#4fc3f7", color: "#0a0a0f" }
+                        : { backgroundColor: "var(--card-border)", color: "var(--text-secondary)" }
+                    }
+                  >
+                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
           )}
-        </button>
-      </div>
-    </aside>
+        </AnimatePresence>
 
-    {/* ── Mobile bottom navigation (lg:hidden) ───────────────────────── */}
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-sm safe-area-bottom">
-      <div className={`flex items-center justify-around px-1 h-16 ${bottomItems.length <= 3 ? "max-w-xs mx-auto" : ""}`}>
-        {bottomItems.map(({ href, label, exact, Icon }) => {
-          const active = exact ? pathname === href : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 py-2 rounded-xl transition-colors ${
-                active
-                  ? "text-white"
-                  : "text-zinc-500 active:text-zinc-300"
-              }`}
-            >
-              <span className={`transition-colors ${active ? "text-blue-400" : ""}`}>
-                <Icon />
-              </span>
-              <span className={`text-[9px] font-medium leading-none ${active ? "text-blue-400" : ""}`}>
-                {label === "Mi Perfil" ? "Perfil" : label}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+        {/* Collapse toggle */}
+        <div className="p-3 border-t" style={{ borderColor: "var(--card-border)" }}>
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 transition-colors"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {collapsed
+              ? <ChevronRight className="w-4 h-4" />
+              : <ChevronLeft className="w-4 h-4" />
+            }
+          </button>
+        </div>
+      </aside>
+
+      {/* ── Mobile bottom nav ────────────────────────────────────────── */}
+      <nav
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-sm"
+        style={{ borderColor: "var(--card-border)", background: "rgba(17,17,20,0.95)" }}
+      >
+        <div className="flex items-center justify-around px-1 h-16">
+          {visibleItems.slice(0, 5).map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
+            return (
+              <Link
+                key={item.path}
+                href={item.path}
+                className="flex flex-col items-center gap-0.5 px-3 py-1"
+              >
+                <Icon className="w-5 h-5" style={{ color: active ? accentColor : "var(--text-secondary)" }} />
+                <span
+                  className="text-[10px] font-medium"
+                  style={{ color: active ? accentColor : "var(--text-secondary)" }}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </>
   );
 }

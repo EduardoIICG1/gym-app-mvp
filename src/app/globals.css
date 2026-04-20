@@ -15,6 +15,11 @@
   --text-primary: #ffffff;
   --text-secondary: #71717a;
 
+  /* Semantic aliases */
+  --foreground: var(--text-primary);
+  --muted-foreground: var(--text-secondary);
+  --border: var(--card-border);
+
   /* Service / class type accent colors */
   --color-functional: #4fc3f7;
   --color-hiit: #f97316;
@@ -41,6 +46,9 @@
   --color-card-border: var(--card-border);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
 
   --color-functional: var(--color-functional);
   --color-hiit: var(--color-hiit);
@@ -90,4 +98,7 @@ html:not(.dark) {
   --card-border: #e2e2e8;
   --text-primary: #0f0f14;
   --text-secondary: #5a5a72;
+  --foreground: var(--text-primary);
+  --muted-foreground: var(--text-secondary);
+  --border: var(--card-border);
 }

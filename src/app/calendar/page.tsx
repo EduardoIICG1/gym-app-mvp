@@ -509,8 +509,8 @@ function ManageModal({
                   className="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors"
                   style={{ background: editState.hasBookingCutoff ? "#4fc3f7" : "var(--card-border)" }}
                 >
-                  <span className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform mt-0.5"
-                    style={{ marginLeft: editState.hasBookingCutoff ? "18px" : "2px" }} />
+                  <span className="inline-block h-4 w-4 transform rounded-full shadow transition-transform mt-0.5"
+                    style={{ background: "var(--card)", marginLeft: editState.hasBookingCutoff ? "18px" : "2px" }} />
                 </button>
               </div>
               {editState.hasBookingCutoff ? (
@@ -1143,8 +1143,8 @@ export default function CalendarPage() {
                         className="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors"
                         style={{ background: createModal.hasBookingCutoff ? "#4fc3f7" : "var(--card-border)" }}
                       >
-                        <span className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform mt-0.5"
-                          style={{ marginLeft: createModal.hasBookingCutoff ? "18px" : "2px" }} />
+                        <span className="inline-block h-4 w-4 transform rounded-full shadow transition-transform mt-0.5"
+                          style={{ background: "var(--card)", marginLeft: createModal.hasBookingCutoff ? "18px" : "2px" }} />
                       </button>
                     </div>
                     {createModal.hasBookingCutoff ? (

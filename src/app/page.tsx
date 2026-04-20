@@ -34,15 +34,16 @@ export default function Home() {
 
   const canPost = activeUser.role === "admin" || activeUser.role === "coach";
 
-  // Today's classes by day-of-week
-  const todayDow = new Date().getDay(); // 0=Sun
-  const gymDow = todayDow === 0 ? 6 : todayDow - 1; // Mon=0
-  const todaysClasses = mockClasses
-    .filter(c => c.dayOfWeek === gymDow && c.status === "active")
-    .slice(0, 4);
-  const upcomingClasses = mockClasses
-    .filter(c => c.dayOfWeek > gymDow && c.status === "active")
-    .slice(0, 3);
+  // Today's classes by day-of-week (Mon=0 … Sat=5; Sun=rest day)
+  const todayDow = new Date().getDay(); // JS: 0=Sun
+  const gymDow = todayDow === 0 ? -1 : todayDow - 1; // -1 on Sunday = no gym day
+  const todaysClasses = gymDow === -1
+    ? []
+    : mockClasses.filter(c => c.dayOfWeek === gymDow && c.status === "active").slice(0, 4);
+  // On Sunday wrap around and show next-week classes from Mon onward
+  const upcomingClasses = gymDow === -1
+    ? mockClasses.filter(c => c.status === "active").slice(0, 3)
+    : mockClasses.filter(c => c.dayOfWeek > gymDow && c.status === "active").slice(0, 3);
 
   const todayStr = new Date().toISOString().split("T")[0];
   const upcomingReservations = mockReservations
@@ -295,7 +296,7 @@ export default function Home() {
 
                 {todaysClasses.length === 0 ? (
                   <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>
-                    No hay clases hoy
+                    {gymDow === -1 ? "El gimnasio descansa los domingos 🌿" : "No hay clases hoy"}
                   </p>
                 ) : (
                   <div className="space-y-3">

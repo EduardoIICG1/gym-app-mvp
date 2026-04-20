@@ -45,9 +45,10 @@ export function DevPanel() {
   return (
     <div
       ref={panelRef}
-      className="fixed bottom-4 right-4 z-50 bg-zinc-900 border border-zinc-700 rounded-xl p-4 shadow-2xl w-48"
+      className="fixed bottom-4 right-4 z-50 rounded-xl p-4 shadow-2xl w-48"
+      style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
     >
-      <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-widest mb-3">
+      <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-secondary)" }}>
         Dev — Rol
       </p>
       <div className="flex gap-1">
@@ -55,11 +56,12 @@ export function DevPanel() {
           <button
             key={r}
             onClick={() => user.changeRole(r)}
-            className={`flex-1 text-[10px] py-1.5 rounded font-medium transition-colors ${
+            className="flex-1 text-[10px] py-1.5 rounded font-medium transition-colors"
+            style={
               user.role === r
-                ? "bg-zinc-700 text-white"
-                : "text-zinc-500 hover:text-zinc-300"
-            }`}
+                ? { background: "var(--card-border)", color: "var(--text-primary)" }
+                : { color: "var(--text-secondary)" }
+            }
           >
             {ROLE_LABELS[r]}
           </button>

@@ -43,7 +43,10 @@ export function ClassCard({
   const isAlmostFull = occupancy >= 70;
 
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition overflow-hidden border border-gray-100 flex flex-col">
+    <div
+      className="rounded-lg shadow-md hover:shadow-lg transition overflow-hidden flex flex-col"
+      style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
+    >
       {/* Header color bar */}
       <div
         className={`h-1 ${
@@ -53,23 +56,23 @@ export function ClassCard({
 
       <div className="p-6 flex-1 flex flex-col">
         {/* Title */}
-        <h3 className="text-xl font-bold text-gray-900 mb-4">{name}</h3>
+        <h3 className="text-xl font-bold mb-4" style={{ color: "var(--text-primary)" }}>{name}</h3>
 
         {/* Info grid */}
         <div className="space-y-2 mb-4 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">Coach</span>
-            <span className="font-medium text-gray-900">{coach}</span>
+            <span style={{ color: "var(--text-secondary)" }}>Coach</span>
+            <span className="font-medium" style={{ color: "var(--text-primary)" }}>{coach}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Day</span>
-            <span className="font-medium text-gray-900">
+            <span style={{ color: "var(--text-secondary)" }}>Day</span>
+            <span className="font-medium" style={{ color: "var(--text-primary)" }}>
               {dayNames[dayOfWeek]}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Time</span>
-            <span className="font-medium text-gray-900">
+            <span style={{ color: "var(--text-secondary)" }}>Time</span>
+            <span className="font-medium" style={{ color: "var(--text-primary)" }}>
               {startTime} - {endTime}
             </span>
           </div>
@@ -78,12 +81,12 @@ export function ClassCard({
         {/* Capacity bar */}
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-medium text-gray-600">CAPACITY</span>
-            <span className="text-xs font-bold text-gray-900">
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>CAPACITY</span>
+            <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>
               {reserved} / {capacity}
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+          <div className="w-full rounded-full h-2 overflow-hidden" style={{ background: "var(--card-border)" }}>
             <div
               className={`h-full transition-all ${
                 isFull
@@ -114,15 +117,14 @@ export function ClassCard({
         <button
           onClick={() => (isReserved ? onCancel(id) : onReserve(id))}
           disabled={isLoading || (isFull && !isReserved)}
-          className={`w-full py-2 px-4 rounded-lg font-semibold text-sm transition-all mt-auto ${
-            isLoading
-              ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-              : isReserved
-                ? "bg-red-500 hover:bg-red-600 text-white"
-                : isFull
-                  ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-          }`}
+          className="w-full py-2 px-4 rounded-lg font-semibold text-sm transition-all mt-auto disabled:opacity-40 disabled:cursor-not-allowed"
+          style={
+            isReserved
+              ? { background: "#ef4444", color: "#ffffff" }
+              : isFull || isLoading
+                ? { background: "var(--card-border)", color: "var(--text-secondary)" }
+                : { background: "#3b82f6", color: "#ffffff" }
+          }
         >
           {isLoading
             ? "Processing..."

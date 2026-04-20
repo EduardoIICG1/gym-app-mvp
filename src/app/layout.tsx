@@ -24,11 +24,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${sora.variable} ${dmSans.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`dark ${sora.variable} ${dmSans.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var t=localStorage.getItem('pp_theme');if(t!=='light')document.documentElement.classList.add('dark');})()`,
+            __html: `(function(){if(localStorage.getItem('pp_theme')==='light')document.documentElement.classList.remove('dark');})()`,
           }}
         />
       </head>

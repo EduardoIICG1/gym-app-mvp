@@ -8,22 +8,18 @@ import {
   Membership, MembershipStatus, MembershipPlan, PaymentStatus, ServiceType, Member,
 } from "@/lib/types";
 import { ServiceBadge, MembershipBadge, PaymentBadge } from "@/components/Badge";
+import {
+  SERVICE_LABELS,
+  MEMBERSHIP_STATUS_LABELS as STATUS_LABELS,
+  PAYMENT_STATUS_LABELS as PAYMENT_LABELS,
+} from "@/lib/labels";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const STATUS_LABELS: Record<MembershipStatus, string> = {
-  active: "Activa", expired: "Vencida", cancelled: "Cancelada", pending: "Pendiente",
-};
-const PAYMENT_LABELS: Record<PaymentStatus, string> = {
-  paid: "Pagado", pending: "Pendiente", overdue: "Vencido",
-};
 const PLAN_LABELS: Record<MembershipPlan, string> = {
   mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
 };
 const PLAN_DAYS: Record<MembershipPlan, number> = {
   mensual: 30, trimestral: 90, semestral: 180, anual: 365,
-};
-const SERVICE_LABELS: Record<ServiceType, string> = {
-  group: "Grupal", personal_training: "Personal", kinesiology: "Kinesio", blocked_time: "Bloqueado",
 };
 const ALL_SERVICES: ServiceType[] = ["group", "personal_training", "kinesiology"];
 
@@ -79,8 +75,8 @@ export default function MembershipsPage() {
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const coaches = allMembers.filter((m) => m.role === "coach");
-  const memberOptions = allMembers.filter((m) => m.role !== "coach");
+  const coaches = allMembers.filter((m) => m.roles.includes("coach"));
+  const memberOptions = allMembers.filter((m) => !m.roles.includes("coach"));
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 

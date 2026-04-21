@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { ROLE_LABELS } from "@/lib/labels";
 
 const NAV_ITEMS = [
   { path: "/",                  label: "Inicio",     icon: Home,       roles: ["admin", "coach", "member", "owner"] },
@@ -40,7 +41,9 @@ export function Sidebar() {
   const isExpanded = !collapsed || hovered;
   const accentColor = ROLE_COLOR[activeUser.role] ?? "#4fc3f7";
 
-  const visibleItems = NAV_ITEMS.filter(item => item.roles.includes(activeUser.role));
+  const visibleItems = NAV_ITEMS.filter(item =>
+    item.roles.some(r => activeUser.roles.includes(r as import("@/lib/types").MemberRole))
+  );
 
   const isActive = (path: string) =>
     path === "/" ? pathname === "/" : pathname.startsWith(path);
@@ -80,8 +83,8 @@ export function Sidebar() {
                 <p className="font-bold text-sm leading-tight" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
                   Primary Performance
                 </p>
-                <p className="text-xs capitalize" style={{ color: "var(--text-secondary)" }}>
-                  {activeUser.role} Dashboard
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {ROLE_LABELS[activeUser.role] ?? activeUser.role}
                 </p>
               </motion.div>
             )}
@@ -159,7 +162,7 @@ export function Sidebar() {
                         : { backgroundColor: "var(--card-border)", color: "var(--text-secondary)" }
                     }
                   >
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                    {ROLE_LABELS[r] ?? r}
                   </button>
                 ))}
               </div>

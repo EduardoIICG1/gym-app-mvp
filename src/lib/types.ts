@@ -1,3 +1,4 @@
+export type EventType = "class" | "blocked_time";
 export type ServiceType = "group" | "personal_training" | "kinesiology" | "blocked_time";
 export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5; // 0=Lun … 5=Sáb
 export type ClassStatus = "active" | "cancelled";
@@ -12,6 +13,7 @@ export type MembershipPlan = "mensual" | "trimestral" | "semestral" | "anual";
 export interface GymClass {
   id: string;
   name: string;
+  eventType: EventType;          // "class" (default) | "blocked_time"
   serviceType: ServiceType;
   dayOfWeek: DayOfWeek;
   startTime: string; // HH:mm
@@ -93,7 +95,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "owner" | "admin" | "coach" | "member";
+  role: "owner" | "admin" | "coach" | "member"; // primary/active role (session)
+  roles: MemberRole[];                           // all roles this user holds
 }
 
 export type MemberRole = "admin" | "coach" | "member";
@@ -103,7 +106,7 @@ export interface Member {
   id: string;
   name: string;
   email: string;
-  role: MemberRole;
+  roles: MemberRole[];           // supports multi-role e.g. ["admin","coach"]
   status: MemberStatus;
   assignedCoachId?: string;
   assignedCoachName?: string;
@@ -111,6 +114,11 @@ export interface Member {
   notes?: string;
   canBookMakeupClasses?: boolean;
   makeupCredits?: number;
+}
+
+// Helper — use instead of direct member.roles[0] checks
+export function hasMemberRole(member: Member, role: MemberRole): boolean {
+  return member.roles.includes(role);
 }
 
 export interface PostComment {

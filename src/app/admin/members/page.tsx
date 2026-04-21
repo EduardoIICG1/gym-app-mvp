@@ -10,22 +10,18 @@ import {
 } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { RoleBadge } from "@/components/Badge";
+import {
+  SERVICE_LABELS,
+  MEMBERSHIP_STATUS_LABELS as MS_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS as PAY_LABELS,
+} from "@/lib/labels";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const SERVICE_LABELS: Record<ServiceType, string> = {
-  group: "Grupal", personal_training: "Personal", kinesiology: "Kinesio", blocked_time: "Bloqueado",
-};
 const PLAN_LABELS: Record<MembershipPlan, string> = {
   mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
 };
 const PLAN_DAYS: Record<MembershipPlan, number> = {
   mensual: 30, trimestral: 90, semestral: 180, anual: 365,
-};
-const MS_STATUS_LABELS: Record<MembershipStatus, string> = {
-  active: "Activa", expired: "Vencida", cancelled: "Cancelada", pending: "Pendiente",
-};
-const PAY_LABELS: Record<PaymentStatus, string> = {
-  paid: "Pagado", pending: "Pendiente", overdue: "Vencido",
 };
 const ALL_SERVICES: ServiceType[] = ["group", "personal_training", "kinesiology"];
 
@@ -92,7 +88,7 @@ export default function MembersPage() {
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const coaches = members.filter((m) => m.role === "coach");
+  const coaches = members.filter((m) => m.roles.includes("coach"));
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3000);
@@ -116,7 +112,7 @@ export default function MembersPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const filtered = members.filter((m) => {
-    if (filterRole !== "all" && m.role !== filterRole) return false;
+    if (filterRole !== "all" && !m.roles.includes(filterRole)) return false;
     if (filterStatus !== "all" && m.status !== filterStatus) return false;
     if (search && !m.name.toLowerCase().includes(search.toLowerCase()) &&
       !m.email.toLowerCase().includes(search.toLowerCase())) return false;
@@ -126,7 +122,7 @@ export default function MembersPage() {
   const openEdit = (m: Member) => {
     setEditing(m);
     setEditState({
-      name: m.name, email: m.email, role: m.role, status: m.status,
+      name: m.name, email: m.email, role: m.roles[0], status: m.status,
       assignedCoachId: m.assignedCoachId ?? "", assignedCoachName: m.assignedCoachName ?? "",
       contractedServices: [...m.contractedServices],
     });
@@ -141,7 +137,7 @@ export default function MembersPage() {
     setSaving(true);
     const coachObj = editState.assignedCoachId ? coaches.find((c) => c.id === editState.assignedCoachId) : null;
     const body: Partial<Member> & { _callerRole?: string } = {
-      role: editState.role, status: editState.status,
+      roles: [editState.role], status: editState.status,
       contractedServices: editState.contractedServices,
       assignedCoachId: coachObj?.id, assignedCoachName: coachObj?.name,
       ...(currentUser.role === "admin" && editState.name.trim() && { name: editState.name.trim() }),
@@ -173,7 +169,7 @@ export default function MembersPage() {
     const coachObj = newMemberForm.assignedCoachId ? coaches.find((c) => c.id === newMemberForm.assignedCoachId) : null;
     const body = {
       name: newMemberForm.name.trim(), email: newMemberForm.email.trim(),
-      role: newMemberForm.role, status: newMemberForm.status,
+      roles: [newMemberForm.role], status: newMemberForm.status,
       contractedServices: newMemberForm.contractedServices,
       ...(coachObj && { assignedCoachId: coachObj.id, assignedCoachName: coachObj.name }),
       ...(newMemberForm.notes.trim() && { notes: newMemberForm.notes.trim() }),
@@ -204,13 +200,13 @@ export default function MembersPage() {
     else { const err = await res.json(); showToast(err.error || "Error al agregar servicio", false); }
   };
 
-  const totalMembers = members.filter((m) => m.role === "member").length;
-  const activeMembers = members.filter((m) => m.role === "member" && m.status === "active").length;
-  const totalCoaches = members.filter((m) => m.role === "coach").length;
+  const totalMembers = members.filter((m) => m.roles.includes("member")).length;
+  const activeMembers = members.filter((m) => m.roles.includes("member") && m.status === "active").length;
+  const totalCoaches = members.filter((m) => m.roles.includes("coach")).length;
 
   const kpis = [
     { label: "Total Miembros", value: totalMembers, sub: `${activeMembers} activos`, accent: "#4fc3f7" },
-    { label: "Coaches", value: totalCoaches, sub: "en plantilla", accent: "#22c55e" },
+    { label: "Instructores", value: totalCoaches, sub: "en plantilla", accent: "#22c55e" },
     { label: "Total Usuarios", value: members.length, sub: "en el sistema", accent: "#a78bfa" },
   ];
 
@@ -286,7 +282,7 @@ export default function MembersPage() {
             <div>
               {filtered.map((m, i) => {
                 const activeCount = activeCountMap[m.id] ?? 0;
-                const accentColor = ROLE_COLOR[m.role] ?? "#71717a";
+                const accentColor = ROLE_COLOR[m.roles[0]] ?? "#71717a";
                 return (
                   <motion.div
                     key={m.id}
@@ -312,7 +308,7 @@ export default function MembersPage() {
 
                     {/* Role + Status */}
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <RoleBadge role={m.role} />
+                      <RoleBadge role={m.roles[0]} />
                       <span
                         className="text-xs px-2 py-0.5 rounded font-semibold"
                         style={m.status === "active"
@@ -324,7 +320,7 @@ export default function MembersPage() {
                     </div>
 
                     {/* Active services */}
-                    {m.role !== "coach" ? (
+                    {!m.roles.includes("coach") ? (
                       <div className="hidden md:flex flex-col gap-0.5 shrink-0 min-w-[120px]">
                         {activeCount > 0 ? (
                           <span className="text-xs px-1.5 py-0.5 rounded font-medium w-fit" style={{ background: "#22c55e15", color: "#22c55e" }}>
@@ -430,7 +426,7 @@ export default function MembersPage() {
                   </div>
                   {newMemberForm.role === "member" && (
                     <div>
-                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach asignado</label>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor asignado</label>
                       <select value={newMemberForm.assignedCoachId}
                         onChange={(e) => setNewMemberForm((f) => ({ ...f, assignedCoachId: e.target.value }))}
                         className={inputCls} style={inputStyle}>
@@ -586,7 +582,7 @@ export default function MembersPage() {
                   </div>
                   {(addServiceForm.serviceType === "personal_training" || addServiceForm.serviceType === "kinesiology") && (
                     <div>
-                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach / Profesional</label>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor / Profesional</label>
                       <select value={addServiceForm.coachId}
                         onChange={(e) => setAddServiceForm((f) => ({ ...f, coachId: e.target.value }))}
                         className={inputCls} style={inputStyle}>
@@ -697,7 +693,7 @@ export default function MembersPage() {
                   </div>
                   {editState.role === "member" && (
                     <div>
-                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach asignado</label>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor asignado</label>
                       <select value={editState.assignedCoachId}
                         onChange={(e) => setEditState({ ...editState, assignedCoachId: e.target.value })}
                         className={inputCls} style={inputStyle}>

@@ -1,13 +1,6 @@
 "use client";
 
-const dayNames = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+import { DAY_NAMES } from "@/lib/labels";
 
 interface ClassCardProps {
   id: string;
@@ -61,17 +54,17 @@ export function ClassCard({
         {/* Info grid */}
         <div className="space-y-2 mb-4 text-sm">
           <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Coach</span>
+            <span style={{ color: "var(--text-secondary)" }}>Instructor</span>
             <span className="font-medium" style={{ color: "var(--text-primary)" }}>{coach}</span>
           </div>
           <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Day</span>
+            <span style={{ color: "var(--text-secondary)" }}>Día</span>
             <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-              {dayNames[dayOfWeek]}
+              {DAY_NAMES[dayOfWeek]}
             </span>
           </div>
           <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Time</span>
+            <span style={{ color: "var(--text-secondary)" }}>Horario</span>
             <span className="font-medium" style={{ color: "var(--text-primary)" }}>
               {startTime} - {endTime}
             </span>
@@ -81,7 +74,7 @@ export function ClassCard({
         {/* Capacity bar */}
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>CAPACITY</span>
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>CUPOS</span>
             <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>
               {reserved} / {capacity}
             </span>
@@ -110,7 +103,7 @@ export function ClassCard({
               : "bg-green-50 text-green-700"
           }`}
         >
-          {isFull ? "Full" : isAlmostFull ? "Almost Full" : "Available"}
+          {isFull ? "Sin cupos" : isAlmostFull ? "Pocos cupos" : "Disponible"}
         </div>
 
         {/* Reserve/Cancel Button */}
@@ -127,12 +120,12 @@ export function ClassCard({
           }
         >
           {isLoading
-            ? "Processing..."
+            ? "Procesando..."
             : isReserved
-              ? "Cancel Reservation"
+              ? "Cancelar reserva"
               : isFull
-                ? "Class Full"
-                : "Reserve Class"}
+                ? "Sin cupos"
+                : "Reservar clase"}
         </button>
       </div>
     </div>

@@ -1,20 +1,25 @@
 "use client";
 
 import type { ServiceType, MembershipStatus, PaymentStatus, MemberRole } from "@/lib/types";
+import {
+  MEMBERSHIP_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS,
+  ROLE_LABELS,
+} from "@/lib/labels";
 
-// ── Service type → Figma color mapping ─────────────────────────────────────
+// ── Service type → color + label ────────────────────────────────────────────
 const SERVICE_CFG: Record<string, { bg: string; text: string; label: string }> = {
   group:             { bg: "#4fc3f720", text: "#4fc3f7", label: "Grupal" },
-  personal_training: { bg: "#f9731620", text: "#f97316", label: "Personal" },
-  kinesiology:       { bg: "#a78bfa20", text: "#a78bfa", label: "Kinesio" },
-  blocked_time:      { bg: "#71717a20", text: "#71717a", label: "Bloqueado" },
+  personal_training: { bg: "#f9731620", text: "#f97316", label: "Entrenamiento personal" },
+  kinesiology:       { bg: "#a78bfa20", text: "#a78bfa", label: "Kinesiología" },
+  blocked_time:      { bg: "#71717a20", text: "#71717a", label: "Bloqueo de horario" },
 };
 
 export function ServiceBadge({ type }: { type: ServiceType | string }) {
   const cfg = SERVICE_CFG[type] ?? { bg: "#71717a20", text: "#71717a", label: type };
   return (
     <span
-      className="px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide"
+      className="px-2 py-0.5 rounded text-xs font-semibold"
       style={{ backgroundColor: cfg.bg, color: cfg.text }}
     >
       {cfg.label}
@@ -31,9 +36,9 @@ export function OccupancyBadge({ reserved, capacity }: { reserved: number; capac
   let color: string;
   let bg: string;
 
-  if (pct >= 100)     { text = "Llena";            color = "#ef4444"; bg = "#ef444420"; }
-  else if (pct >= 80) { text = `${spotsLeft} left`; color = "#f59e0b"; bg = "#f59e0b20"; }
-  else                { text = "Available";          color = "#22c55e"; bg = "#22c55e20"; }
+  if (pct >= 100)     { text = "Sin cupos";              color = "#ef4444"; bg = "#ef444420"; }
+  else if (pct >= 80) { text = `${spotsLeft} cupos`;     color = "#f59e0b"; bg = "#f59e0b20"; }
+  else                { text = "Disponible";              color = "#22c55e"; bg = "#22c55e20"; }
 
   return (
     <span
@@ -57,10 +62,10 @@ export function MembershipBadge({ status }: { status: MembershipStatus | string 
   const cfg = MEMBERSHIP_CFG[status] ?? { bg: "#71717a20", text: "#71717a" };
   return (
     <span
-      className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
+      className="px-2 py-0.5 rounded text-xs font-semibold"
       style={{ backgroundColor: cfg.bg, color: cfg.text }}
     >
-      {status}
+      {MEMBERSHIP_STATUS_LABELS[status] ?? status}
     </span>
   );
 }
@@ -76,10 +81,10 @@ export function PaymentBadge({ status }: { status: PaymentStatus | string }) {
   const cfg = PAYMENT_CFG[status] ?? { bg: "#71717a20", text: "#71717a" };
   return (
     <span
-      className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
+      className="px-2 py-0.5 rounded text-xs font-semibold"
       style={{ backgroundColor: cfg.bg, color: cfg.text }}
     >
-      {status}
+      {PAYMENT_STATUS_LABELS[status] ?? status}
     </span>
   );
 }
@@ -96,10 +101,10 @@ export function RoleBadge({ role }: { role: MemberRole | string }) {
   const cfg = ROLE_CFG[role] ?? { bg: "#71717a20", text: "#71717a" };
   return (
     <span
-      className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
+      className="px-2 py-0.5 rounded text-xs font-semibold"
       style={{ backgroundColor: cfg.bg, color: cfg.text }}
     >
-      {role}
+      {ROLE_LABELS[role] ?? role}
     </span>
   );
 }

@@ -3,12 +3,13 @@ import { Member, MemberRole, MemberStatus } from "@/lib/types";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const role = searchParams.get("role") as MemberRole | null;
+  const includesRole = searchParams.get("includesRole") as MemberRole | null;
   const status = searchParams.get("status") as MemberStatus | null;
   const search = searchParams.get("search")?.toLowerCase();
 
   let result = [...mockMembers];
-  if (role) result = result.filter((m) => m.role === role);
+  // Filter by a role the member must include (supports multi-role members)
+  if (includesRole) result = result.filter((m) => m.roles.includes(includesRole));
   if (status) result = result.filter((m) => m.status === status);
   if (search) result = result.filter((m) =>
     m.name.toLowerCase().includes(search) || m.email.toLowerCase().includes(search)
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      name, email, role = "member", status = "active",
+      name, email, roles, role, status = "active",
       assignedCoachId, assignedCoachName, contractedServices = [], notes,
     } = body;
 
@@ -33,11 +34,16 @@ export async function POST(request: Request) {
       return Response.json({ error: "El email ya está registrado" }, { status: 409 });
     }
 
+    // Accept roles array or fall back to single role string for backward compat
+    const memberRoles: MemberRole[] = Array.isArray(roles)
+      ? roles
+      : [((role as MemberRole) || "member")];
+
     const newMember: Member = {
       id: `user-${Date.now()}`,
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      role,
+      roles: memberRoles,
       status,
       contractedServices,
       ...(assignedCoachId && { assignedCoachId }),

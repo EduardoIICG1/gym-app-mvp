@@ -19,6 +19,7 @@ export async function POST(request: Request) {
 
     const cls = mockClasses.find((c) => c.id === classId);
     if (!cls) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
+    if (cls.eventType === "blocked_time") return Response.json({ error: "Este horario está bloqueado" }, { status: 400 });
     if (cls.status === "cancelled") return Response.json({ error: "Clase cancelada" }, { status: 400 });
     if (cls.reservedCount >= cls.maxCapacity) return Response.json({ error: "Clase llena" }, { status: 400 });
 

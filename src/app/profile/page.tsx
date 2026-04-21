@@ -3,28 +3,16 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { Member, Membership, Reservation, GymClass, MembershipStatus, PaymentStatus, ServiceType } from "@/lib/types";
+import { Member, Membership, Reservation, GymClass, ServiceType } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { computeMembershipCycle } from "@/lib/cycleHelpers";
 
 import { ServiceBadge, MembershipBadge, PaymentBadge, RoleBadge } from "@/components/Badge";
+import { SERVICE_LABELS } from "@/lib/labels";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const SERVICE_LABELS: Record<ServiceType, string> = {
-  group: "Grupal", personal_training: "Entrenamiento Personal",
-  kinesiology: "Kinesiología", blocked_time: "Bloqueado",
-};
-const MS_STATUS_LABELS: Record<MembershipStatus, string> = {
-  active: "Activa", expired: "Vencida", cancelled: "Cancelada", pending: "Pendiente",
-};
-const PAY_LABELS: Record<PaymentStatus, string> = {
-  paid: "Pagado", pending: "Pendiente", overdue: "Vencido",
-};
 const PLAN_LABELS: Record<string, string> = {
   mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
-};
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Administrador", coach: "Coach", member: "Miembro", student: "Estudiante", owner: "Owner",
 };
 
 function formatDate(s: string) { const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; }
@@ -74,7 +62,7 @@ function ProfileContent() {
 
   const displayName = member?.name ?? (isOwnProfile ? activeUser.name : "Usuario");
   const displayEmail = member?.email ?? (isOwnProfile ? activeUser.email : "");
-  const displayRole = member?.role ?? activeUser.role;
+  const displayRole = member?.roles[0] ?? activeUser.role;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

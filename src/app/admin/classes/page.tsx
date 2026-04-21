@@ -3,14 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Play, Pause } from "lucide-react";
-import { GymClass, Reservation, ServiceType, DayOfWeek } from "@/lib/types";
+import { GymClass, Reservation, ServiceType, DayOfWeek, EventType, Member } from "@/lib/types";
 import { ServiceBadge } from "@/components/Badge";
-
-// ─── Constants ─────────────────────────────────────────────────────────────
-const DAY_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+import { DAY_NAMES } from "@/lib/labels";
 
 const EMPTY_FORM = {
-  name: "", serviceType: "group" as ServiceType,
+  name: "", eventType: "class" as EventType, serviceType: "group" as ServiceType,
   dayOfWeek: 0 as DayOfWeek, startTime: "", endTime: "",
   coach: "", maxCapacity: 20, note: "",
 };
@@ -42,6 +40,7 @@ const inputStyle = {
 export default function AdminClassesPage() {
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,9 +51,15 @@ export default function AdminClassesPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [cRes, rRes] = await Promise.all([fetch("/api/classes"), fetch("/api/reservations")]);
+    const [cRes, rRes, coachRes] = await Promise.all([
+      fetch("/api/classes"),
+      fetch("/api/reservations"),
+      fetch("/api/members?includesRole=coach"),
+    ]);
     setClasses(await cRes.json());
     setReservations(await rRes.json());
+    const coachMembers: Member[] = await coachRes.json();
+    setCoaches(coachMembers.map(m => ({ id: m.id, name: m.name })));
     setLoading(false);
   }, []);
 
@@ -67,10 +72,11 @@ export default function AdminClassesPage() {
 
   // ─── KPIs ────────────────────────────────────────────────────────────────
   const active = classes.filter((c) => c.status === "active");
-  const totalCapacity = active.reduce((s, c) => s + c.maxCapacity, 0);
-  const totalReserved = active.reduce((s, c) => s + c.reservedCount, 0);
-  const avgOccupancy = active.length > 0
-    ? Math.round(active.reduce((s, c) => s + (c.reservedCount / c.maxCapacity) * 100, 0) / active.length)
+  const activeClasses = active.filter((c) => c.eventType !== "blocked_time");
+  const totalCapacity = activeClasses.reduce((s, c) => s + c.maxCapacity, 0);
+  const totalReserved = activeClasses.reduce((s, c) => s + c.reservedCount, 0);
+  const avgOccupancy = activeClasses.length > 0
+    ? Math.round(activeClasses.reduce((s, c) => s + (c.reservedCount / c.maxCapacity) * 100, 0) / activeClasses.length)
     : 0;
   const todayReservations = reservations.filter((r) => {
     const today = new Date();
@@ -81,7 +87,7 @@ export default function AdminClassesPage() {
   const openCreate = () => { setEditingClass(null); setForm(EMPTY_FORM); setIsModalOpen(true); };
   const openEdit = (cls: GymClass) => {
     setEditingClass(cls);
-    setForm({ name: cls.name, serviceType: cls.serviceType, dayOfWeek: cls.dayOfWeek, startTime: cls.startTime, endTime: cls.endTime, coach: cls.coach, maxCapacity: cls.maxCapacity, note: cls.note || "" });
+    setForm({ name: cls.name, eventType: cls.eventType ?? "class", serviceType: cls.serviceType, dayOfWeek: cls.dayOfWeek, startTime: cls.startTime, endTime: cls.endTime, coach: cls.coach, maxCapacity: cls.maxCapacity, note: cls.note || "" });
     setIsModalOpen(true);
   };
 
@@ -185,9 +191,10 @@ export default function AdminClassesPage() {
                 </h2>
                 <div className="space-y-2">
                   {dayClasses.map((cls) => {
-                    const pct = cls.maxCapacity > 0 ? (cls.reservedCount / cls.maxCapacity) * 100 : 0;
+                    const isBlocked = cls.eventType === "blocked_time";
+                    const pct = !isBlocked && cls.maxCapacity > 0 ? (cls.reservedCount / cls.maxCapacity) * 100 : 0;
                     const barColor = pct >= 100 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
-                    const classReservations = reservations.filter(
+                    const classReservations = isBlocked ? [] : reservations.filter(
                       (r) => r.classId === cls.id && r.classDate === weekDateForDay(cls.dayOfWeek) && r.status !== "cancelled"
                     );
                     const isExpanded = expandedId === cls.id;
@@ -197,33 +204,44 @@ export default function AdminClassesPage() {
                         key={cls.id}
                         layout
                         className="rounded-xl overflow-hidden border"
-                        style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+                        style={{
+                          background: isBlocked
+                            ? "repeating-linear-gradient(45deg, var(--card-border), var(--card-border) 2px, var(--card) 2px, var(--card) 10px)"
+                            : "var(--card)",
+                          borderColor: "var(--card-border)",
+                          opacity: isBlocked ? 0.9 : 1,
+                        }}
                       >
                         {/* Class row */}
                         <div className="flex items-center gap-3 p-4">
-                          <ServiceBadge type={cls.serviceType} />
+                          {isBlocked
+                            ? <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0" style={{ background: "#71717a30", color: "#71717a" }}>Bloqueado</span>
+                            : <ServiceBadge type={cls.serviceType} />
+                          }
 
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{cls.name}</p>
                             <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{cls.startTime}–{cls.endTime} · {cls.coach}</p>
                           </div>
 
-                          {/* Occupancy bar */}
-                          <div className="hidden sm:flex flex-col items-end gap-1 w-32 shrink-0">
-                            <div className="flex items-center gap-2 w-full">
-                              <div className="flex-1 rounded-full h-1.5 overflow-hidden" style={{ background: "var(--card-border)" }}>
-                                <motion.div
-                                  className="h-full rounded-full"
-                                  style={{ backgroundColor: barColor }}
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${Math.min(pct, 100)}%` }}
-                                  transition={{ duration: 0.6, ease: "easeOut" }}
-                                />
+                          {/* Occupancy bar — only for real classes */}
+                          {!isBlocked && (
+                            <div className="hidden sm:flex flex-col items-end gap-1 w-32 shrink-0">
+                              <div className="flex items-center gap-2 w-full">
+                                <div className="flex-1 rounded-full h-1.5 overflow-hidden" style={{ background: "var(--card-border)" }}>
+                                  <motion.div
+                                    className="h-full rounded-full"
+                                    style={{ backgroundColor: barColor }}
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${Math.min(pct, 100)}%` }}
+                                    transition={{ duration: 0.6, ease: "easeOut" }}
+                                  />
+                                </div>
+                                <span className="text-xs shrink-0" style={{ color: "var(--text-secondary)" }}>{Math.round(pct)}%</span>
                               </div>
-                              <span className="text-xs shrink-0" style={{ color: "var(--text-secondary)" }}>{Math.round(pct)}%</span>
+                              <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{cls.reservedCount}/{cls.maxCapacity}</p>
                             </div>
-                            <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{cls.reservedCount}/{cls.maxCapacity}</p>
-                          </div>
+                          )}
 
                           {/* Status */}
                           <span
@@ -237,14 +255,16 @@ export default function AdminClassesPage() {
 
                           {/* Actions */}
                           <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => setExpandedId(isExpanded ? null : cls.id)}
-                              className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
-                              style={{ color: "var(--text-secondary)" }}
-                              title="Ver inscritos"
-                            >
-                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                            </button>
+                            {!isBlocked && (
+                              <button
+                                onClick={() => setExpandedId(isExpanded ? null : cls.id)}
+                                className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
+                                style={{ color: "var(--text-secondary)" }}
+                                title="Ver inscritos"
+                              >
+                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </button>
+                            )}
                             <button onClick={() => openEdit(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
                               <Pencil className="w-4 h-4" />
                             </button>
@@ -352,27 +372,47 @@ export default function AdminClassesPage() {
             >
               <div className="flex items-center justify-between p-6 sticky top-0 border-b" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                 <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                  {editingClass ? "Editar Clase" : "Nueva Clase"}
+                  {editingClass
+                    ? (form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase")
+                    : (form.eventType === "blocked_time" ? "Nuevo tiempo bloqueado" : "Nueva Clase")}
                 </h2>
                 <button onClick={() => setIsModalOpen(false)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
               <div className="p-6 space-y-4">
+                {/* Event type toggle */}
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de evento</label>
+                  <div className="flex gap-2">
+                    {(["class", "blocked_time"] as const).map(et => (
+                      <button key={et} type="button" onClick={() => setForm({ ...form, eventType: et })}
+                        className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                        style={form.eventType === et
+                          ? { background: et === "blocked_time" ? "#71717a" : "#4fc3f7", color: "#0a0a0f" }
+                          : { background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                        {et === "class" ? "Clase" : "Tiempo bloqueado"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nombre *</label>
                     <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder="ej. Funcional 6am" className={inputCls} style={inputStyle} />
+                      placeholder={form.eventType === "blocked_time" ? "ej. Mantenimiento de equipo" : "ej. Funcional 6am"}
+                      className={inputCls} style={inputStyle} />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de clase</label>
-                    <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value as ServiceType })}
-                      className={inputCls} style={inputStyle}>
-                      <option value="group">Grupal</option>
-                      <option value="personal_training">Personal</option>
-                      <option value="kinesiology">Kinesio</option>
-                      <option value="blocked_time">Bloqueado</option>
-                    </select>
-                  </div>
+                  {form.eventType !== "blocked_time" && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de clase</label>
+                      <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value as ServiceType })}
+                        className={inputCls} style={inputStyle}>
+                        <option value="group">Grupal</option>
+                        <option value="personal_training">Entrenamiento personal</option>
+                        <option value="kinesiology">Kinesiología</option>
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Día de la semana</label>
                     <select value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) as DayOfWeek })}
@@ -392,20 +432,25 @@ export default function AdminClassesPage() {
                     <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })}
                       className={inputCls} style={inputStyle} />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach *</label>
-                    <input value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value })}
-                      placeholder="Nombre del coach" className={inputCls} style={inputStyle} />
+                  <div className={form.eventType !== "blocked_time" ? "" : "col-span-2"}>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor</label>
+                    <select value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value })}
+                      className={inputCls} style={inputStyle}>
+                      <option value="">— Seleccionar instructor —</option>
+                      {coaches.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Capacidad máxima</label>
-                    <input type="number" min={1} value={form.maxCapacity} onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
-                      className={inputCls} style={inputStyle} />
-                  </div>
+                  {form.eventType !== "blocked_time" && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Capacidad máxima</label>
+                      <input type="number" min={1} value={form.maxCapacity} onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nota (opcional)</label>
                     <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
-                      rows={2} placeholder="Información adicional..."
+                      rows={2} placeholder={form.eventType === "blocked_time" ? "ej. Acceso restringido" : "Información adicional..."}
                       className={`${inputCls} resize-none`} style={inputStyle} />
                   </div>
                 </div>
@@ -414,7 +459,9 @@ export default function AdminClassesPage() {
                   className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-opacity disabled:opacity-50 hover:opacity-90"
                   style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
                 >
-                  {saving ? "Guardando..." : editingClass ? "Guardar cambios" : "Crear clase"}
+                  {saving ? "Guardando..." : editingClass
+                    ? "Guardar cambios"
+                    : form.eventType === "blocked_time" ? "Crear bloqueo" : "Crear clase"}
                 </button>
               </div>
             </motion.div>

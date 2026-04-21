@@ -113,16 +113,16 @@ export default function ClassesPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>Classes</h1>
+          <h1 className="text-4xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>Clases</h1>
           <p style={{ color: "var(--text-secondary)" }}>
-            Browse and book your favorite fitness classes
+            Explora y reserva tus clases
           </p>
         </div>
 
         {/* Loading state */}
         {loading && (
           <div className="flex justify-center py-12">
-            <div style={{ color: "var(--text-secondary)" }}>Loading classes...</div>
+            <div style={{ color: "var(--text-secondary)" }}>Cargando clases...</div>
           </div>
         )}
 
@@ -136,7 +136,7 @@ export default function ClassesPage() {
         {/* Empty state */}
         {!loading && classes.length === 0 && !error && (
           <div className="text-center py-12">
-            <p className="text-lg" style={{ color: "var(--text-secondary)" }}>No classes available.</p>
+            <p className="text-lg" style={{ color: "var(--text-secondary)" }}>No hay clases disponibles.</p>
           </div>
         )}
 

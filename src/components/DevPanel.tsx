@@ -8,7 +8,7 @@ const ROLES: EditableRole[] = ["admin", "coach", "member"];
 const ROLE_LABELS: Record<EditableRole, string> = {
   admin: "Admin",
   coach: "Coach",
-  member: "Member",
+  member: "Miembro",
 };
 
 export function DevPanel() {

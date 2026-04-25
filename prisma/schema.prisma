@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  COACH
+  MEMBER
+}
+
+enum ServiceType {
+  GROUP
+  PERSONAL_TRAINING
+  KINESIOLOGY
+  OTHER
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingStatus {
+  INVITED
+  CONFIRMED
+  CANCELLED
+  WAITLISTED
+  ATTENDED
+  ABSENT
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+// ─── Business Models ─────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  role      Role     @default(MEMBER)
+  phone     String?
+  rut       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  coachSessions   Session[]     @relation("CoachSessions")
+  coachRelations  MemberCoach[] @relation("CoachRelations")
+  memberRelations MemberCoach[] @relation("MemberRelations")
+  bookings        Booking[]
+  memberships     Membership[]
+  defaultPrograms Program[]     @relation("DefaultCoach")
+}
+
+// Many-to-many: Member ↔ Coach with service type
+model MemberCoach {
+  id          String      @id @default(cuid())
+  memberId    String
+  coachId     String
+  serviceType ServiceType
+  isActive    Boolean     @default(true)
+  startDate   DateTime    @default(now())
+  endDate     DateTime?
+
+  member User @relation("MemberRelations", fields: [memberId], references: [id])
+  coach  User @relation("CoachRelations",  fields: [coachId],  references: [id])
+
+  @@unique([memberId, coachId, serviceType])
+}
+
+// Class/service definition (recurring template for group classes)
+model Program {
+  id             String      @id @default(cuid())
+  name           String
+  description    String?
+  serviceType    ServiceType
+  durationMin    Int         @default(60)
+  maxCapacity    Int?
+  isActive       Boolean     @default(true)
+  // Recurring schedule fields (group classes; null = non-recurring)
+  dayOfWeek      Int?        // 0=Mon … 5=Sat
+  startTime      String?     // "06:00" HH:mm
+  defaultCoachId String?
+  createdAt      DateTime    @default(now())
+
+  defaultCoach User?     @relation("DefaultCoach", fields: [defaultCoachId], references: [id])
+  sessions     Session[]
+}
+
+// Concrete session instance — real dated occurrence of a Program
+model Session {
+  id        String        @id @default(cuid())
+  programId String
+  coachId   String
+  startsAt  DateTime
+  endsAt    DateTime
+  location  String?
+  notes     String?
+  status    SessionStatus @default(SCHEDULED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  program  Program   @relation(fields: [programId], references: [id])
+  coach    User      @relation("CoachSessions", fields: [coachId], references: [id])
+  bookings Booking[]
+
+  @@unique([programId, startsAt])
+}
+
+// Member ↔ Session — Booking always references a real Session
+model Booking {
+  id        String        @id @default(cuid())
+  sessionId String
+  memberId  String
+  status    BookingStatus @default(CONFIRMED)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [id])
+  member  User    @relation(fields: [memberId], references: [id])
+
+  @@unique([sessionId, memberId])
+}
+
+// Member subscription plan
+model Membership {
+  id            String           @id @default(cuid())
+  memberId      String
+  planName      String
+  serviceType   ServiceType
+  totalSessions Int?             // null = unlimited / monthly flat
+  usedSessions  Int              @default(0)
+  startDate     DateTime
+  endDate       DateTime?
+  status        MembershipStatus @default(ACTIVE)
+  createdAt     DateTime         @default(now())
+
+  member User @relation(fields: [memberId], references: [id])
+}

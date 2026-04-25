@@ -76,7 +76,7 @@ model MemberCoach {
   endDate     DateTime?
 
   member User @relation("MemberRelations", fields: [memberId], references: [id])
-  coach  User @relation("CoachRelations",  fields: [coachId],  references: [id])
+  coach  User @relation("CoachRelations", fields: [coachId], references: [id])
 
   @@unique([memberId, coachId, serviceType])
 }
@@ -91,10 +91,11 @@ model Program {
   maxCapacity    Int?
   isActive       Boolean     @default(true)
   // Recurring schedule fields (group classes; null = non-recurring)
-  dayOfWeek      Int?        // 0=Mon … 5=Sat
-  startTime      String?     // "06:00" HH:mm
+  dayOfWeek      Int? // 0=Mon … 5=Sat
+  startTime      String? // "06:00" HH:mm
   defaultCoachId String?
   createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   defaultCoach User?     @relation("DefaultCoach", fields: [defaultCoachId], references: [id])
   sessions     Session[]
@@ -118,6 +119,7 @@ model Session {
   bookings Booking[]
 
   @@unique([programId, startsAt])
+  @@index([coachId])
 }
 
 // Member ↔ Session — Booking always references a real Session
@@ -125,15 +127,17 @@ model Booking {
   id        String        @id @default(cuid())
   sessionId String
   memberId  String
-  status    BookingStatus @default(CONFIRMED)
+  status    BookingStatus @default(INVITED)
   notes     String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  session Session @relation(fields: [sessionId], references: [id])
-  member  User    @relation(fields: [memberId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  User    @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, memberId])
+  @@index([memberId])
+  @@index([sessionId])
 }
 
 // Member subscription plan
@@ -142,12 +146,15 @@ model Membership {
   memberId      String
   planName      String
   serviceType   ServiceType
-  totalSessions Int?             // null = unlimited / monthly flat
+  totalSessions Int? // null = unlimited / monthly flat
   usedSessions  Int              @default(0)
   startDate     DateTime
   endDate       DateTime?
   status        MembershipStatus @default(ACTIVE)
   createdAt     DateTime         @default(now())
 
-  member User @relation(fields: [memberId], references: [id])
+  member User @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([status])
 }

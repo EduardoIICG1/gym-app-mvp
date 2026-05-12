@@ -3,6 +3,7 @@ import { Sora, DM_Sans } from "next/font/google";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
 import { DevPanel } from "@/components/DevPanel";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 const sora = Sora({
@@ -33,14 +34,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen antialiased overflow-x-hidden" style={{ background: "var(--background)", color: "var(--text-primary)" }}>
-        <Navbar />
-        <div className="flex">
-          <Sidebar />
-          <div className="flex-1 min-w-0 overflow-x-hidden pb-16 lg:pb-0">
-            {children}
+        <Providers>
+          <Navbar />
+          <div className="flex">
+            <Sidebar />
+            <div className="flex-1 min-w-0 overflow-x-hidden pb-16 lg:pb-0">
+              {children}
+            </div>
           </div>
-        </div>
-        <DevPanel />
+          <DevPanel />
+        </Providers>
       </body>
     </html>
   );

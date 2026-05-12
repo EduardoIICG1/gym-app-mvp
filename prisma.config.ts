@@ -7,4 +7,7 @@ export default defineConfig({
   datasource: {
     url: combinedEnv["DIRECT_URL"]!,
   },
+  migrations: {
+    seed: "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 tsx prisma/seed.ts",
+  },
 });

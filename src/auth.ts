@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 import type { Role } from "@prisma/client";
+import { authConfig } from "./auth.config";
 import { prisma } from "@/lib/prisma";
 
 export const {
@@ -9,8 +9,7 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
-  providers: [Google],
-  session: { strategy: "jwt" },
+  ...authConfig,
   callbacks: {
     async signIn({ user }) {
       if (!user.email) return false;

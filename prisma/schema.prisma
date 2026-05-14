@@ -43,6 +43,12 @@ enum MembershipStatus {
   CANCELLED
 }
 
+enum PaymentStatus {
+  PAID
+  PENDING
+  OVERDUE
+}
+
 // ─── Business Models ─────────────────────────────────────────────────────────
 
 model User {
@@ -151,7 +157,10 @@ model Membership {
   startDate     DateTime
   endDate       DateTime?
   status        MembershipStatus @default(ACTIVE)
+  amount        Int              @default(0)
+  paymentStatus PaymentStatus    @default(PAID)
   createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @default(now()) @updatedAt
 
   member User @relation(fields: [memberId], references: [id], onDelete: Cascade)
 

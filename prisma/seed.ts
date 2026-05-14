@@ -279,7 +279,7 @@ async function main() {
   const memberships = await Promise.all([
     prisma.membership.upsert({
       where:  { id: ID.membrAna },
-      update: {},
+      update: { planName: "Personal 10 sesiones", status: "ACTIVE", amount: 65000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-07-31") },
       create: {
         id:            ID.membrAna,
         memberId:      mem1.id,
@@ -290,11 +290,13 @@ async function main() {
         startDate:     new Date("2026-05-01"),
         endDate:       new Date("2026-07-31"),
         status:        "ACTIVE",
+        amount:        65000,
+        paymentStatus: "PAID",
       },
     }),
     prisma.membership.upsert({
       where:  { id: ID.membrCarlos },
-      update: {},
+      update: { planName: "Kinesiología 8 sesiones", status: "ACTIVE", amount: 48000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-06-30") },
       create: {
         id:            ID.membrCarlos,
         memberId:      mem2.id,
@@ -305,11 +307,13 @@ async function main() {
         startDate:     new Date("2026-05-01"),
         endDate:       new Date("2026-06-30"),
         status:        "ACTIVE",
+        amount:        48000,
+        paymentStatus: "PAID",
       },
     }),
     prisma.membership.upsert({
       where:  { id: ID.membrLucia },
-      update: {},
+      update: { planName: "Grupal Mensual", status: "ACTIVE", amount: 25000, paymentStatus: "PENDING", startDate: new Date("2026-05-01"), endDate: new Date("2026-05-31") },
       create: {
         id:            ID.membrLucia,
         memberId:      mem3.id,
@@ -320,6 +324,8 @@ async function main() {
         startDate:     new Date("2026-05-01"),
         endDate:       new Date("2026-05-31"),
         status:        "ACTIVE",
+        amount:        25000,
+        paymentStatus: "PENDING",
       },
     }),
   ]);

@@ -1,4 +1,42 @@
-import { mockMemberships } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import type { Membership, ServiceType, MembershipStatus, PaymentStatus } from "@/lib/types";
+import type {
+  MembershipStatus as DbStatus,
+  ServiceType as DbServiceType,
+  PaymentStatus as DbPaymentStatus,
+} from "@prisma/client";
+
+const SVC_MAP: Partial<Record<DbServiceType, ServiceType>> = {
+  GROUP: "group",
+  PERSONAL_TRAINING: "personal_training",
+  KINESIOLOGY: "kinesiology",
+};
+
+const STATUS_MAP: Record<DbStatus, MembershipStatus> = {
+  ACTIVE:    "active",
+  EXPIRED:   "expired",
+  CANCELLED: "cancelled",
+  PENDING:   "pending",
+};
+
+const STATUS_REVERSE: Record<string, DbStatus> = {
+  active:    "ACTIVE",
+  expired:   "EXPIRED",
+  cancelled: "CANCELLED",
+  pending:   "PENDING",
+};
+
+const PAYMENT_MAP: Record<DbPaymentStatus, PaymentStatus> = {
+  PAID:    "paid",
+  PENDING: "pending",
+  OVERDUE: "overdue",
+};
+
+const PAYMENT_REVERSE: Record<string, DbPaymentStatus> = {
+  paid:    "PAID",
+  pending: "PENDING",
+  overdue: "OVERDUE",
+};
 
 export async function PUT(
   request: Request,
@@ -7,11 +45,59 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const idx = mockMemberships.findIndex((m) => m.id === id);
-    if (idx === -1) return Response.json({ error: "Membresía no encontrada" }, { status: 404 });
 
-    mockMemberships[idx] = { ...mockMemberships[idx], ...body };
-    return Response.json(mockMemberships[idx]);
+    const existing = await prisma.membership.findUnique({ where: { id } });
+    if (!existing) {
+      return Response.json({ error: "Membresía no encontrada" }, { status: 404 });
+    }
+
+    const updateData: {
+      planName?: string;
+      status?: DbStatus;
+      paymentStatus?: DbPaymentStatus;
+      amount?: number;
+      startDate?: Date;
+      endDate?: Date | null;
+    } = {};
+
+    if (body.plan !== undefined) updateData.planName = String(body.plan);
+    if (body.membershipStatus !== undefined) {
+      updateData.status = STATUS_REVERSE[body.membershipStatus] ?? existing.status;
+    }
+    if (body.paymentStatus !== undefined) {
+      updateData.paymentStatus = PAYMENT_REVERSE[body.paymentStatus] ?? existing.paymentStatus;
+    }
+    if (body.amount != null) updateData.amount = Number(body.amount);
+    if (body.startDate !== undefined) {
+      updateData.startDate = new Date(body.startDate + "T00:00:00");
+    }
+    if (body.endDate !== undefined) {
+      updateData.endDate = body.endDate ? new Date(body.endDate + "T23:59:59") : null;
+    }
+
+    const updated = await prisma.membership.update({
+      where: { id },
+      data: updateData,
+      include: { member: { select: { id: true, name: true, email: true } } },
+    });
+
+    const response: Membership & { totalSessions?: number | null; usedSessions?: number } = {
+      id: updated.id,
+      studentId: updated.memberId,
+      studentName: updated.member.name ?? "",
+      studentEmail: updated.member.email,
+      serviceType: SVC_MAP[updated.serviceType] ?? "group",
+      plan: updated.planName as Membership["plan"],
+      paymentStatus: PAYMENT_MAP[updated.paymentStatus],
+      membershipStatus: STATUS_MAP[updated.status],
+      amount: updated.amount,
+      startDate: updated.startDate.toISOString().slice(0, 10),
+      endDate: updated.endDate ? updated.endDate.toISOString().slice(0, 10) : "",
+      totalSessions: updated.totalSessions,
+      usedSessions: updated.usedSessions,
+    };
+
+    return Response.json(response);
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });
   }

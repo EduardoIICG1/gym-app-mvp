@@ -99,11 +99,34 @@ Fase actual: Fase 6 (persistencia + auth)
 
 **Pendiente futuro:** selector de fecha/mes en el rango semanal del calendario.
 
-#### Próximo: Task 13 — /api/memberships usa Prisma real
+#### Task 13 ✅ — /api/memberships usa Prisma real
+- Archivos: src/app/api/memberships/route.ts, src/app/api/memberships/[id]/route.ts
+- Schema: Membership ahora incluye amount (Int), paymentStatus (enum PaymentStatus), updatedAt (@updatedAt)
+- GET: consulta real con join a User (studentName, studentEmail); filters: status, studentId, plan (contains)
+- POST: crea Membership real con validación de duplicado activo por servicio/período
+- PUT: persiste amount, paymentStatus, membershipStatus, startDate, endDate
+- Cancelar membresía = soft-delete vía status=CANCELLED (no borrado físico)
+- paymentStatus: PAID | PENDING | OVERDUE (mapeado desde/hacia frontend)
+- amount: Int en CLP (0 por defecto; persiste lo que envía el frontend)
+- updatedAt cambia automáticamente en cada update
+- Membership guarda estado vigente, no historial de cambios
+
+**Backlog futuro (no implementar todavía):**
+- MembershipHistory o AuditLog para trazabilidad de cambios de membresía (changedBy, previousStatus, reason, etc.)
+- Bloqueo de reservas si membresía del servicio está EXPIRED
+- Alerta amarilla en perfil del alumno con membresía vencida
+- Integración de pagos, facturación
+
+#### CP4 ✅ Cerrado (2026-05-14)
+Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /api/classes, /api/reservations, /api/memberships) usan Prisma real.
+
+### CP5 — En progreso
+
+#### Próximo: Task 14 — useCurrentUser con sesión real de NextAuth
 
 ## Próximo paso
 
-Task 13: reemplazar /api/memberships con consultas reales a Membership de Prisma
+Task 14: reemplazar useCurrentUser (mock) con useSession de NextAuth para exponer id, role y datos reales del usuario autenticado en el frontend.
 
 ## Advertencias antes de producción
 

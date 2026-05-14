@@ -42,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </div>
           </div>
-          <DevPanel />
+          {process.env.NODE_ENV === "development" && <DevPanel />}
         </Providers>
       </body>
     </html>

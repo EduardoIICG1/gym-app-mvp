@@ -30,10 +30,13 @@ export function useCurrentUser(): User & {
     ? (DB_ROLE_MAP[session.user.role] ?? "member")
     : "member";
 
-  // DevPanel role override (localStorage) — kept for Task 15 dev tooling
+  const isDev = process.env.NODE_ENV === "development";
+
+  // DevPanel role override via localStorage — dev only
   const [roleOverride, setRoleOverride] = useState<EditableRole | null>(null);
 
   useEffect(() => {
+    if (!isDev) return;
     const stored = localStorage.getItem(STORAGE_KEY) as EditableRole | null;
     if (stored && ["admin", "coach", "member"].includes(stored)) {
       setRoleOverride(stored);
@@ -43,17 +46,17 @@ export function useCurrentUser(): User & {
     };
     window.addEventListener("pp:roleChange", handler);
     return () => window.removeEventListener("pp:roleChange", handler);
-  }, []);
+  }, [isDev]);
 
   const changeRole = (r: EditableRole) => {
+    if (!isDev) return;
     localStorage.setItem(STORAGE_KEY, r);
     setRoleOverride(r);
     window.dispatchEvent(new CustomEvent<EditableRole>("pp:roleChange", { detail: r }));
   };
 
-  // Role: use DevPanel override if set, otherwise use real session role
-  // Identity (id, email, name) always comes from real session — never mock
-  const role = roleOverride ?? sessionRole;
+  // In production roleOverride is always null; role comes exclusively from session
+  const role = (isDev ? roleOverride : null) ?? sessionRole;
   const roles: MemberRole[] = [role];
   const hasRole = (r: MemberRole): boolean => roles.includes(r);
 

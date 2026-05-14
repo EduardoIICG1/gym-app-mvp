@@ -145,13 +145,29 @@ Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /ap
 
 **Pendiente UX (backlog):**
 - Agregar botón de cerrar sesión visible desde perfil/avatar
-- DevPanel solo visible en NODE_ENV=development (Task 15)
-- Limpiar o aislar mock-data usado por Home/DevPanel
-- Evitar role override fuera de desarrollo
+- Reemplazar Home mock con datos reales
+- Limpiar mock-data cuando Home deje de depender de mocks
+
+#### Task 15 ✅ — Dev tools restringidos a development
+
+- `src/app/layout.tsx`: `<DevPanel />` envuelto en `process.env.NODE_ENV === "development"` — no se monta en producción
+- `src/components/Sidebar.tsx`: sección "Demo: Rol" eliminada completamente de todos los entornos; Sidebar queda solo como navegación real
+- `src/lib/useCurrentUser.ts`: `changeRole` es no-op en producción; localStorage no se lee; `role` siempre viene del JWT real en producción
+- DevPanel (Shift+D) es el único punto de simulación de rol, exclusivo de development
+- Build limpio ✅; validación manual completa ✅
+
+**Estado de herramientas de desarrollo:**
+- DevPanel: solo en `NODE_ENV=development`, Shift+D para abrir
+- Sidebar: solo navegación, sin controles demo en ningún entorno
+- `changeRole`: exportada pero no-op en producción (no rompe interfaz de useCurrentUser)
+- `role` en producción: siempre del JWT, nunca de localStorage
 
 ## Próximo paso
 
-Task 15: hacer DevPanel dev-only (visible solo cuando NODE_ENV=development).
+Backlog abierto — sin tarea activa asignada. Opciones sugeridas:
+- Reemplazar Home mock con datos reales
+- Agregar logout visible desde avatar/perfil
+- Limpiar mock-data cuando Home deje de depender de mocks
 
 ## Advertencias antes de producción
 

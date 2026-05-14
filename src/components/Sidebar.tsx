@@ -30,7 +30,6 @@ const ROLE_COLOR: Record<string, string> = {
 export function Sidebar() {
   const pathname = usePathname();
   const activeUser = useCurrentUser();
-  const changeRole = activeUser.changeRole;
   const [collapsed, setCollapsed] = useState(pathname !== "/");
   const [hovered, setHovered] = useState(false);
 
@@ -137,38 +136,6 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Role switcher — visible when expanded */}
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="p-3 border-t"
-              style={{ borderColor: "var(--card-border)", background: "rgba(0,0,0,0.2)" }}
-            >
-              <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: "var(--text-secondary)" }}>
-                Demo: Rol
-              </p>
-              <div className="flex gap-1">
-                {(["admin", "coach", "member"] as const).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => changeRole(r)}
-                    className="flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all capitalize"
-                    style={
-                      activeUser.role === r
-                        ? { backgroundColor: "#4fc3f7", color: "#0a0a0f" }
-                        : { backgroundColor: "var(--card-border)", color: "var(--text-secondary)" }
-                    }
-                  >
-                    {ROLE_LABELS[r] ?? r}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Collapse toggle */}
         <div className="p-3 border-t" style={{ borderColor: "var(--card-border)" }}>

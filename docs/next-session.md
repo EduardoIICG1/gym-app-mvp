@@ -72,11 +72,38 @@ Fase actual: Fase 6 (persistencia + auth)
 - Campos legacy no persistidos (sin schema en DB): notes, canBookMakeupClasses, makeupCredits
 - Validación frontend: 7 usuarios desde DB, roles/status/contractedServices correctos
 
-#### Próximo: Task 11 — /api/classes usa Prisma real
+#### Tasks 11+12 ✅ — /api/classes y /api/reservations usan Prisma real
+- Archivos: src/app/api/classes/route.ts, src/app/api/classes/[id]/route.ts
+- Archivos: src/app/api/reservations/route.ts, src/app/api/reservations/[id]/route.ts
+- Calendar: src/app/calendar/page.tsx
+
+**Classes:**
+- GET acepta ?weekStart=YYYY-MM-DD → filtra Session.startsAt dentro de esa semana
+- Sin weekStart → devuelve sesiones desde hoy en adelante (para /classes view)
+- Response: id=session.id, dayOfWeek/startTime desde Program, reservedCount desde Booking count
+- PUT actualiza Program + Session; DELETE cancela Session + sus Bookings
+- POST crea Program + Session para la semana actual
+
+**Reservations:**
+- GET con ?userId retorna Bookings del usuario autenticado (ignora el valor del param — fix de seguridad)
+- GET con ?classId retorna todos los Bookings de esa Session (para vista admin)
+- POST crea Booking usando sessionId = classId; usa auth session, no el userId del cliente
+- DELETE cancela Booking (status=CANCELLED, no elimina el registro)
+- PATCH actualiza Booking.status según attendanceStatus (ATTENDED/ABSENT/CONFIRMED)
+
+**Decisión de contrato:** classId en frontend = session.id en DB. Eliminado uso de programId+classDate.
+
+**Bugs corregidos:**
+- Race condition en calendario: fetchVersionRef — descarta respuestas de fetches anteriores si llegaron tarde
+- Reserva no visible: GET reservations usa auth session real; isReserved ya no requiere studentId === mockId
+
+**Pendiente futuro:** selector de fecha/mes en el rango semanal del calendario.
+
+#### Próximo: Task 13 — /api/memberships usa Prisma real
 
 ## Próximo paso
 
-Task 11: reemplazar /api/classes con consultas reales a Program + Session de Prisma
+Task 13: reemplazar /api/memberships con consultas reales a Membership de Prisma
 
 ## Advertencias antes de producción
 

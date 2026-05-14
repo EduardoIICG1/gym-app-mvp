@@ -1,29 +1,178 @@
-import { mockClasses, mockReservations } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import type { ServiceType, GymClass, DayOfWeek } from "@/lib/types";
+import type { ServiceType as DbServiceType } from "@prisma/client";
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+const SVC_MAP: Partial<Record<DbServiceType, ServiceType>> = {
+  GROUP: "group",
+  PERSONAL_TRAINING: "personal_training",
+  KINESIOLOGY: "kinesiology",
+  OTHER: "blocked_time",
+};
+
+const SVC_REVERSE: Record<string, DbServiceType> = {
+  group: "GROUP",
+  personal_training: "PERSONAL_TRAINING",
+  kinesiology: "KINESIOLOGY",
+  blocked_time: "OTHER",
+};
+
+function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function jsDayToFrontend(jsDay: number): number {
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const idx = mockClasses.findIndex((c) => c.id === id);
-    if (idx === -1) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
 
-    mockClasses[idx] = { ...mockClasses[idx], ...body, id };
-    return Response.json(mockClasses[idx]);
+    const existing = await prisma.session.findUnique({
+      where: { id },
+      include: { program: true },
+    });
+    if (!existing) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
+
+    const prog = existing.program;
+    const isBlocked = body.eventType === "blocked_time";
+    const dbSvcType: DbServiceType = isBlocked
+      ? "OTHER"
+      : (SVC_REVERSE[body.serviceType] ?? prog.serviceType);
+
+    // Compute durationMin if times provided
+    const newStart: string | null = body.startTime ?? null;
+    const newEnd: string | null = body.endTime ?? null;
+    let durationMin = prog.durationMin;
+    if (newStart && newEnd) {
+      const [sh, sm] = newStart.split(":").map(Number);
+      const [eh, em] = newEnd.split(":").map(Number);
+      durationMin = Math.max(1, (eh * 60 + em) - (sh * 60 + sm));
+    }
+
+    // Update Program
+    await prisma.program.update({
+      where: { id: prog.id },
+      data: {
+        name: body.name ?? prog.name,
+        serviceType: dbSvcType,
+        maxCapacity: body.maxCapacity != null ? Number(body.maxCapacity) : prog.maxCapacity,
+        startTime: newStart ?? prog.startTime,
+        durationMin,
+        description: body.note !== undefined ? (body.note || null) : prog.description,
+      },
+    });
+
+    // Resolve coach by name if changed
+    let coachId = existing.coachId;
+    if (body.coach) {
+      const coachUser = await prisma.user.findFirst({
+        where: { name: body.coach, role: { in: ["COACH", "ADMIN"] } },
+      });
+      if (coachUser) coachId = coachUser.id;
+    }
+
+    // Recompute startsAt/endsAt only if time changed
+    let startsAt = existing.startsAt;
+    let endsAt = existing.endsAt;
+    if (newStart) {
+      const [sh, sm] = newStart.split(":").map(Number);
+      startsAt = new Date(existing.startsAt);
+      startsAt.setHours(sh, sm, 0, 0);
+      endsAt = new Date(startsAt.getTime() + durationMin * 60_000);
+    }
+
+    await prisma.session.update({
+      where: { id },
+      data: {
+        coachId,
+        startsAt,
+        endsAt,
+        notes: body.note !== undefined ? (body.note || null) : existing.notes,
+      },
+    });
+
+    const updated = await prisma.session.findUniqueOrThrow({
+      where: { id },
+      include: {
+        program: true,
+        coach: { select: { id: true, name: true } },
+        _count: {
+          select: {
+            bookings: { where: { status: { notIn: ["CANCELLED", "WAITLISTED"] } } },
+          },
+        },
+      },
+    });
+
+    const p = updated.program;
+    const isUpdatedBlocked = p.serviceType === "OTHER";
+    const svcType: ServiceType = SVC_MAP[p.serviceType] ?? "group";
+    const rawDay = p.dayOfWeek != null ? p.dayOfWeek : jsDayToFrontend(updated.startsAt.getDay());
+    const startTime = p.startTime ?? `${String(updated.startsAt.getHours()).padStart(2, "0")}:${String(updated.startsAt.getMinutes()).padStart(2, "0")}`;
+    const endTime = addMinutes(startTime, p.durationMin);
+    const maxCapacity = p.maxCapacity ?? 0;
+    const reservedCount = updated._count.bookings;
+
+    const result: GymClass & { coachId: string; sessionDate: string; programId: string; capacity: number; reserved: number } = {
+      id: updated.id,
+      name: p.name,
+      eventType: isUpdatedBlocked ? "blocked_time" : "class",
+      serviceType: isUpdatedBlocked ? "blocked_time" : svcType,
+      dayOfWeek: rawDay as DayOfWeek,
+      startTime,
+      endTime,
+      coach: updated.coach.name ?? "",
+      coachId: updated.coachId,
+      maxCapacity,
+      reservedCount,
+      status: updated.status === "CANCELLED" ? "cancelled" : "active",
+      note: updated.notes ?? p.description ?? undefined,
+      hasBookingCutoff: false,
+      bookingCutoffValue: 0,
+      bookingCutoffUnit: "hours",
+      bookingMode: "regular",
+      sessionDate: updated.startsAt.toISOString().slice(0, 10),
+      programId: p.id,
+      capacity: maxCapacity,
+      reserved: reservedCount,
+    };
+
+    return Response.json(result);
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const idx = mockClasses.findIndex((c) => c.id === id);
-  if (idx === -1) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
+export async function DELETE(
+  _: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const existing = await prisma.session.findUnique({ where: { id } });
+    if (!existing) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
 
-  // Cancel related reservations
-  mockReservations.forEach((r) => {
-    if (r.classId === id) r.status = "cancelled";
-  });
+    // Cancel all active bookings for this session
+    await prisma.booking.updateMany({
+      where: { sessionId: id, status: { not: "CANCELLED" } },
+      data: { status: "CANCELLED" },
+    });
 
-  mockClasses.splice(idx, 1);
-  return Response.json({ success: true });
+    // Mark session as cancelled (don't delete — preserves booking history)
+    await prisma.session.update({
+      where: { id },
+      data: { status: "CANCELLED" },
+    });
+
+    return Response.json({ success: true });
+  } catch {
+    return Response.json({ error: "Error interno" }, { status: 500 });
+  }
 }

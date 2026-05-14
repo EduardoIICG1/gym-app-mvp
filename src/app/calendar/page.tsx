@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Users, X, Pencil, ClipboardList } from "lucide-react";
 import type { GymClass, Reservation, ServiceType, EventType, Member, AttendanceStatus } from "@/lib/types";
@@ -754,14 +754,20 @@ export default function CalendarPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset]);
 
+  const fetchVersionRef = useRef(0);
   const fetchData = useCallback(async () => {
+    fetchVersionRef.current += 1;
+    const version = fetchVersionRef.current;
     setLoading(true);
+    const weekStart = getWeekDates(weekOffset)[0].dateStr;
     const [cRes, rRes, mRes, coachRes] = await Promise.all([
-      fetch("/api/classes"),
+      fetch(`/api/classes?weekStart=${weekStart}`),
       fetch(`/api/reservations?userId=${CURRENT_USER_ID}`),
       fetch("/api/members"),
       fetch("/api/members?includesRole=coach"),
     ]);
+    // Ignore stale responses — a newer weekOffset fetch may have completed first
+    if (fetchVersionRef.current !== version) return;
     setClasses(await cRes.json());
     setReservations(await rRes.json());
     const allMembers: Member[] = await mRes.json();
@@ -769,7 +775,7 @@ export default function CalendarPage() {
     const coachMembers: Member[] = await coachRes.json();
     setCoaches(coachMembers.map(m => ({ id: m.id, name: m.name })));
     setLoading(false);
-  }, [CURRENT_USER_ID]);
+  }, [CURRENT_USER_ID, weekOffset]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
@@ -782,7 +788,7 @@ export default function CalendarPage() {
   const coachFilterNames = Array.from(new Set(classes.filter(c => c.eventType !== "blocked_time").map(c => c.coach))).sort();
 
   const isReserved = (classId: string, dateStr: string) =>
-    reservations.some(r => r.classId === classId && r.classDate === dateStr && r.studentId === CURRENT_USER_ID && r.status !== "cancelled");
+    reservations.some(r => r.classId === classId && r.classDate === dateStr && r.status !== "cancelled");
 
   const handleCardClick = (cls: GymClass, dateStr: string) => {
     if (IS_ADMIN_OR_COACH) {
@@ -819,7 +825,7 @@ export default function CalendarPage() {
       body: JSON.stringify({ classId, userId: CURRENT_USER_ID, classDate: dateStr }),
     });
     if (res.ok) {
-      setReservations(prev => prev.filter(r => !(r.classId === classId && r.classDate === dateStr && r.studentId === CURRENT_USER_ID)));
+      setReservations(prev => prev.filter(r => !(r.classId === classId && r.classDate === dateStr)));
       setClasses(prev => prev.map(c => c.id === classId ? { ...c, reservedCount: Math.max(0, c.reservedCount - 1) } : c));
       setToast({ msg: "Reserva cancelada", ok: true });
       setModal(null);

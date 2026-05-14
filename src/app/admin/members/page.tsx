@@ -136,13 +136,12 @@ export default function MembersPage() {
     if (!editing || !editState) return;
     setSaving(true);
     const coachObj = editState.assignedCoachId ? coaches.find((c) => c.id === editState.assignedCoachId) : null;
-    const body: Partial<Member> & { _callerRole?: string } = {
+    const body: Partial<Member> = {
       roles: [editState.role], status: editState.status,
       contractedServices: editState.contractedServices,
       assignedCoachId: coachObj?.id, assignedCoachName: coachObj?.name,
       ...(currentUser.role === "admin" && editState.name.trim() && { name: editState.name.trim() }),
       ...(currentUser.role === "admin" && editState.email.trim() && { email: editState.email.trim() }),
-      _callerRole: currentUser.role,
     };
     const res = await fetch(`/api/members/${editing.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),

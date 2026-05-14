@@ -33,6 +33,7 @@ function ProfileContent() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
+    if (!viewUserId) return; // wait for real session before fetching
     setLoading(true);
     const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
       fetch("/api/members"),
@@ -356,8 +357,8 @@ function ProfileContent() {
                 {upcoming.slice(0, 5).map((r) => (
                   <div key={r.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
                     <div>
-                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.classDate}</p>
-                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Clase #{r.classId}</p>
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.className}</p>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{r.classDate} · {r.startTime}</p>
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>
                       Reservado
@@ -380,8 +381,8 @@ function ProfileContent() {
                 {past.map((r) => (
                   <div key={r.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
                     <div>
-                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.classDate}</p>
-                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Clase #{r.classId}</p>
+                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.className}</p>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{r.classDate} · {r.startTime}</p>
                     </div>
                     <span
                       className="text-xs px-2 py-0.5 rounded font-semibold"

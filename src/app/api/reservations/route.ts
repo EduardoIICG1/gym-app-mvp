@@ -33,11 +33,13 @@ type BookingRow = Awaited<ReturnType<typeof fetchBookings>>[number];
 function toReservation(b: BookingRow): Reservation {
   return {
     id: b.id,
-    classId: b.sessionId,          // session.id = classId in the frontend contract
+    classId: b.sessionId,
+    className: b.session.program.name,
     studentId: b.memberId,
     studentName: b.member.name ?? "",
     studentEmail: b.member.email,
     classDate: b.session.startsAt.toISOString().slice(0, 10),
+    startTime: b.session.startsAt.toISOString().slice(11, 16),
     status: BOOKING_TO_STATUS[b.status],
     attendanceStatus: BOOKING_TO_ATTENDANCE[b.status],
     updateNote: b.notes ?? undefined,

@@ -122,11 +122,36 @@ Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /ap
 
 ### CP5 — En progreso
 
-#### Próximo: Task 14 — useCurrentUser con sesión real de NextAuth
+#### Task 14 ✅ — useCurrentUser usa sesión real de NextAuth
+
+- `src/lib/useCurrentUser.ts`: reemplaza mock con `useSession()` de next-auth/react
+- `id`, `name`, `email`, `role` vienen del JWT real; nunca de datos hardcodeados
+- `user-123` eliminado de toda lógica activa (solo queda en mock-data como dato de ejemplo)
+- `MOCK_USER_ID` eliminado de calendar, classes, profile y admin/members
+- `_callerRole` eliminado del frontend; el servidor usa `auth()` como fuente de verdad
+- DevPanel role override (localStorage) se mantiene para dev tooling, pero no afecta APIs
+- JWT stale tras cambio de rol → requiere sign out + sign in para refrescar token
+- `/profile` ya no muestra IDs técnicos de sesión (e.g. "Clase #seed_sess_g_mon1")
+  → Ahora muestra nombre real del programa (e.g. "Funcional Grupal Mañana") + fecha + hora
+  → `/api/reservations` ahora incluye `className` (Program.name) y `startTime` en la respuesta
+- Build limpio ✅; validación manual completa ✅
+
+**Validado:**
+- `/api/auth/session-test` devuelve usuario real con role ADMIN
+- `/profile` muestra usuario real con reservas y historial con nombre de clase correcto
+- `/classes` reservar/cancelar funciona con Booking.memberId real
+- `/calendar` usa usuario autenticado real
+- `/admin/members` funciona como ADMIN; edición persiste en DB
+
+**Pendiente UX (backlog):**
+- Agregar botón de cerrar sesión visible desde perfil/avatar
+- DevPanel solo visible en NODE_ENV=development (Task 15)
+- Limpiar o aislar mock-data usado por Home/DevPanel
+- Evitar role override fuera de desarrollo
 
 ## Próximo paso
 
-Task 14: reemplazar useCurrentUser (mock) con useSession de NextAuth para exponer id, role y datos reales del usuario autenticado en el frontend.
+Task 15: hacer DevPanel dev-only (visible solo cuando NODE_ENV=development).
 
 ## Advertencias antes de producción
 

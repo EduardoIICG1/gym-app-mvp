@@ -32,10 +32,12 @@ export interface GymClass {
 export interface Reservation {
   id: string;
   classId: string;
+  className: string;
   studentId: string;
   studentName: string;
   studentEmail: string;
   classDate: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
   status: ReservationStatus;
   // Attendance layer (explicit; overrides status-derived inference)
   attendanceStatus?: AttendanceStatus;

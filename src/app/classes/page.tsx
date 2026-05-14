@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ClassCard } from "@/components/ClassCard";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 interface Class {
   id: string;
@@ -15,34 +16,29 @@ interface Class {
   serviceType: string;
 }
 
-const MOCK_USER_ID = "user-123";
-
 export default function ClassesPage() {
+  const currentUser = useCurrentUser();
   const [classes, setClasses] = useState<Class[]>([]);
   const [reservations, setReservations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch initial data
   useEffect(() => {
+    if (currentUser.isLoading) return; // wait for real session
     const fetchData = async () => {
       try {
         setLoading(true);
-
-        // Fetch classes
         const classesRes = await fetch("/api/classes");
         if (!classesRes.ok) throw new Error("Failed to fetch classes");
         const classesData = await classesRes.json();
         setClasses(classesData);
 
-        // Fetch user reservations
-        const reservationsRes = await fetch(
-          `/api/reservations?userId=${MOCK_USER_ID}`
-        );
-        const reservationsData = await reservationsRes.json();
-        setReservations(reservationsData.map((r: any) => r.classId));
-
+        if (currentUser.id) {
+          const reservationsRes = await fetch(`/api/reservations?userId=${currentUser.id}`);
+          const reservationsData = await reservationsRes.json();
+          setReservations(reservationsData.map((r: any) => r.classId));
+        }
         setError("");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading data");
@@ -50,9 +46,8 @@ export default function ClassesPage() {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, []);
+  }, [currentUser.id, currentUser.isLoading]);
 
   const handleReserve = async (classId: string) => {
     try {
@@ -60,7 +55,7 @@ export default function ClassesPage() {
       const res = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId, userId: MOCK_USER_ID }),
+        body: JSON.stringify({ classId }),
       });
 
       if (!res.ok) {
@@ -70,7 +65,6 @@ export default function ClassesPage() {
       // Update local state
       setReservations([...reservations, classId]);
 
-      // Refresh classes
       const classesRes = await fetch("/api/classes");
       const classesData = await classesRes.json();
       setClasses(classesData);
@@ -87,7 +81,7 @@ export default function ClassesPage() {
       const res = await fetch("/api/reservations", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId, userId: MOCK_USER_ID }),
+        body: JSON.stringify({ classId }),
       });
 
       if (!res.ok) {
@@ -97,7 +91,6 @@ export default function ClassesPage() {
       // Update local state
       setReservations(reservations.filter((id) => id !== classId));
 
-      // Refresh classes
       const classesRes = await fetch("/api/classes");
       const classesData = await classesRes.json();
       setClasses(classesData);

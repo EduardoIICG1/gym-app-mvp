@@ -756,6 +756,7 @@ export default function CalendarPage() {
 
   const fetchVersionRef = useRef(0);
   const fetchData = useCallback(async () => {
+    if (!CURRENT_USER_ID) return; // wait for real session before fetching
     fetchVersionRef.current += 1;
     const version = fetchVersionRef.current;
     setLoading(true);

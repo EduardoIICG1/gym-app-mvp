@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Membership, ServiceType, MembershipStatus, PaymentStatus } from "@/lib/types";
 import type {
@@ -87,15 +88,29 @@ function toMembership(m: MembershipRow): MembershipResponse {
 }
 
 export async function GET(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const plan = searchParams.get("plan");
   const studentId = searchParams.get("studentId");
 
+  const isAdminOrCoach = session.user.role === "ADMIN" || session.user.role === "COACH";
+
   const filter: Parameters<typeof fetchMemberships>[0] = {};
   if (status && status in STATUS_REVERSE) filter.status = STATUS_REVERSE[status];
-  if (studentId) filter.memberId = studentId;
   if (plan) filter.planContains = plan;
+
+  if (isAdminOrCoach) {
+    // Admin/coach: apply studentId filter if provided
+    if (studentId) filter.memberId = studentId;
+  } else {
+    // MEMBER: always force filter to own memberships only — ignore any studentId param
+    filter.memberId = session.user.id;
+  }
 
   const memberships = await fetchMemberships(filter);
   return Response.json(memberships.map(toMembership));

@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Member, MemberRole, ServiceType } from "@/lib/types";
 import type { Role, ServiceType as DbServiceType } from "@prisma/client";
@@ -59,12 +60,31 @@ function toMember(u: UserWithRelations): Member {
 }
 
 export async function GET(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const includesRole = searchParams.get("includesRole") as MemberRole | null;
   const status = searchParams.get("status");
   const search = searchParams.get("search")?.toLowerCase();
 
-  const users = await fetchAllUsers();
+  const isAdminOrCoach = session.user.role === "ADMIN" || session.user.role === "COACH";
+
+  // MEMBER: can only see their own record (prevents listing all users/emails)
+  const users = isAdminOrCoach
+    ? await fetchAllUsers()
+    : await prisma.user.findMany({
+        where: { id: session.user.id },
+        include: {
+          memberRelations: {
+            where: { isActive: true },
+            include: { coach: { select: { id: true, name: true } } },
+          },
+        },
+      });
+
   let result = users.map(toMember);
 
   if (includesRole) result = result.filter((m) => m.roles.includes(includesRole));

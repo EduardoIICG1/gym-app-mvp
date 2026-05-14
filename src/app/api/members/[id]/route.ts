@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Member, MemberRole, ServiceType } from "@/lib/types";
 import type { Role, ServiceType as DbServiceType } from "@prisma/client";
@@ -31,20 +32,26 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
+    }
+    const isAdmin = session.user.role === "ADMIN";
+    if (!isAdmin) {
+      return Response.json({ error: "Acceso denegado" }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await request.json();
 
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) return Response.json({ error: "Miembro no encontrado" }, { status: 404 });
 
-    const callerRole: string = body._callerRole ?? "member";
-    const isAdmin = callerRole === "admin";
-
     const updateData: { name?: string; email?: string; role?: Role; isActive?: boolean } = {};
-    if (isAdmin && body.name !== undefined && String(body.name).trim()) {
+    if (body.name !== undefined && String(body.name).trim()) {
       updateData.name = String(body.name).trim();
     }
-    if (isAdmin && body.email !== undefined && String(body.email).trim()) {
+    if (body.email !== undefined && String(body.email).trim()) {
       updateData.email = String(body.email).trim();
     }
     if (body.roles !== undefined && Array.isArray(body.roles) && body.roles.length > 0) {

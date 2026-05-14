@@ -1,18 +1,77 @@
-import { mockMembers } from "@/lib/mock-data";
-import { Member, MemberRole, MemberStatus } from "@/lib/types";
+import { prisma } from "@/lib/prisma";
+import type { Member, MemberRole, ServiceType } from "@/lib/types";
+import type { Role, ServiceType as DbServiceType } from "@prisma/client";
+
+const ROLE_MAP: Record<Role, MemberRole> = {
+  ADMIN: "admin",
+  COACH: "coach",
+  MEMBER: "member",
+};
+
+const SVC_MAP: Partial<Record<DbServiceType, ServiceType>> = {
+  GROUP: "group",
+  PERSONAL_TRAINING: "personal_training",
+  KINESIOLOGY: "kinesiology",
+};
+
+const SVC_REVERSE: Record<string, DbServiceType> = {
+  group: "GROUP",
+  personal_training: "PERSONAL_TRAINING",
+  kinesiology: "KINESIOLOGY",
+};
+
+const ROLE_REVERSE: Record<string, Role> = {
+  admin: "ADMIN",
+  coach: "COACH",
+  member: "MEMBER",
+};
+
+async function fetchAllUsers() {
+  return prisma.user.findMany({
+    orderBy: { name: "asc" },
+    include: {
+      memberRelations: {
+        where: { isActive: true },
+        include: { coach: { select: { id: true, name: true } } },
+      },
+    },
+  });
+}
+
+type UserWithRelations = Awaited<ReturnType<typeof fetchAllUsers>>[number];
+
+function toMember(u: UserWithRelations): Member {
+  const firstRelation = u.memberRelations[0];
+  return {
+    id: u.id,
+    name: u.name ?? "",
+    email: u.email,
+    roles: [ROLE_MAP[u.role]],
+    status: u.isActive ? "active" : "inactive",
+    contractedServices: u.memberRelations
+      .map((r) => SVC_MAP[r.serviceType])
+      .filter((s): s is ServiceType => !!s),
+    ...(firstRelation && {
+      assignedCoachId: firstRelation.coachId,
+      assignedCoachName: firstRelation.coach.name ?? undefined,
+    }),
+  };
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const includesRole = searchParams.get("includesRole") as MemberRole | null;
-  const status = searchParams.get("status") as MemberStatus | null;
+  const status = searchParams.get("status");
   const search = searchParams.get("search")?.toLowerCase();
 
-  let result = [...mockMembers];
-  // Filter by a role the member must include (supports multi-role members)
+  const users = await fetchAllUsers();
+  let result = users.map(toMember);
+
   if (includesRole) result = result.filter((m) => m.roles.includes(includesRole));
-  if (status) result = result.filter((m) => m.status === status);
-  if (search) result = result.filter((m) =>
-    m.name.toLowerCase().includes(search) || m.email.toLowerCase().includes(search)
+  if (status === "active")   result = result.filter((m) => m.status === "active");
+  if (status === "inactive") result = result.filter((m) => m.status === "inactive");
+  if (search) result = result.filter(
+    (m) => m.name.toLowerCase().includes(search) || m.email.toLowerCase().includes(search)
   );
 
   return Response.json(result);
@@ -23,36 +82,53 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       name, email, roles, role, status = "active",
-      assignedCoachId, assignedCoachName, contractedServices = [], notes,
+      assignedCoachId, contractedServices = [],
     } = body;
 
     if (!name?.trim() || !email?.trim()) {
       return Response.json({ error: "Nombre y email son requeridos" }, { status: 400 });
     }
 
-    if (mockMembers.some((m) => m.email.toLowerCase() === email.trim().toLowerCase())) {
+    const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (existing) {
       return Response.json({ error: "El email ya está registrado" }, { status: 409 });
     }
 
-    // Accept roles array or fall back to single role string for backward compat
-    const memberRoles: MemberRole[] = Array.isArray(roles)
-      ? roles
-      : [((role as MemberRole) || "member")];
+    const memberRoles: MemberRole[] = Array.isArray(roles) ? roles : [((role as MemberRole) || "member")];
+    const dbRole: Role = ROLE_REVERSE[memberRoles[0]] ?? "MEMBER";
 
-    const newMember: Member = {
-      id: `user-${Date.now()}`,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      roles: memberRoles,
-      status,
-      contractedServices,
-      ...(assignedCoachId && { assignedCoachId }),
-      ...(assignedCoachName && { assignedCoachName }),
-      ...(notes?.trim() && { notes: notes.trim() }),
-    };
+    const newUser = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        role: dbRole,
+        isActive: status === "active",
+      },
+    });
 
-    mockMembers.push(newMember);
-    return Response.json(newMember, { status: 201 });
+    if (assignedCoachId && (contractedServices as ServiceType[]).length > 0 && dbRole === "MEMBER") {
+      await prisma.memberCoach.createMany({
+        data: (contractedServices as ServiceType[]).map((svc) => ({
+          memberId: newUser.id,
+          coachId: assignedCoachId as string,
+          serviceType: SVC_REVERSE[svc] ?? "GROUP" as DbServiceType,
+          isActive: true,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const withRelations = await prisma.user.findUniqueOrThrow({
+      where: { id: newUser.id },
+      include: {
+        memberRelations: {
+          where: { isActive: true },
+          include: { coach: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    return Response.json(toMember(withRelations), { status: 201 });
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });
   }

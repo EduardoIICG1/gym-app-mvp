@@ -37,9 +37,46 @@ Fase actual: Fase 6 (persistencia + auth)
 - session.user expone id, email, name, image, role ✅
 - Endpoint dev temporal: GET /api/auth/session-test
 
+### CP3 ✅ Cerrado (2026-05-14)
+
+#### Task 7 ✅ — Middleware: protección de rutas
+- Archivo: src/middleware.ts (deprecated name — proxy.ts tiene bug con Turbopack)
+- Rutas privadas protegidas; /api/auth/* y assets estáticos excluidos
+- Usuarios no autenticados redirigen a /api/auth/signin con callbackUrl
+
+#### Task 8 ✅ — SessionProvider en layout
+- Archivo: src/components/Providers.tsx
+- SessionProvider envuelve toda la app en src/app/layout.tsx
+
+#### Task 9 ✅ — Seed idempotente
+- Archivo: prisma/seed.ts
+- 28 registros en 6 tablas (stable seed_* IDs + upsert por email para users)
+- DB reseteada: sin datos legacy
+- lalopeluuza01@gmail.com incluido como ADMIN para sobrevivir futuros resets
+
+#### Fix auth ✅ — Login restringido a usuarios pre-registrados
+- src/auth.ts: signIn callback reemplaza upsert con findUnique + validación
+- Si email no existe en DB → AccessDenied
+- Si isActive=false → AccessDenied
+- Solo actualiza name/image desde Google; no crea usuarios nuevos
+- Decisión de producto: User.isActive controla acceso; Membership.status controlará reservas
+
+### CP4 — En progreso
+
+#### Task 10 ✅ — /api/members usa Prisma real
+- Archivos: src/app/api/members/route.ts, src/app/api/members/[id]/route.ts
+- GET: consulta real a DB con memberRelations incluidas; mapping DB enum → frontend type
+- POST: crea User en DB + MemberCoach si hay coach + servicios
+- PUT: actualiza User; actualiza MemberCoach solo para usuarios MEMBER
+- Compatibilidad mantenida con el frontend anterior (mismo shape de Member)
+- Campos legacy no persistidos (sin schema en DB): notes, canBookMakeupClasses, makeupCredits
+- Validación frontend: 7 usuarios desde DB, roles/status/contractedServices correctos
+
+#### Próximo: Task 11 — /api/classes usa Prisma real
+
 ## Próximo paso
 
-Task 7: proxy.ts — protección de rutas (middleware en Next.js 16 se llama proxy.ts)
+Task 11: reemplazar /api/classes con consultas reales a Program + Session de Prisma
 
 ## Advertencias antes de producción
 

@@ -1,5 +1,30 @@
-import { mockMembers } from "@/lib/mock-data";
-import type { Member, MemberRole } from "@/lib/types";
+import { prisma } from "@/lib/prisma";
+import type { Member, MemberRole, ServiceType } from "@/lib/types";
+import type { Role, ServiceType as DbServiceType } from "@prisma/client";
+
+const ROLE_MAP: Record<Role, MemberRole> = {
+  ADMIN: "admin",
+  COACH: "coach",
+  MEMBER: "member",
+};
+
+const SVC_MAP: Partial<Record<DbServiceType, ServiceType>> = {
+  GROUP: "group",
+  PERSONAL_TRAINING: "personal_training",
+  KINESIOLOGY: "kinesiology",
+};
+
+const SVC_REVERSE: Record<string, DbServiceType> = {
+  group: "GROUP",
+  personal_training: "PERSONAL_TRAINING",
+  kinesiology: "KINESIOLOGY",
+};
+
+const ROLE_REVERSE: Record<string, Role> = {
+  admin: "ADMIN",
+  coach: "COACH",
+  member: "MEMBER",
+};
 
 export async function PUT(
   request: Request,
@@ -8,36 +33,81 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const idx = mockMembers.findIndex((m) => m.id === id);
-    if (idx === -1) return Response.json({ error: "Miembro no encontrado" }, { status: 404 });
+
+    const existing = await prisma.user.findUnique({ where: { id } });
+    if (!existing) return Response.json({ error: "Miembro no encontrado" }, { status: 404 });
 
     const callerRole: string = body._callerRole ?? "member";
     const isAdmin = callerRole === "admin";
 
-    const updates: Partial<Member> = {};
-
-    // name y email: solo admin puede actualizarlos
+    const updateData: { name?: string; email?: string; role?: Role; isActive?: boolean } = {};
     if (isAdmin && body.name !== undefined && String(body.name).trim()) {
-      updates.name = String(body.name).trim();
+      updateData.name = String(body.name).trim();
     }
     if (isAdmin && body.email !== undefined && String(body.email).trim()) {
-      updates.email = String(body.email).trim();
+      updateData.email = String(body.email).trim();
+    }
+    if (body.roles !== undefined && Array.isArray(body.roles) && body.roles.length > 0) {
+      updateData.role = ROLE_REVERSE[body.roles[0]] ?? existing.role;
+    }
+    if (body.status !== undefined) {
+      updateData.isActive = body.status === "active";
     }
 
-    // roles array (replaces single role field)
-    if (body.roles !== undefined && Array.isArray(body.roles)) {
-      updates.roles = body.roles as MemberRole[];
+    await prisma.user.update({ where: { id }, data: updateData });
+
+    // Only update MemberCoach for MEMBER users (not coach/admin)
+    const currentRole = updateData.role ?? existing.role;
+    if (
+      body.contractedServices !== undefined &&
+      Array.isArray(body.contractedServices) &&
+      currentRole === "MEMBER"
+    ) {
+      const newServices = body.contractedServices as ServiceType[];
+      const assignedCoachId = body.assignedCoachId as string | undefined;
+
+      await prisma.memberCoach.deleteMany({ where: { memberId: id } });
+
+      if (newServices.length > 0 && assignedCoachId) {
+        await prisma.memberCoach.createMany({
+          data: newServices.map((svc) => ({
+            memberId: id,
+            coachId: assignedCoachId,
+            serviceType: SVC_REVERSE[svc] ?? "GROUP" as DbServiceType,
+            isActive: true,
+          })),
+          skipDuplicates: true,
+        });
+      }
     }
 
-    // Operational fields
-    if (body.status             !== undefined) updates.status             = body.status;
-    if (body.contractedServices !== undefined) updates.contractedServices = body.contractedServices;
-    if (body.assignedCoachId    !== undefined) updates.assignedCoachId    = body.assignedCoachId;
-    if (body.assignedCoachName  !== undefined) updates.assignedCoachName  = body.assignedCoachName;
-    if (body.notes              !== undefined) updates.notes              = body.notes;
+    const withRelations = await prisma.user.findUniqueOrThrow({
+      where: { id },
+      include: {
+        memberRelations: {
+          where: { isActive: true },
+          include: { coach: { select: { id: true, name: true } } },
+        },
+      },
+    });
 
-    mockMembers[idx] = { ...mockMembers[idx], ...updates };
-    return Response.json(mockMembers[idx]);
+    const firstRelation = withRelations.memberRelations[0];
+    const member: Member = {
+      id: withRelations.id,
+      name: withRelations.name ?? "",
+      email: withRelations.email,
+      roles: [ROLE_MAP[withRelations.role]],
+      status: withRelations.isActive ? "active" : "inactive",
+      contractedServices: withRelations.memberRelations
+        .map((r) => SVC_MAP[r.serviceType])
+        .filter((s): s is ServiceType => !!s),
+      ...(firstRelation && {
+        assignedCoachId: firstRelation.coachId,
+        assignedCoachName: firstRelation.coach.name ?? undefined,
+      }),
+    };
+
+    return Response.json(member);
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });
   }

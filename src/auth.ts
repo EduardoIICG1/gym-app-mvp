@@ -13,19 +13,16 @@ export const {
   callbacks: {
     async signIn({ user }) {
       if (!user.email) return false;
-      await prisma.user.upsert({
+      const dbUser = await prisma.user.findUnique({
         where: { email: user.email },
-        update: {
+        select: { isActive: true },
+      });
+      if (!dbUser || !dbUser.isActive) return false;
+      await prisma.user.update({
+        where: { email: user.email },
+        data: {
           name: user.name ?? undefined,
           image: user.image ?? undefined,
-          isActive: true,
-        },
-        create: {
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          role: "MEMBER",
-          isActive: true,
         },
       });
       return true;

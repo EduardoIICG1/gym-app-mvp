@@ -49,6 +49,14 @@ async function main() {
   // ─── Users ────────────────────────────────────────────────────────────────
   // Upsert by email → never duplicates, never touches real Google users
   console.log("→ Users");
+
+  // Dev admin — real Google account, must survive DB resets
+  await prisma.user.upsert({
+    where:  { email: "lalopeluuza01@gmail.com" },
+    update: { name: "Eduardo Vergara Alvarado", role: "ADMIN", isActive: true },
+    create: { email: "lalopeluuza01@gmail.com", name: "Eduardo Vergara Alvarado", role: "ADMIN", isActive: true },
+  });
+
   const [admin, coach1, coach2, mem1, mem2, mem3] = await Promise.all([
     prisma.user.upsert({
       where:  { email: "admin@primaryperf.com" },
@@ -351,7 +359,7 @@ async function main() {
   ]);
   console.log(`   ✓ ${bookings.length} bookings\n`);
 
-  console.log("✅ Seed completado — 27 registros en 6 tablas.");
+  console.log("✅ Seed completado — 28 registros en 6 tablas.");
   console.log("   Abre Prisma Studio con: npx prisma studio");
 }
 

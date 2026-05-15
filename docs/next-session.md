@@ -162,12 +162,32 @@ Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /ap
 - `changeRole`: exportada pero no-op en producción (no rompe interfaz de useCurrentUser)
 - `role` en producción: siempre del JWT, nunca de localStorage
 
+#### Home real sin mocks ✅ — Implementado, pendiente validación manual
+
+- `src/app/page.tsx`: eliminados todos los imports de mock-data (`mockPosts`, `mockClasses`, `mockReservations`)
+- Feed comunitario (publicaciones, likes, comentarios) y "Crear publicación" **ocultados** — no existe modelo Post/Announcement en Prisma ni API real; mostrarlos sería falsa persistencia
+- "Clases de hoy" reemplazado con fetch real a `/api/classes?weekStart=YYYY-MM-DD`
+- "Próximamente" derivado del mismo fetch (sesiones con `dayOfWeek > gymDow`)
+- "Mis próximas reservas" (MEMBER) reemplazado con fetch real a `/api/reservations?userId=...` — muestra `className` y `startTime` reales
+- "Resumen operativo" (ADMIN) calculado desde datos reales: clases activas = sessions.length, ocupación promedio = avg(reserved/capacity), reservas hoy = sum(reserved) de sesiones de hoy
+- Estados de carga y vacío honestos: "Cargando...", "No hay clases programadas para hoy", "Sin próximas reservas"
+- `gymDayOfWeek()` mapea correctamente: Mon=0…Sat=5, Dom=-1 (día de descanso)
+- Guards de auth: fetch no se dispara hasta que `activeUser.isLoading === false`
+- Build limpio ✅
+
+**Pendiente validación manual:**
+- Como ADMIN: verificar "Clases de hoy" con sesiones reales, "Resumen operativo" con números reales
+- Como MEMBER: verificar "Mis próximas reservas" con `className` real (no "Clase reservada")
+- Verificar que feed/publicaciones no aparecen en ningún rol
+
+**Backlog futuro:**
+- Módulo Comunicados/Announcements con modelo Post en Prisma, CRUD, likes y comentarios persistentes
+- Agregar logout visible desde avatar/perfil
+- Limpiar `mock-data.ts` completamente cuando Home y DevPanel dejen de depender de mocks
+
 ## Próximo paso
 
-Backlog abierto — sin tarea activa asignada. Opciones sugeridas:
-- Reemplazar Home mock con datos reales
-- Agregar logout visible desde avatar/perfil
-- Limpiar mock-data cuando Home deje de depender de mocks
+Validar manualmente Home como ADMIN y MEMBER tras merge a master.
 
 ## Advertencias antes de producción
 

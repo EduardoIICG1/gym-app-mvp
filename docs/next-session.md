@@ -275,8 +275,34 @@ Un alumno que ve que un amigo está inscrito en una clase puede motivarse a rese
 - Causa raíz del bug anterior: `weekDateForDay` usaba la semana actual mientras la sesión era de otra semana — inconsistencia entre `reservedCount` real (Prisma `_count`) y filtro client-side por fecha incorrecta
 - Build limpio ✅; validado ADMIN, MEMBER, seguridad ✅
 
-### Task futura: Gestión de reservas y asistencia (ADMIN/COACH)
-**Objetivo:** permitir al admin y coach gestionar reservas y marcar asistencia desde la vista de detalle de sesión.
+### Gestión de reservas y asistencia ✅ — Implementado (2026-05-15)
+
+- `PATCH /api/reservations/[id]`: auth añadida; ADMIN puede modificar cualquier booking; COACH solo los de sus sesiones; MEMBER → 403; sin sesión → 401
+  - `attendanceStatus: "attended"` → `Booking.status = ATTENDED`
+  - `attendanceStatus: "absent"` → `Booking.status = ABSENT`
+  - `attendanceStatus: "pending_attendance"` → `Booking.status = CONFIRMED`
+- `DELETE /api/reservations/[id]`: nuevo handler con misma auth guard; soft-delete `CANCELLED`; booking ya cancelado → 400
+- `src/app/classes/[id]/page.tsx`: botones ✓ ✗ × por fila de inscrito (ADMIN/COACH)
+  - ✓ verde → marcar ATTENDED; desactivado si ya ATTENDED
+  - ✗ rojo → marcar ABSENT; desactivado si ya ABSENT
+  - × gris → cancelar con confirm; fila cancelada queda en 45% opacity sin botones
+  - Contador "Inscritos (N)" excluye CANCELLED
+  - Error de acción en banda roja; loading por fila (no bloquea lista entera)
+  - Estado local actualizado optimistamente; sin refetch completo
+- Build limpio ✅; validado ADMIN: ATTENDED, ABSENT, CANCELLED, contador correcto ✅
+
+**Decisión de producto documentada:**
+El estado actual del Booking se persiste (`Booking.status`). No existe historial de cambios de estado. Si el admin pisa ATTENDED → ABSENT, el estado ATTENDED se pierde. Esto es aceptable para MVP.
+
+**Backlog: AttendanceLog / BookingStatusHistory**
+- Necesario para: gamificación, rachas de asistencia, métricas históricas, auditoría de cambios
+- Campos mínimos: `oldStatus`, `newStatus`, `changedByUserId`, `changedAt`, `reason`
+- Requiere nueva tabla en schema (no implementar hasta definir alcance de gamificación)
+
+---
+
+### Task futura: Gestión de reservas y asistencia (ADMIN/COACH) — Backlog avanzado
+**Objetivo:** funciones adicionales de gestión más allá del MVP.
 
 **Contenido esperado:**
 - Marcar asistencia (ATTENDED/ABSENT) desde `/classes/[id]` para ADMIN y COACH autorizado

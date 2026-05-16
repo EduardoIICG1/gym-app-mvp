@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { ReservationStatus, AttendanceStatus } from "@/lib/types";
 import type { BookingStatus } from "@prisma/client";
@@ -22,33 +23,56 @@ const ATTENDANCE_TO_BOOKING: Record<AttendanceStatus, BookingStatus> = {
   pending_attendance:  "CONFIRMED",
 };
 
+async function resolveBookingWithSession(bookingId: string) {
+  return prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      session: { select: { coachId: true } },
+      member: { select: { id: true, name: true, email: true } },
+    },
+  });
+}
+
+function canManage(
+  role: string,
+  authUserId: string,
+  sessionCoachId: string
+): boolean {
+  if (role === "ADMIN") return true;
+  if (role === "COACH") return sessionCoachId === authUserId;
+  return false; // MEMBER cannot manage other bookings
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const body = await request.json() as {
-      status?: ReservationStatus;
-      attendanceStatus?: AttendanceStatus;
-      eligibleForMakeup?: boolean;
-      lastUpdatedBy?: string;
-      lastUpdatedAt?: string;
-      updateNote?: string;
-    };
+    const session = await auth();
+    if (!session?.user?.id) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
+    }
 
-    const booking = await prisma.booking.findUnique({
-      where: { id },
-      include: {
-        session: { include: { program: true } },
-        member: { select: { id: true, name: true, email: true } },
-      },
-    });
+    const { id } = await params;
+
+    const booking = await resolveBookingWithSession(id);
     if (!booking) {
       return Response.json({ error: "Reserva no encontrada" }, { status: 404 });
     }
 
-    // Determine new status from attendanceStatus
+    if (!canManage(session.user.role, session.user.id, booking.session.coachId)) {
+      return Response.json({ error: "Acceso denegado" }, { status: 403 });
+    }
+
+    const body = await request.json() as {
+      attendanceStatus?: AttendanceStatus;
+      updateNote?: string;
+      // legacy fields echoed back to client but not persisted
+      lastUpdatedBy?: string;
+      lastUpdatedAt?: string;
+      eligibleForMakeup?: boolean;
+    };
+
     const newStatus: BookingStatus = body.attendanceStatus
       ? (ATTENDANCE_TO_BOOKING[body.attendanceStatus] ?? booking.status)
       : booking.status;
@@ -65,7 +89,6 @@ export async function PATCH(
       },
     });
 
-    // Echo back fields not stored in DB so client local state updates correctly
     return Response.json({
       id: updated.id,
       classId: updated.sessionId,
@@ -80,6 +103,42 @@ export async function PATCH(
       lastUpdatedAt: body.lastUpdatedAt,
       updateNote: updated.notes ?? undefined,
     });
+  } catch {
+    return Response.json({ error: "Error interno" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    const booking = await resolveBookingWithSession(id);
+    if (!booking) {
+      return Response.json({ error: "Reserva no encontrada" }, { status: 404 });
+    }
+
+    if (!canManage(session.user.role, session.user.id, booking.session.coachId)) {
+      return Response.json({ error: "Acceso denegado" }, { status: 403 });
+    }
+
+    if (booking.status === "CANCELLED") {
+      return Response.json({ error: "La reserva ya está cancelada" }, { status: 400 });
+    }
+
+    await prisma.booking.update({
+      where: { id },
+      data: { status: "CANCELLED" },
+    });
+
+    return Response.json({ success: true, bookingId: id });
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });
   }

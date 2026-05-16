@@ -96,13 +96,12 @@ export function ClassCard({
 
         {/* Status badge */}
         <div
-          className={`text-sm font-semibold py-2 px-3 rounded text-center mb-4 ${
-            isFull
-              ? "bg-red-50 text-red-700"
-              : isAlmostFull
-              ? "bg-orange-50 text-orange-700"
-              : "bg-green-50 text-green-700"
-          }`}
+          className="text-sm font-semibold py-2 px-3 rounded text-center mb-4"
+          style={isFull
+            ? { background: "#ef444420", color: "#ef4444" }
+            : isAlmostFull
+            ? { background: "#f59e0b20", color: "#f59e0b" }
+            : { background: "#22c55e20", color: "#22c55e" }}
         >
           {isFull ? "Sin cupos" : isAlmostFull ? "Pocos cupos" : "Disponible"}
         </div>
@@ -130,7 +129,7 @@ export function ClassCard({
         </button>
 
         <Link
-          href={`/classes/${id}`}
+          href={`/classes/${id}?from=classes`}
           className="text-xs text-center block mt-3 hover:underline font-medium"
           style={{ color: "#4fc3f7" }}
         >

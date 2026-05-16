@@ -351,17 +351,41 @@ El estado actual del Booking se persiste (`Booking.status`). No existe historial
 - Visible en desktop y mobile (siempre presente en top-right)
 - Flujo validado: logout → Google sign-in → login → aterriza en `/` con sesión activa ✅
 
+### Navegación contextual en /classes/[id] ✅ — Validado (2026-05-16)
+
+**Causa raíz corregida:** El botón "Volver a clases" en `/classes/[id]/page.tsx` estaba hardcodeado a `href="/classes"`. Al entrar desde `/admin/classes` (lista compacta de gestión) → "Ver" → detalle → "Volver", el ADMIN aterrizaba en `/classes` (cards para miembros), no en su panel de gestión. Esto se percibía como "cambio de layout" o inconsistencia visual — en realidad eran dos rutas con diseños distintos.
+
+**Solución:** Query param `?from=` en cada punto de entrada + `BACK_MAP` en el detalle.
+
+- `src/app/admin/classes/page.tsx`: link "Ver" → `/classes/${id}?from=admin-classes`
+- `src/components/ClassCard.tsx`: link "Ver inscritos" → `/classes/${id}?from=classes`
+- `src/app/calendar/page.tsx`: link "Ver detalle" → `/classes/${id}?from=calendar`
+- `src/app/page.tsx` (Home Coach): links → `/classes/${id}?from=classes`
+- `src/app/classes/[id]/page.tsx`: `useSearchParams()` + `BACK_MAP` resuelve destino y etiqueta del botón:
+  - `from=admin-classes` → `/admin/classes` · "← Volver a gestión"
+  - `from=calendar` → `/calendar` · "← Volver al calendario"
+  - `from=classes` o sin param → `/classes` · "← Volver a clases"
+
+**Correcciones adicionales en la misma sesión:**
+- `GET /api/classes/[id]`: `serviceType` ahora mapeado via `SVC_MAP` (antes devolvía enum DB en mayúsculas como `PERSONAL_TRAINING`); `SERVICE_LABELS` de `labels.ts` usado en el frontend para mostrar en español
+- `src/components/ClassCard.tsx`: badge de estado cambiado de clases Tailwind light-mode (`bg-orange-50 text-orange-700`) a inline styles con transparencia (`#f59e0b20`/`#f59e0b`) — consistente con dark theme
+- `src/app/classes/[id]/page.tsx`: `canSeeAttendees` reforzado con guard de rol de cliente: `session.attendees !== undefined && activeUser.role !== "member"` — previene el caso DevPanel donde JWT real es ADMIN pero visual role es "member"
+
+Build limpio ✅; validación manual correcta ✅
+
+---
+
 ### Backlog UX general
 - Limpiar `mock-data.ts` completamente cuando Home y DevPanel dejen de depender de mocks
 
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Home Coach operativo (brecha operativa inmediata)
-2. Inscritos por sesión con reglas de privacidad por rol
+1. Validar Home COACH con usuario COACH real (sesiones asignadas a su coachId)
+2. Decisión de privacidad: visibilidad de inscritos para MEMBER
 3. Invitación del coach a clase (conecta con inscritos y gamificación)
 4. Módulo Comunicados/Announcements (feed real)
-5. Logout visible desde avatar
+5. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
 
 ## Advertencias antes de producción
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion } from "motion/react";
 import { Users, TrendingUp, BookOpen, Clock } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
@@ -263,6 +264,15 @@ export default function Home() {
                           {cls.reserved}/{cls.capacity}
                         </span>
                       </div>
+                      <div className="mt-2 text-right">
+                        <Link
+                          href={`/classes/${cls.id}?from=classes`}
+                          className="text-xs hover:underline font-medium"
+                          style={{ color: "#4fc3f7" }}
+                        >
+                          Ver detalle →
+                        </Link>
+                      </div>
                     </div>
                   );
                 })}
@@ -291,6 +301,13 @@ export default function Home() {
                       <span className="text-xs shrink-0" style={{ color: "var(--text-secondary)" }}>
                         {cls.reserved}/{cls.capacity}
                       </span>
+                      <Link
+                        href={`/classes/${cls.id}?from=classes`}
+                        className="text-xs hover:underline font-medium shrink-0"
+                        style={{ color: "#4fc3f7" }}
+                      >
+                        Ver →
+                      </Link>
                     </div>
                   ))}
                 </div>

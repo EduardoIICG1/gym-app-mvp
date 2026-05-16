@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { SERVICE_LABELS } from "@/lib/labels";
 
 interface Attendee {
   bookingId: string;
@@ -44,8 +45,16 @@ const statusStyle = (s: string): React.CSSProperties => {
   return { background: "#4fc3f720", color: "#4fc3f7" };
 };
 
+const BACK_MAP: Record<string, { href: string; label: string }> = {
+  "admin-classes": { href: "/admin/classes", label: "← Volver a gestión" },
+  "calendar":      { href: "/calendar",      label: "← Volver al calendario" },
+};
+
 export default function ClassDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const from = searchParams.get("from") ?? "";
+  const back = BACK_MAP[from] ?? { href: "/classes", label: "← Volver a clases" };
   const activeUser = useCurrentUser();
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,8 +145,8 @@ export default function ClassDetailPage() {
           {error || "Clase no encontrada"}
         </p>
         <div className="text-center">
-          <Link href="/classes" className="text-sm hover:underline" style={{ color: "#4fc3f7" }}>
-            ← Volver a clases
+          <Link href={back.href} className="text-sm hover:underline" style={{ color: "#4fc3f7" }}>
+            {back.label}
           </Link>
         </div>
       </div>
@@ -146,13 +155,16 @@ export default function ClassDetailPage() {
 
   const pct = session.capacity > 0 ? (session.reservedCount / session.capacity) * 100 : 0;
   const barColor = pct >= 100 ? "#ef4444" : pct >= 80 ? "#f59e0b" : "#22c55e";
-  const canSeeAttendees = session.attendees !== undefined;
+  // Server is the authoritative gate (MEMBER never receives attendees from API).
+  // The role check here prevents the DevPanel edge case where the real JWT is ADMIN
+  // but the visual role is set to "member", which would otherwise expose the attendee UI.
+  const canSeeAttendees = session.attendees !== undefined && activeUser.role !== "member";
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       {/* Back link */}
-      <Link href="/classes" className="text-xs hover:underline mb-6 inline-block" style={{ color: "#4fc3f7" }}>
-        ← Volver a clases
+      <Link href={back.href} className="text-xs hover:underline mb-6 inline-block" style={{ color: "#4fc3f7" }}>
+        {back.label}
       </Link>
 
       {/* Session header */}
@@ -189,7 +201,9 @@ export default function ClassDetailPage() {
           </div>
           <div className="flex justify-between">
             <span style={{ color: "var(--text-secondary)" }}>Servicio</span>
-            <span className="font-medium" style={{ color: "var(--text-primary)" }}>{session.serviceType}</span>
+            <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+              {SERVICE_LABELS[session.serviceType] ?? session.serviceType}
+            </span>
           </div>
         </div>
 

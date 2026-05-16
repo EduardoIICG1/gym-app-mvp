@@ -242,7 +242,7 @@ export default function AdminClassesPage() {
                           <div className="flex items-center gap-1 shrink-0">
                             {!isBlocked && (
                               <Link
-                                href={`/classes/${cls.id}`}
+                                href={`/classes/${cls.id}?from=admin-classes`}
                                 className="p-1.5 rounded-lg transition-colors hover:bg-white/5 text-xs font-medium"
                                 style={{ color: "#4fc3f7" }}
                                 title="Ver inscritos"

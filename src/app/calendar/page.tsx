@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Users, X, Pencil, ClipboardList } from "lucide-react";
 import type { GymClass, Reservation, ServiceType, EventType, Member, AttendanceStatus } from "@/lib/types";
@@ -906,14 +907,14 @@ export default function CalendarPage() {
     const isClosed = !IS_ADMIN_OR_COACH && bookingStatus === "booking_closed";
 
     return (
-      <motion.button
+      <motion.div
         key={cls.id}
         initial={{ opacity: 0, y: opts.scale ? undefined : 12, scale: opts.scale ? 0.95 : undefined }}
         animate={{ opacity: isClosed ? 0.55 : 1, y: opts.scale ? undefined : 0, scale: opts.scale ? 1 : undefined }}
         transition={{ delay: opts.delay ?? 0 }}
         whileHover={{ scale: 1.02 }}
         onClick={() => handleCardClick(cls, dateStr)}
-        className="w-full text-left rounded-xl p-3 border transition-colors"
+        className="w-full text-left rounded-xl p-3 border transition-colors cursor-pointer"
         style={{
           background: "var(--card)",
           borderColor: isMakeup ? "#a78bfa50" : reserved ? "#4fc3f750" : "var(--card-border)",
@@ -945,7 +946,15 @@ export default function CalendarPage() {
           )}
           {IS_ADMIN_OR_COACH ? null : <BookingStatusChip status={bookingStatus} />}
         </div>
-      </motion.button>
+        <Link
+          href={`/classes/${cls.id}?from=calendar`}
+          onClick={e => e.stopPropagation()}
+          className="text-xs hover:underline font-medium mt-2 block text-right"
+          style={{ color: "#4fc3f7" }}
+        >
+          Ver detalle →
+        </Link>
+      </motion.div>
     );
   };
 

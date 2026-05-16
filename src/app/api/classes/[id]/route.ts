@@ -76,7 +76,7 @@ export async function GET(
   const base = {
     id: gymSession.id,
     programName: prog.name,
-    serviceType: prog.serviceType,
+    serviceType: SVC_MAP[prog.serviceType] ?? "group",
     sessionDate: gymSession.startsAt.toISOString().slice(0, 10),
     startTime,
     endTime,

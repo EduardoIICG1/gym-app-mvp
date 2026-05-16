@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { useTheme } from "@/lib/useTheme";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, LogOut } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -68,6 +69,16 @@ export function Navbar() {
               {activeUser.name.split(" ")[0]}
             </span>
           </Link>
+
+          {/* Sign out */}
+          <button
+            onClick={() => signOut({ callbackUrl: "/" })}
+            title="Cerrar sesión"
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-white/5"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>

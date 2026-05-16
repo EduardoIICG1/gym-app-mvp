@@ -259,8 +259,15 @@ Un alumno que ve que un amigo está inscrito en una clase puede motivarse a rese
 
 ---
 
+#### Logout visible ✅ — Validado (2026-05-15)
+
+- `src/components/Navbar.tsx`: ícono `LogOut` añadido a la derecha del avatar en la Navbar
+- Usa `signOut({ callbackUrl: "/" })` — el middleware detecta sin sesión y redirige a sign-in con `callbackUrl=/`; tras el login Google aterriza en `/` sin rebote
+- Estilo consistente con el theme toggle: `w-8 h-8 rounded-lg hover:bg-white/5`, tooltip "Cerrar sesión"
+- Visible en desktop y mobile (siempre presente en top-right)
+- Flujo validado: logout → Google sign-in → login → aterriza en `/` con sesión activa ✅
+
 ### Backlog UX general
-- Botón de cerrar sesión visible desde avatar/perfil
 - Limpiar `mock-data.ts` completamente cuando Home y DevPanel dejen de depender de mocks
 
 ## Próximo paso

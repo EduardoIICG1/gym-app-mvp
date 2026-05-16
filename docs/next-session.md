@@ -378,12 +378,53 @@ Build limpio ✅; validación manual correcta ✅
 ### Backlog UX general
 - Limpiar `mock-data.ts` completamente cuando Home y DevPanel dejen de depender de mocks
 
+### Membership gating ✅ — Implementado (2026-05-16)
+
+**Objetivo:** bloquear reservas de MEMBER sin membresía válida para el tipo de servicio de la clase.
+
+**Server-side (autoridad):** `POST /api/reservations`
+- Solo aplica a `session.user.role === "MEMBER"`. ADMIN y COACH bypassean el gating.
+- Busca membresías del usuario con `serviceType === program.serviceType`.
+- Regla de validación: `status = ACTIVE`, `startDate <= ahora`, `endDate >= hoy OR null`, y si `totalSessions` existe: `usedSessions < totalSessions`.
+- Errores específicos con HTTP 403:
+  - Sin membresía para el servicio: "No tienes una membresía activa para este tipo de clase."
+  - Membresía ACTIVE con fecha vencida: "Tu membresía está vencida. Regulariza tu membresía para reservar."
+  - Membresía EXPIRED: mismo mensaje de vencida.
+  - Membresía PENDING/CANCELLED: "Tu membresía no está activa. Contacta a administración."
+  - Sesiones agotadas: "No tienes sesiones disponibles en tu membresía."
+
+**Frontend (UX preventivo):**
+- `src/app/classes/page.tsx`: fetch de `/api/memberships` al cargar, computa `validServiceTypes`. Botón "Reservar clase" → "Sin membresía" (deshabilitado y gris) cuando MEMBER sin membresía válida para ese serviceType. Error de API propagado correctamente (antes era genérico "Failed to reserve class").
+- `src/components/ClassCard.tsx`: prop `membershipBlocked?: boolean` nueva. Estilo neutral `#71717a` cuando bloqueado.
+- `src/app/calendar/page.tsx`: fetch de `/api/memberships` en useEffect separado (no re-fetcha por cambio de semana). Modal MEMBER muestra botón "Sin membresía para esta clase" deshabilitado. Usa `null` como centinela para evitar flash de bloqueo antes de cargar.
+
+**`usedSessions` — pendiente de decisión:**
+- La validación `usedSessions < totalSessions` está implementada pero es un placeholder.
+- `usedSessions` nunca se incrementa actualmente (siempre 0 en DB).
+- Membresías con `totalSessions` no null nunca bloquean por sesiones hasta implementar el incremento.
+- Política de consumo (al reservar vs al asistir vs cancelación tardía) requiere revisión del reglamento del gym antes de implementar.
+
+**Backlog generado:**
+- Definir política de consumo de `usedSessions` y cuándo incrementar
+- Alerta visual en perfil del alumno con membresía vencida o sin sesiones
+- Validación de `endDate` para MEMBER en la vista de clases (actualmente puede ver clases sin bloqueo visual de fecha a nivel de sesión)
+
+**Estado de validación:**
+- Build limpio ✅
+- Validación visual `/classes` y `/calendar` confirmada manualmente ✅
+- Validación server-side con JWT MEMBER real: **pendiente**
+  - Los MEMBER del seed (Ana, Carlos, Lucía) no son cuentas Google reales y no pueden hacer login
+  - DevPanel simula rol visual pero no cambia el JWT → el `session.user.role` en el server siempre es ADMIN para el usuario actual
+  - Para validar server-side se requiere: agregar una cuenta Google real al seed como MEMBER, o crear endpoint dev-only que simule el gating sin JWT real
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Validar Home COACH con usuario COACH real (sesiones asignadas a su coachId)
-2. Decisión de privacidad: visibilidad de inscritos para MEMBER
-3. Invitación del coach a clase (conecta con inscritos y gamificación)
+1. Agregar cuenta Google MEMBER real al seed para validar gating server-side completo
+2. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
+3. Validar Home COACH con usuario COACH real (sesiones asignadas a su coachId)
 4. Módulo Comunicados/Announcements (feed real)
 5. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
 

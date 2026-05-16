@@ -14,6 +14,7 @@ interface ClassCardProps {
   reserved: number;
   isReserved: boolean;
   isLoading: boolean;
+  membershipBlocked?: boolean;
   onReserve: (classId: string) => void;
   onCancel: (classId: string) => void;
 }
@@ -29,6 +30,7 @@ export function ClassCard({
   reserved,
   isReserved,
   isLoading,
+  membershipBlocked = false,
   onReserve,
   onCancel,
 }: ClassCardProps) {
@@ -109,23 +111,27 @@ export function ClassCard({
         {/* Reserve/Cancel Button */}
         <button
           onClick={() => (isReserved ? onCancel(id) : onReserve(id))}
-          disabled={isLoading || (isFull && !isReserved)}
+          disabled={isLoading || (isFull && !isReserved) || (membershipBlocked && !isReserved)}
           className="w-full py-2 px-4 rounded-lg font-semibold text-sm transition-all mt-auto disabled:opacity-40 disabled:cursor-not-allowed"
           style={
             isReserved
               ? { background: "#ef4444", color: "#ffffff" }
-              : isFull || isLoading
-                ? { background: "var(--card-border)", color: "var(--text-secondary)" }
-                : { background: "#3b82f6", color: "#ffffff" }
+              : membershipBlocked
+                ? { background: "#71717a20", color: "#71717a" }
+                : isFull || isLoading
+                  ? { background: "var(--card-border)", color: "var(--text-secondary)" }
+                  : { background: "#3b82f6", color: "#ffffff" }
           }
         >
           {isLoading
             ? "Procesando..."
             : isReserved
               ? "Cancelar reserva"
-              : isFull
-                ? "Sin cupos"
-                : "Reservar clase"}
+              : membershipBlocked
+                ? "Sin membresía"
+                : isFull
+                  ? "Sin cupos"
+                  : "Reservar clase"}
         </button>
 
         <Link

@@ -108,6 +108,60 @@ export async function POST(request: Request) {
       }
     }
 
+    // Membership gating — MEMBER only; ADMIN/COACH bypass
+    if (session.user.role === "MEMBER") {
+      const serviceType = gymSession.program.serviceType;
+      const now = new Date();
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const memberships = await prisma.membership.findMany({
+        where: { memberId, serviceType },
+      });
+
+      if (memberships.length === 0) {
+        return Response.json(
+          { error: "No tienes una membresía activa para este tipo de clase." },
+          { status: 403 }
+        );
+      }
+
+      const valid = memberships.find(
+        (m) =>
+          m.status === "ACTIVE" &&
+          m.startDate <= now &&
+          (m.endDate === null || m.endDate >= todayStart) &&
+          (m.totalSessions === null || m.usedSessions < m.totalSessions)
+      );
+
+      if (!valid) {
+        const hasActive = memberships.some((m) => m.status === "ACTIVE");
+        if (hasActive) {
+          const active = memberships.find((m) => m.status === "ACTIVE")!;
+          if (active.totalSessions !== null && active.usedSessions >= active.totalSessions) {
+            return Response.json(
+              { error: "No tienes sesiones disponibles en tu membresía." },
+              { status: 403 }
+            );
+          }
+          return Response.json(
+            { error: "Tu membresía está vencida. Regulariza tu membresía para reservar." },
+            { status: 403 }
+          );
+        }
+        if (memberships.some((m) => m.status === "EXPIRED")) {
+          return Response.json(
+            { error: "Tu membresía está vencida. Regulariza tu membresía para reservar." },
+            { status: 403 }
+          );
+        }
+        return Response.json(
+          { error: "Tu membresía no está activa. Contacta a administración." },
+          { status: 403 }
+        );
+      }
+    }
+
     const duplicate = await prisma.booking.findFirst({
       where: { sessionId: classId, memberId, status: { not: "CANCELLED" } },
     });

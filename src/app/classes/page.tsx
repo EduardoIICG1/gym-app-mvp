@@ -16,10 +16,35 @@ interface Class {
   serviceType: string;
 }
 
+type MembershipItem = {
+  membershipStatus: string;
+  serviceType: string;
+  startDate: string;
+  endDate: string;
+  totalSessions?: number | null;
+  usedSessions?: number;
+};
+
+function computeValidServiceTypes(memberships: MembershipItem[]): Set<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  return new Set(
+    memberships
+      .filter(
+        (m) =>
+          m.membershipStatus === "active" &&
+          m.startDate <= today &&
+          (m.endDate === "" || m.endDate >= today) &&
+          (m.totalSessions == null || (m.usedSessions ?? 0) < m.totalSessions)
+      )
+      .map((m) => m.serviceType)
+  );
+}
+
 export default function ClassesPage() {
   const currentUser = useCurrentUser();
   const [classes, setClasses] = useState<Class[]>([]);
   const [reservations, setReservations] = useState<string[]>([]);
+  const [validServiceTypes, setValidServiceTypes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
@@ -38,6 +63,14 @@ export default function ClassesPage() {
           const reservationsRes = await fetch(`/api/reservations?userId=${currentUser.id}`);
           const reservationsData = await reservationsRes.json();
           setReservations(reservationsData.map((r: any) => r.classId));
+
+          if (currentUser.role === "member") {
+            const memRes = await fetch("/api/memberships");
+            if (memRes.ok) {
+              const memData: MembershipItem[] = await memRes.json();
+              setValidServiceTypes(computeValidServiceTypes(memData));
+            }
+          }
         }
         setError("");
       } catch (err) {
@@ -58,8 +91,9 @@ export default function ClassesPage() {
         body: JSON.stringify({ classId }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        throw new Error("Failed to reserve class");
+        throw new Error(data.error || "Error al reservar");
       }
 
       // Update local state
@@ -149,6 +183,7 @@ export default function ClassesPage() {
                 reserved={cls.reserved}
                 isReserved={reservations.includes(cls.id)}
                 isLoading={actionLoading}
+                membershipBlocked={currentUser.role === "member" && !validServiceTypes.has(cls.serviceType)}
                 onReserve={handleReserve}
                 onCancel={handleCancel}
               />

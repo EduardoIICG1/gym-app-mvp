@@ -68,11 +68,11 @@ const STATUS_CONFIG: Record<ClassBookingStatus, { label: string; bg: string; col
 
 // ── Member Class Modal ──────────────────────────────────────────────────────
 function ClassModal({
-  cls, dateStr, reserved, canBook, bookingStatus, loading,
+  cls, dateStr, reserved, canBook, bookingStatus, loading, membershipBlocked,
   onClose, onReserve, onCancel,
 }: {
   cls: GymClass; dateStr: string; reserved: boolean; canBook: boolean;
-  bookingStatus: ClassBookingStatus; loading: boolean;
+  bookingStatus: ClassBookingStatus; loading: boolean; membershipBlocked?: boolean;
   onClose: () => void; onReserve: () => void; onCancel: () => void;
 }) {
   const pct = cls.maxCapacity > 0 ? Math.min((cls.reservedCount / cls.maxCapacity) * 100, 100) : 0;
@@ -183,6 +183,11 @@ function ClassModal({
             <button disabled className="w-full py-3 rounded-xl font-semibold text-sm cursor-not-allowed"
               style={{ background: "#a78bfa20", color: "#a78bfa" }}>
               Solo disponible para recuperación
+            </button>
+          ) : membershipBlocked ? (
+            <button disabled className="w-full py-3 rounded-xl font-semibold text-sm cursor-not-allowed"
+              style={{ background: "#71717a20", color: "#71717a" }}>
+              Sin membresía para esta clase
             </button>
           ) : (
             <motion.button
@@ -736,6 +741,7 @@ export default function CalendarPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [currentMember, setCurrentMember] = useState<Member | null>(null);
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
+  const [validServiceTypes, setValidServiceTypes] = useState<Set<string> | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [modal, setModal] = useState<{ cls: GymClass; dateStr: string } | null>(null);
@@ -785,6 +791,28 @@ export default function CalendarPage() {
     const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+  useEffect(() => {
+    if (!CURRENT_USER_ID || IS_ADMIN_OR_COACH) return;
+    fetch("/api/memberships")
+      .then((r) => r.json())
+      .then((data: Array<{ membershipStatus: string; serviceType: string; startDate: string; endDate: string; totalSessions?: number | null; usedSessions?: number }>) => {
+        const today = new Date().toISOString().slice(0, 10);
+        setValidServiceTypes(
+          new Set(
+            data
+              .filter(
+                (m) =>
+                  m.membershipStatus === "active" &&
+                  m.startDate <= today &&
+                  (m.endDate === "" || m.endDate >= today) &&
+                  (m.totalSessions == null || (m.usedSessions ?? 0) < m.totalSessions)
+              )
+              .map((m) => m.serviceType)
+          )
+        );
+      })
+      .catch(() => {}); // server is the authority; silent fail on UI layer
+  }, [CURRENT_USER_ID, IS_ADMIN_OR_COACH]);
 
   const canBookMakeup = currentMember?.canBookMakeupClasses === true;
   const coachFilterNames = Array.from(new Set(classes.filter(c => c.eventType !== "blocked_time").map(c => c.coach))).sort();
@@ -1113,6 +1141,7 @@ export default function CalendarPage() {
               canBook={canBook}
               bookingStatus={bookingStatus}
               loading={actionLoading}
+              membershipBlocked={validServiceTypes !== null && !validServiceTypes.has(modal.cls.serviceType)}
               onClose={() => setModal(null)}
               onReserve={() => handleReserve(modal.cls.id, modal.dateStr)}
               onCancel={() => handleCancel(modal.cls.id, modal.dateStr)}

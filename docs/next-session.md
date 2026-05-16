@@ -258,6 +258,55 @@ Un alumno que ve que un amigo está inscrito en una clase puede motivarse a rese
 
 ---
 
+### Inscritos por sesión ✅ — Implementado (2026-05-15)
+
+- `GET /api/classes/[id]` añadido con respuesta role-based:
+  - ADMIN: sesión completa + `attendees[]` (nombre, email, estado de reserva)
+  - COACH: igual que ADMIN si `session.coachId === auth.user.id`; 403 en sesión ajena
+  - MEMBER: solo datos base (sin lista nominal)
+  - Sin sesión → 401
+- `src/app/classes/[id]/page.tsx`: página de detalle de sesión
+  - ADMIN/COACH: tabla de inscritos con nombre, email y badge de estado
+  - MEMBER: panel de conteo grande (N personas inscritas de X cupos)
+  - Manejo de errores 403/404 con link de vuelta
+- Security fix en `GET /api/reservations`: `auth()` ahora siempre al inicio, antes de cualquier filtro; `?classId=` sin sesión devuelve 401
+- `src/app/admin/classes/page.tsx`: eliminado panel inline de inscritos que calculaba fechas incorrectas con `weekDateForDay(cls.dayOfWeek)`. Reemplazado por link "Ver →" a `/classes/[id]`
+- `src/components/ClassCard.tsx`: link "Ver inscritos →" en azul (`#4fc3f7`) debajo del botón de acción
+- Causa raíz del bug anterior: `weekDateForDay` usaba la semana actual mientras la sesión era de otra semana — inconsistencia entre `reservedCount` real (Prisma `_count`) y filtro client-side por fecha incorrecta
+- Build limpio ✅; validado ADMIN, MEMBER, seguridad ✅
+
+### Task futura: Gestión de reservas y asistencia (ADMIN/COACH)
+**Objetivo:** permitir al admin y coach gestionar reservas y marcar asistencia desde la vista de detalle de sesión.
+
+**Contenido esperado:**
+- Marcar asistencia (ATTENDED/ABSENT) desde `/classes/[id]` para ADMIN y COACH autorizado
+- Cancelar reserva de un alumno específico desde el detalle
+- Crear reserva manualmente para un alumno (admin puede inscribir directamente)
+- Ver historial de cambios de estado por reserva
+
+**Reglas:**
+- Solo ADMIN y COACH de la sesión pueden modificar reservas/asistencia
+- MEMBER no puede modificar el estado de su reserva desde esta vista (usa `/classes` para cancelar)
+- No requiere cambios de schema: Booking.status ya tiene ATTENDED/ABSENT/CONFIRMED/CANCELLED
+
+**Conexión:** usa el mismo `GET /api/classes/[id]` ya implementado; solo requiere PATCH/DELETE sobre `/api/reservations/[id]`
+
+---
+
+### Task futura: Reglas de cancelación y cambio de clase por MEMBER
+**Objetivo:** definir e implementar las políticas del gimnasio para cancelación de reservas.
+
+**Pendiente de decisión de producto:**
+- ¿Con cuántas horas de anticipación puede cancelar un MEMBER?
+- ¿Hay penalización por cancelación tardía (afecta créditos de sesiones)?
+- ¿Puede el MEMBER cambiar de sesión (cancelar una y reservar otra del mismo servicio)?
+- ¿Sesión vencida = sin crédito (sesión usada)?
+- Estas reglas deben estar en un reglamento explícito antes de implementar
+
+**No implementar hasta tener reglamento definido.**
+
+---
+
 ### Task futura: Módulo Comunicados/Announcements
 **Objetivo:** feed comunitario real con persistencia.
 - Modelo `Post` (o `Announcement`) en Prisma con CRUD

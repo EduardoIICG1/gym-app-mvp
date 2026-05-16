@@ -47,6 +47,12 @@ function toReservation(b: BookingRow): Reservation {
 }
 
 export async function GET(request: Request) {
+  // Auth required for all GET requests — never expose booking data without a session
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const userIdParam = searchParams.get("userId");
   const classId = searchParams.get("classId");
@@ -54,9 +60,7 @@ export async function GET(request: Request) {
   const filter: { memberId?: string; sessionId?: string } = {};
 
   if (userIdParam) {
-    // Client still sends the mock "user-123" — always use the real authenticated user instead
-    const session = await auth();
-    if (!session?.user?.id) return Response.json([]);
+    // Always use the real authenticated user — ignore client-supplied userId value
     filter.memberId = session.user.id;
   }
 

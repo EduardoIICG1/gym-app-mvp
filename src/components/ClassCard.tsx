@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { DAY_NAMES } from "@/lib/labels";
 
 interface ClassCardProps {
@@ -127,6 +128,14 @@ export function ClassCard({
                 ? "Sin cupos"
                 : "Reservar clase"}
         </button>
+
+        <Link
+          href={`/classes/${id}`}
+          className="text-xs text-center block mt-3 hover:underline font-medium"
+          style={{ color: "#4fc3f7" }}
+        >
+          Ver inscritos →
+        </Link>
       </div>
     </div>
   );

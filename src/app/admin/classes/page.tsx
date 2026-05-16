@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Play, Pause } from "lucide-react";
+import Link from "next/link";
+import { Plus, Pencil, Trash2, Play, Pause } from "lucide-react";
 import { GymClass, Reservation, ServiceType, DayOfWeek, EventType, Member } from "@/lib/types";
 import { ServiceBadge } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
@@ -42,7 +43,6 @@ export default function AdminClassesPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<GymClass | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -128,17 +128,6 @@ export default function AdminClassesPage() {
     if (res.ok) { await fetchData(); setToast({ msg: "Clase eliminada", ok: true }); }
   };
 
-  const handleAttendance = async (reservationId: string, status: "attended" | "absent") => {
-    const res = await fetch(`/api/reservations/${reservationId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setReservations((prev) => prev.map((r) => r.id === reservationId ? updated : r));
-      setToast({ msg: status === "attended" ? "Asistencia marcada" : "Ausencia marcada", ok: true });
-    }
-  };
-
   const kpis = [
     { label: "Clases activas", value: active.length, sub: `${classes.length} totales`, accent: "#4fc3f7" },
     { label: "Ocupación promedio", value: `${avgOccupancy}%`, sub: `${totalReserved}/${totalCapacity} cupos`, accent: "#22c55e" },
@@ -194,10 +183,6 @@ export default function AdminClassesPage() {
                     const isBlocked = cls.eventType === "blocked_time";
                     const pct = !isBlocked && cls.maxCapacity > 0 ? (cls.reservedCount / cls.maxCapacity) * 100 : 0;
                     const barColor = pct >= 100 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
-                    const classReservations = isBlocked ? [] : reservations.filter(
-                      (r) => r.classId === cls.id && r.classDate === weekDateForDay(cls.dayOfWeek) && r.status !== "cancelled"
-                    );
-                    const isExpanded = expandedId === cls.id;
 
                     return (
                       <motion.div
@@ -256,14 +241,14 @@ export default function AdminClassesPage() {
                           {/* Actions */}
                           <div className="flex items-center gap-1 shrink-0">
                             {!isBlocked && (
-                              <button
-                                onClick={() => setExpandedId(isExpanded ? null : cls.id)}
-                                className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
-                                style={{ color: "var(--text-secondary)" }}
+                              <Link
+                                href={`/classes/${cls.id}`}
+                                className="p-1.5 rounded-lg transition-colors hover:bg-white/5 text-xs font-medium"
+                                style={{ color: "#4fc3f7" }}
                                 title="Ver inscritos"
                               >
-                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                              </button>
+                                Ver
+                              </Link>
                             )}
                             <button onClick={() => openEdit(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
                               <Pencil className="w-4 h-4" />
@@ -277,69 +262,6 @@ export default function AdminClassesPage() {
                           </div>
                         </div>
 
-                        {/* Attendance panel */}
-                        <AnimatePresence>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden"
-                              style={{ borderTop: "1px solid var(--card-border)", background: "rgba(0,0,0,0.2)" }}
-                            >
-                              <div className="px-4 py-2 flex items-center justify-between">
-                                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-                                  Inscritos — {weekDateForDay(cls.dayOfWeek)}
-                                </p>
-                                <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>{classReservations.length} alumnos</p>
-                              </div>
-                              {classReservations.length === 0 ? (
-                                <p className="text-xs px-4 pb-4" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>Sin reservas para esta fecha.</p>
-                              ) : (
-                                <div style={{ borderTop: "1px solid var(--card-border)" }}>
-                                  {classReservations.map((r) => (
-                                    <div key={r.id} className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
-                                      <div
-                                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                                        style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
-                                      >
-                                        {r.studentName.charAt(0)}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{r.studentName}</p>
-                                        <p className="text-xs truncate" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{r.studentEmail}</p>
-                                      </div>
-                                      <span className="text-xs font-medium" style={{
-                                        color: r.status === "attended" ? "#22c55e" : r.status === "absent" ? "#ef4444" : "var(--text-secondary)"
-                                      }}>
-                                        {r.status === "reserved" ? "Reservado" : r.status === "attended" ? "Asistió" : r.status === "absent" ? "Ausente" : "Cancelado"}
-                                      </span>
-                                      {(r.status === "reserved" || r.status === "attended" || r.status === "absent") && (
-                                        <div className="flex gap-1">
-                                          <button
-                                            onClick={() => handleAttendance(r.id, "attended")}
-                                            className="text-xs px-2 py-0.5 rounded transition-colors font-semibold"
-                                            style={r.status === "attended"
-                                              ? { background: "#22c55e", color: "#fff" }
-                                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}
-                                          >✓</button>
-                                          <button
-                                            onClick={() => handleAttendance(r.id, "absent")}
-                                            className="text-xs px-2 py-0.5 rounded transition-colors font-semibold"
-                                            style={r.status === "absent"
-                                              ? { background: "#ef4444", color: "#fff" }
-                                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}
-                                          >✗</button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
                       </motion.div>
                     );
                   })}

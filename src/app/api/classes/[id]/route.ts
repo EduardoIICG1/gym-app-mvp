@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { ServiceType, GymClass, DayOfWeek } from "@/lib/types";
 import type { ServiceType as DbServiceType } from "@prisma/client";
@@ -24,6 +25,82 @@ function addMinutes(time: string, minutes: number): string {
 
 function jsDayToFrontend(jsDay: number): number {
   return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+export async function GET(
+  _: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authSession = await auth();
+  if (!authSession?.user?.id) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  const gymSession = await prisma.session.findUnique({
+    where: { id },
+    include: {
+      program: true,
+      coach: { select: { id: true, name: true } },
+      bookings: {
+        where: { status: { notIn: ["CANCELLED", "WAITLISTED"] } },
+        include: { member: { select: { id: true, name: true, email: true } } },
+        orderBy: { createdAt: "asc" },
+      },
+      _count: {
+        select: {
+          bookings: { where: { status: { notIn: ["CANCELLED", "WAITLISTED"] } } },
+        },
+      },
+    },
+  });
+
+  if (!gymSession) {
+    return Response.json({ error: "Sesión no encontrada" }, { status: 404 });
+  }
+
+  const role = authSession.user.role; // "ADMIN" | "COACH" | "MEMBER"
+  const isAdmin = role === "ADMIN";
+  const isAuthorizedCoach = role === "COACH" && gymSession.coachId === authSession.user.id;
+
+  // COACH attempting to view another coach's session
+  if (role === "COACH" && !isAuthorizedCoach) {
+    return Response.json({ error: "Acceso denegado" }, { status: 403 });
+  }
+
+  const prog = gymSession.program;
+  const startTime = prog.startTime ?? gymSession.startsAt.toISOString().slice(11, 16);
+  const endTime = addMinutes(startTime, prog.durationMin);
+
+  const base = {
+    id: gymSession.id,
+    programName: prog.name,
+    serviceType: prog.serviceType,
+    sessionDate: gymSession.startsAt.toISOString().slice(0, 10),
+    startTime,
+    endTime,
+    coachName: gymSession.coach.name ?? "",
+    capacity: prog.maxCapacity ?? 0,
+    reservedCount: gymSession._count.bookings,
+    status: gymSession.status === "CANCELLED" ? "cancelled" : "active",
+  };
+
+  if (isAdmin || isAuthorizedCoach) {
+    return Response.json({
+      ...base,
+      attendees: gymSession.bookings.map(b => ({
+        bookingId: b.id,
+        memberId: b.member.id,
+        memberName: b.member.name ?? "",
+        memberEmail: b.member.email,
+        status: b.status,
+      })),
+    });
+  }
+
+  // MEMBER: base data only, no attendees
+  return Response.json(base);
 }
 
 export async function PUT(

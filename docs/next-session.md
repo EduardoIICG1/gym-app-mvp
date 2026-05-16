@@ -181,18 +181,27 @@ Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /ap
 
 ## Backlog prioritario
 
-### Task futura: Home Coach operativo
-**Objetivo:** que el coach pueda gestionar su día desde el inicio, especialmente desde mobile.
-**Contenido esperado:**
-1. Mis clases de hoy (filtradas por coach asignado)
-2. Próximas clases asignadas esta semana
-3. Cantidad de inscritos por sesión
-4. Acceso rápido al detalle de la clase
-5. Acceso rápido a tomar asistencia
-6. Alertas de sesiones próximas, llenas, canceladas o con pocos inscritos
-7. Atajo para invitar alumnos a una sesión
+### Home Coach operativo ✅ — Implementado (2026-05-15)
 
-**Dependencias:** requiere que `/api/classes` o un endpoint nuevo soporte filtro por coach; conecta con "Inscritos por sesión" e "Invitación del coach a clase".
+- `src/app/page.tsx`: vista COACH completamente separada de ADMIN y MEMBER
+- **Filtro principal:** `coachId === activeUser.id && sessionDate === todayStr` — usa la fecha real de la sesión (no `dayOfWeek`) como fuente de verdad
+- **"Mis clases de hoy":** sesiones del coach filtradas por `sessionDate === hoy`; si no hay → "No tienes clases hoy"
+- **"Próximas clases":** sesiones con `sessionDate > hoy`, ordenadas por `sessionDate + startTime`, máximo 5; muestran fecha real, hora e inscritos/cupo
+- **"Resumen de hoy":** 4 KPIs reales sin NaN — clases hoy, inscritos hoy, ocupación media (guard contra division/0), próxima clase
+- `coachId` y `sessionDate` ya estaban en la respuesta de `/api/classes`; solo faltaban en la interfaz `HomeClass`
+- No se tocaron APIs, schema ni auth
+- Build limpio ✅; validación manual correcta ✅
+
+**Observación de validación:**
+La validación con DevPanel usa `activeUser.id` real. Si el usuario autenticado no está asignado como `coachId` en ninguna sesión, la vista aparece vacía — comportamiento correcto. Para validar el caso positivo se requiere un usuario COACH real con sesiones asignadas.
+
+**Backlog pendiente (no implementar ahora):**
+- Validar caso positivo con usuario COACH real o asignando temporalmente una sesión al coach de prueba
+- Acceso al detalle de la clase desde Home COACH
+- Ver lista de inscritos por sesión (requiere decisión de privacidad)
+- Tomar asistencia desde Home COACH
+- Invitar alumnos a una sesión (requiere modelo de invitación)
+- Alertas visuales para sesiones llenas, canceladas o con baja ocupación
 
 ---
 

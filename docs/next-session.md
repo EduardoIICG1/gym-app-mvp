@@ -162,32 +162,78 @@ Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /ap
 - `changeRole`: exportada pero no-op en producción (no rompe interfaz de useCurrentUser)
 - `role` en producción: siempre del JWT, nunca de localStorage
 
-#### Home real sin mocks ✅ — Implementado, pendiente validación manual
+#### Home real sin mocks ✅ — Validado (2026-05-15)
 
 - `src/app/page.tsx`: eliminados todos los imports de mock-data (`mockPosts`, `mockClasses`, `mockReservations`)
-- Feed comunitario (publicaciones, likes, comentarios) y "Crear publicación" **ocultados** — no existe modelo Post/Announcement en Prisma ni API real; mostrarlos sería falsa persistencia
-- "Clases de hoy" reemplazado con fetch real a `/api/classes?weekStart=YYYY-MM-DD`
-- "Próximamente" derivado del mismo fetch (sesiones con `dayOfWeek > gymDow`)
-- "Mis próximas reservas" (MEMBER) reemplazado con fetch real a `/api/reservations?userId=...` — muestra `className` y `startTime` reales
-- "Resumen operativo" (ADMIN) calculado desde datos reales: clases activas = sessions.length, ocupación promedio = avg(reserved/capacity), reservas hoy = sum(reserved) de sesiones de hoy
-- Estados de carga y vacío honestos: "Cargando...", "No hay clases programadas para hoy", "Sin próximas reservas"
-- `gymDayOfWeek()` mapea correctamente: Mon=0…Sat=5, Dom=-1 (día de descanso)
-- Guards de auth: fetch no se dispara hasta que `activeUser.isLoading === false`
+- Feed comunitario y "Crear publicación" ocultados — no existe modelo Post/Announcement en Prisma
+- "Clases de hoy" y "Próximamente" con fetch real a `/api/classes?weekStart=YYYY-MM-DD`
+- "Mis próximas reservas" (MEMBER) con fetch real a `/api/reservations` — muestra `className` y `startTime` reales
+- "Resumen operativo" (ADMIN) calculado desde sesiones reales — sin NaN
+- Guards de auth: fetch no se dispara hasta `activeUser.isLoading === false`
 - Build limpio ✅
 
-**Pendiente validación manual:**
-- Como ADMIN: verificar "Clases de hoy" con sesiones reales, "Resumen operativo" con números reales
-- Como MEMBER: verificar "Mis próximas reservas" con `className` real (no "Clase reservada")
-- Verificar que feed/publicaciones no aparecen en ningún rol
+**Validación manual completada:**
+- ADMIN ✅: "Clases de hoy", "Próximamente" y "Resumen operativo" con datos reales; sin feed; sin crear publicación
+- MEMBER ✅: "Mis próximas reservas" con `className` real; sin resumen operativo; sin feed
+- COACH ✅ con observación: carga sin errores, sin feed, sin crear publicación
+  → **Vista COACH queda mínima** — solo "Clases de hoy" visible; si no hay clases hoy, la vista queda vacía sin valor operativo
+  → Brecha de producto aceptada; se documenta como backlog prioritario
 
-**Backlog futuro:**
-- Módulo Comunicados/Announcements con modelo Post en Prisma, CRUD, likes y comentarios persistentes
-- Agregar logout visible desde avatar/perfil
+## Backlog prioritario
+
+### Task futura: Home Coach operativo
+**Objetivo:** dar al coach una vista rápida para gestionar su día.
+**Contenido esperado:**
+- Mis clases de hoy (filtradas por coach asignado)
+- Próximas clases asignadas esta semana
+- Cantidad de inscritos por sesión
+- Acceso rápido al detalle de la sesión
+- Acceso rápido a tomar asistencia
+- Alertas de sesiones llenas, canceladas o con baja ocupación
+- Vista mobile-first
+
+**Dependencias:** requiere que `/api/classes` o un endpoint nuevo soporte filtro por coach.
+
+---
+
+### Task futura: Inscritos visibles por sesión
+**Objetivo:** mostrar quiénes están inscritos en una sesión con reglas de privacidad por rol.
+
+**Reglas iniciales propuestas:**
+- ADMIN: puede ver todos los inscritos con nombre y email
+- COACH: puede ver inscritos de sus sesiones (nombre y email)
+- MEMBER: puede ver al menos la cantidad de inscritos; nombre completo o parcial a definir
+  - Caso de uso válido: saber si un amigo está inscrito puede incentivar la reserva
+  - No exponer información sensible sin definir política de privacidad explícita
+
+**Pendiente de decisión de producto:**
+- ¿MEMBER puede ver nombres completos de otros miembros?
+- ¿Solo nombres parciales (e.g. "Juan P.")?
+- ¿Solo miembros que hayan aceptado ser visibles?
+
+---
+
+### Task futura: Módulo Comunicados/Announcements
+**Objetivo:** feed comunitario real con persistencia.
+- Modelo `Post` (o `Announcement`) en Prisma con CRUD
+- CRUD solo para ADMIN y COACH (publicar, editar, eliminar)
+- MEMBER puede leer y reaccionar
+- Likes y comentarios persistentes (no state local)
+- Feed en Home left-panel actualmente oculto
+
+---
+
+### Backlog UX general
+- Botón de cerrar sesión visible desde avatar/perfil
 - Limpiar `mock-data.ts` completamente cuando Home y DevPanel dejen de depender de mocks
 
 ## Próximo paso
 
-Validar manualmente Home como ADMIN y MEMBER tras merge a master.
+Backlog abierto. Opciones priorizadas:
+1. Home Coach operativo (brecha operativa inmediata)
+2. Inscritos por sesión (visibilidad y privacidad)
+3. Módulo Comunicados/Announcements (feed real)
+4. Logout visible desde avatar
 
 ## Advertencias antes de producción
 

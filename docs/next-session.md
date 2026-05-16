@@ -182,34 +182,70 @@ Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /ap
 ## Backlog prioritario
 
 ### Task futura: Home Coach operativo
-**Objetivo:** dar al coach una vista rápida para gestionar su día.
+**Objetivo:** que el coach pueda gestionar su día desde el inicio, especialmente desde mobile.
 **Contenido esperado:**
-- Mis clases de hoy (filtradas por coach asignado)
-- Próximas clases asignadas esta semana
-- Cantidad de inscritos por sesión
-- Acceso rápido al detalle de la sesión
-- Acceso rápido a tomar asistencia
-- Alertas de sesiones llenas, canceladas o con baja ocupación
-- Vista mobile-first
+1. Mis clases de hoy (filtradas por coach asignado)
+2. Próximas clases asignadas esta semana
+3. Cantidad de inscritos por sesión
+4. Acceso rápido al detalle de la clase
+5. Acceso rápido a tomar asistencia
+6. Alertas de sesiones próximas, llenas, canceladas o con pocos inscritos
+7. Atajo para invitar alumnos a una sesión
 
-**Dependencias:** requiere que `/api/classes` o un endpoint nuevo soporte filtro por coach.
+**Dependencias:** requiere que `/api/classes` o un endpoint nuevo soporte filtro por coach; conecta con "Inscritos por sesión" e "Invitación del coach a clase".
 
 ---
 
 ### Task futura: Inscritos visibles por sesión
 **Objetivo:** mostrar quiénes están inscritos en una sesión con reglas de privacidad por rol.
 
-**Reglas iniciales propuestas:**
-- ADMIN: puede ver todos los inscritos con nombre y email
-- COACH: puede ver inscritos de sus sesiones (nombre y email)
-- MEMBER: puede ver al menos la cantidad de inscritos; nombre completo o parcial a definir
-  - Caso de uso válido: saber si un amigo está inscrito puede incentivar la reserva
-  - No exponer información sensible sin definir política de privacidad explícita
+**Reglas por rol:**
+- ADMIN: puede ver todos los inscritos con nombre y email completo
+- COACH: puede ver inscritos de sus sesiones con nombre y email completo
+- MEMBER: puede ver al menos la cantidad de inscritos; visibilidad de nombres a definir
+
+**Caso de uso MEMBER (válido, documentado):**
+Un alumno que ve que un amigo está inscrito en una clase puede motivarse a reservar o escribirle para coordinar. Esto conecta directamente con el flujo de invitación del coach y con social proof/gamificación.
+
+**Opciones de visibilidad para MEMBER (decisión de producto pendiente):**
+1. Todos los nombres completos de inscritos
+2. Solo amigos/contactos definidos en la plataforma
+3. Iniciales o nombres parciales (e.g. "Juan P.")
+4. Opción de ocultar asistencia propia (el usuario decide si aparece en la lista)
+5. Solo cantidad de inscritos, sin nombres (opción mínima)
 
 **Pendiente de decisión de producto:**
-- ¿MEMBER puede ver nombres completos de otros miembros?
-- ¿Solo nombres parciales (e.g. "Juan P.")?
-- ¿Solo miembros que hayan aceptado ser visibles?
+- ¿Qué opción de visibilidad adoptar por defecto para MEMBER?
+- ¿Existe un concepto de "amigos/contactos" en la plataforma? (aún no modelado)
+- ¿El MEMBER puede optar por ocultar su asistencia?
+- ¿La visibilidad es por clase, por tipo de servicio, o global?
+
+**Conexiones con otras tasks:**
+- Invitación del coach a clase: el coach necesita ver quiénes aún no están inscritos para invitar
+- Gamificación/social proof: ver que un amigo asiste puede disparar la reserva
+- Notificaciones: "Tu amigo Juan reservó Funcional del lunes"
+
+---
+
+### Task futura: Invitación del coach a clase
+**Objetivo:** permitir al coach invitar alumnos directamente a una sesión.
+
+**Flujo esperado:**
+- COACH selecciona una sesión y elige alumnos a invitar
+- MEMBER recibe notificación o alerta de invitación
+- MEMBER puede aceptar o rechazar
+- Si acepta → se crea o confirma Booking para esa sesión
+- Si rechaza → no se genera reserva; COACH puede ver el estado
+
+**Conexiones con otras tasks:**
+- Depende de "Inscritos por sesión" (COACH necesita ver quiénes ya están, quiénes no)
+- Puede conectar con gamificación: incentivo social a reservar cuando el coach invita o cuando un amigo acepta
+- Potencial para notificaciones push/email en el futuro
+
+**Pendiente de decisión de producto:**
+- ¿Invitación individual o grupal (invitar a todos sus alumnos activos)?
+- ¿Caduca la invitación si no se acepta antes de la sesión?
+- ¿El MEMBER puede ver que el coach lo invitó antes de decidir?
 
 ---
 
@@ -231,9 +267,10 @@ Tasks 10, 11, 12 y 13 completadas. Todas las APIs principales (/api/members, /ap
 
 Backlog abierto. Opciones priorizadas:
 1. Home Coach operativo (brecha operativa inmediata)
-2. Inscritos por sesión (visibilidad y privacidad)
-3. Módulo Comunicados/Announcements (feed real)
-4. Logout visible desde avatar
+2. Inscritos por sesión con reglas de privacidad por rol
+3. Invitación del coach a clase (conecta con inscritos y gamificación)
+4. Módulo Comunicados/Announcements (feed real)
+5. Logout visible desde avatar
 
 ## Advertencias antes de producción
 

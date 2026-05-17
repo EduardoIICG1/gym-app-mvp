@@ -19,6 +19,7 @@ export interface GymClass {
   startTime: string; // HH:mm
   endTime: string;
   coach: string;
+  coachId?: string;
   maxCapacity: number;
   reservedCount: number;
   status: ClassStatus;

@@ -821,7 +821,10 @@ export default function CalendarPage() {
     reservations.some(r => r.classId === classId && r.classDate === dateStr && r.status !== "cancelled");
 
   const handleCardClick = (cls: GymClass, dateStr: string) => {
-    if (IS_ADMIN_OR_COACH) {
+    const canManage =
+      currentUser.role === "admin" ||
+      (currentUser.role === "coach" && cls.coachId === CURRENT_USER_ID);
+    if (canManage) {
       setManageModal({ cls, dateStr });
     } else {
       setModal({ cls, dateStr });
@@ -893,11 +896,16 @@ export default function CalendarPage() {
     ? `${weekDates[0].date.getDate()} ${MONTHS[weekDates[0].date.getMonth()]} — ${weekDates[5].date.getDate()} ${MONTHS[weekDates[5].date.getMonth()]}`
     : "";
 
+  const memberHasNoMemberships =
+    !IS_ADMIN_OR_COACH && validServiceTypes !== null && validServiceTypes.size === 0;
+
   const getColClasses = (dayOfWeek: number) =>
     classes
       .filter(c => c.dayOfWeek === dayOfWeek && c.status === "active")
       // Members never see blocked_time entries
       .filter(c => IS_ADMIN_OR_COACH || c.eventType !== "blocked_time")
+      // Members only see classes matching their active membership service types
+      .filter(c => IS_ADMIN_OR_COACH || validServiceTypes === null || validServiceTypes.has(c.serviceType))
       .filter(c => coachFilter === "all" || c.coach === coachFilter)
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
@@ -1035,6 +1043,11 @@ export default function CalendarPage() {
 
       {loading ? (
         <div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>Cargando clases...</div>
+      ) : memberHasNoMemberships ? (
+        <div className="rounded-xl p-8 text-center border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          <p className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Sin membresías activas</p>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>No tienes membresías activas. Contacta a administración.</p>
+        </div>
       ) : (
         <>
           {/* ── Mobile: day pills + single column ─────── */}

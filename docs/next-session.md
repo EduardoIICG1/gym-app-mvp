@@ -515,15 +515,42 @@ Opción robusta (tabla separada para historial completo):
 
 ---
 
+### Calendar por rol ✅ — Implementado (2026-05-16)
+
+**Cambios:**
+- `src/lib/types.ts`: `coachId?: string` agregado a `GymClass` (opcional para compatibilidad con mock-data)
+- `src/app/calendar/page.tsx`:
+  - **MEMBER filtering:** `getColClasses` filtra clases por `validServiceTypes` (membresías activas del usuario). Si `validServiceTypes === null` (cargando), no filtra. Si `validServiceTypes.size === 0`, muestra estado vacío "Sin membresías activas."
+  - **COACH permissions:** `handleCardClick` usa `cls.coachId === CURRENT_USER_ID` para determinar si el COACH puede abrir ManageModal. Clase propia → ManageModal; clase ajena → ClassModal (read-only).
+  - **ADMIN:** sin cambios — ManageModal siempre.
+
+**`coachId` en API:** ya existía en `GET /api/classes` (línea 91) — no se tocó la API.
+
+**Estado de validación:**
+- ADMIN ✅: ve todas las clases; ManageModal para todas.
+- MEMBER real (TEST_MEMBER_EMAIL, membresía GROUP) ✅: solo ve clases GROUP; PT/KINE ausentes del calendario.
+- COACH real: **pendiente**
+  - DevPanel cambia el rol visual pero no el `user.id` real del JWT.
+  - `cls.coachId === CURRENT_USER_ID` compara IDs reales → el ADMIN logueado no coincide con ningún `coachId` del seed → todas las clases abren ClassModal. Comportamiento correcto.
+  - Para validar COACH real se requiere una cuenta Google con rol COACH y sesiones asignadas a su ID.
+  - Posible futuro: `TEST_COACH_EMAIL` en `.env.local`, pero requiere también reasignar `coachId` de al menos una sesión del seed al coach test. Más invasivo que `TEST_MEMBER_EMAIL` — diferir hasta tener un coach real en el sistema.
+
+**No implementado (backlog):**
+- Modo reagendar (requiere decisión de reglamento)
+- Disponibilidad de coach (requiere nuevo modelo de datos)
+- Filtro de coach ajeno con vista de referencia operativa
+- Upsell de servicios no contratados
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
 1. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
-2. Validar Home COACH con usuario COACH real (sesiones asignadas a su coachId)
+2. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
 3. Módulo Comunicados/Announcements (feed real)
 4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
-5. Calendar visibility by membership (requiere definir reglas de reagendamiento primero)
-6. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
 
 ## Advertencias antes de producción
 

@@ -412,21 +412,118 @@ Build limpio ✅; validación manual correcta ✅
 **Estado de validación:**
 - Build limpio ✅
 - Validación visual `/classes` y `/calendar` confirmada manualmente ✅
-- Validación server-side con JWT MEMBER real: **pendiente**
-  - Los MEMBER del seed (Ana, Carlos, Lucía) no son cuentas Google reales y no pueden hacer login
-  - DevPanel simula rol visual pero no cambia el JWT → el `session.user.role` en el server siempre es ADMIN para el usuario actual
-  - Para validar server-side se requiere: agregar una cuenta Google real al seed como MEMBER, o crear endpoint dev-only que simule el gating sin JWT real
+- Validación con JWT MEMBER real (cuenta Google vía `TEST_MEMBER_EMAIL`): ✅
+  - Login Google MEMBER real → perfil muestra rol Miembro y membresía GROUP activa
+  - `/classes`: clase GROUP → "Reservar clase" activo; reserva exitosa (POST 201, booking creado)
+  - `/classes`: clase PERSONAL_TRAINING → "Sin membresía" (deshabilitado)
+  - `/classes`: clase KINESIOLOGY → "Sin membresía" (deshabilitado)
+  - `/calendar`: modal GROUP → botón de reserva activo; modal PT/KINE → "Sin membresía para esta clase"
+- Validación server-side PT/KINE por API (POST con JWT MEMBER): **cubierta por orden de validación**
+  - Las sesiones seed PT y KINE están llenas (1/1), por lo que no es posible enviar el POST completo por UI
+  - El orden de validación en POST `/api/reservations` garantiza que membership gating (línea 104) se ejecuta **antes** del capacity check (línea 158)
+  - Un MEMBER sin membresía PT/KINE recibirá 403 "No tienes una membresía activa para este tipo de clase." incluso si la clase está llena
+  - Validación directa por API (curl/DevTools con JWT MEMBER) queda como verificación adicional opcional
+
+---
+
+---
+
+### Decisión de producto: visibilidad del calendario por rol (backlog, no implementar todavía)
+
+**Principio:** ver clases no es lo mismo que poder reservar. El calendario del MEMBER no debe funcionar como calendario global del gimnasio.
+
+**Reglas futuras por rol:**
+
+**MEMBER — vista normal:**
+- Ve su agenda personal y sus reservas activas.
+- Ve clases disponibles **solo si corresponden a su membresía activa** (serviceType contratado y vigencia válida).
+- No ve clases de servicios que no tiene contratados.
+- No ve bloques de coaches que no le corresponden.
+
+**MEMBER — modo reservar:**
+- Solo opciones filtradas por: serviceType de su membresía, vigencia, cupos disponibles, y coach asignado si aplica.
+
+**MEMBER — modo reagendar** (solo al presionar "Reagendar" explícitamente):
+- Se desbloquean alternativas compatibles con su membresía.
+- Personal training: solo bloques disponibles de su coach asignado.
+- Grupal: solo clases grupales permitidas.
+- Kinesiología: solo bloques del profesional asignado.
+- No accede a todo el calendario del gym.
+
+**ADMIN:** ve todo, sin restricción.
+
+**COACH:** ve sus propias clases, alumnos y agenda operativa.
+
+**Razón de no implementar ahora:**
+- Requiere modelo de disponibilidad de coach (bloques horarios, no solo sesiones existentes).
+- Requiere reglas de reagendamiento según reglamento (aún no definido).
+- Requiere decisión sobre upsell: ¿el MEMBER puede ver servicios no contratados como vitrina? Si sí, requiere flujo de adquisición separado del calendario operativo.
+- Requiere definir si el filtro es por `Membership.serviceType` activo, por `MemberCoach.serviceType`, o por ambos.
+
+**Tasks bloqueadas hasta resolver:**
+- `COACH availability blocks` — modelo para horarios disponibles de coach (no solo sesiones ya agendadas)
+- `Calendar visibility by membership` — filtrar `/calendar` por serviceTypes de membresías activas del MEMBER
+- `Reschedule mode` — UI separada del modo reserva estándar
+- `Service upsell view` — vitrina de servicios no contratados, separada del calendario operativo
+
+---
+
+### Decisión de producto: cobertura / sustitución de coach (backlog, no implementar todavía)
+
+**Caso de uso:** un coach se enferma o tiene una urgencia 2–3 horas antes de una clase. Otro coach debe tomar esa clase sin cancelar ni reagendar a los alumnos.
+
+**Regla de producto:**
+- La sesión se mantiene (mismo `sessionId`, mismo horario).
+- Los bookings se mantienen — ningún inscrito es afectado.
+- La asistencia se toma sobre la misma sesión.
+- La membresía/servicio del alumno no cambia.
+- Solo cambia el coach responsable de ejecutar esa sesión.
+- No es reagendamiento. No borra ni recrea bookings. No pierde historial.
+
+**Modelo de datos futuro — dos opciones:**
+
+Opción simple (campos en Session):
+- `coverCoachId String?` — coach sustituto asignado
+- `coverReason String?` — motivo de la sustitución
+- `coverAssignedAt DateTime?`
+- `coverAssignedById String?` — quién asignó la cobertura
+
+Opción robusta (tabla separada para historial completo):
+- `SessionCoachAssignment` / `CoachCoverageLog`
+  - `sessionId`, `originalCoachId`, `assignedCoachId`, `assignedByUserId`
+  - `reason`, `createdAt`, `cancelledAt`
+  - Permite historial de múltiples cambios por sesión
+
+**Reglas por rol:**
+- **ADMIN:** puede asignar, modificar y quitar coach sustituto en cualquier sesión.
+- **COACH:** puede ver sesiones que debe cubrir; puede tomar asistencia si es coach original O coach sustituto; no se autoasigna cobertura sin permiso de ADMIN.
+- **MEMBER:** mantiene su reserva sin acción requerida; puede ver que la clase será tomada por otro coach.
+
+**Impacto técnico futuro:**
+- Permisos de asistencia deben aceptar `session.coachId === auth.user.id` OR `session.coverCoachId === auth.user.id`
+- Home COACH debe incluir: mis clases originales + clases que estoy cubriendo
+- Calendar COACH debe distinguir: mis clases / clases cubiertas / ocupaciones de colegas como referencia
+- `/classes/[id]` debe mostrar coach original y coach sustituto si existe
+
+**Tasks bloqueadas hasta resolver:**
+- Decisión de modelo: campos en Session (simple) vs tabla de log (robusto)
+- `Coach coverage assignment` — UI en ADMIN para asignar sustitución
+- `Coach coverage view` — Home y Calendar COACH muestran clases a cubrir
+- `Cover visibility for MEMBER` — alerta en detalle de sesión cuando hay sustitución
+- `Coverage history` — auditoría de cambios de coach por sesión
+- `Notification flows` — alerta al coach sustituto y al alumno
 
 ---
 
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Agregar cuenta Google MEMBER real al seed para validar gating server-side completo
-2. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
-3. Validar Home COACH con usuario COACH real (sesiones asignadas a su coachId)
-4. Módulo Comunicados/Announcements (feed real)
-5. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+1. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
+2. Validar Home COACH con usuario COACH real (sesiones asignadas a su coachId)
+3. Módulo Comunicados/Announcements (feed real)
+4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+5. Calendar visibility by membership (requiere definir reglas de reagendamiento primero)
+6. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
 
 ## Advertencias antes de producción
 

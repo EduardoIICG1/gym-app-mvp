@@ -101,13 +101,6 @@ export async function POST(request: Request) {
     if (gymSession.status === "CANCELLED") {
       return Response.json({ error: "Clase cancelada" }, { status: 400 });
     }
-    if (gymSession.program.serviceType !== "OTHER") {
-      const max = gymSession.program.maxCapacity ?? 0;
-      if (max > 0 && gymSession._count.bookings >= max) {
-        return Response.json({ error: "Clase llena" }, { status: 400 });
-      }
-    }
-
     // Membership gating — MEMBER only; ADMIN/COACH bypass
     if (session.user.role === "MEMBER") {
       const serviceType = gymSession.program.serviceType;
@@ -159,6 +152,13 @@ export async function POST(request: Request) {
           { error: "Tu membresía no está activa. Contacta a administración." },
           { status: 403 }
         );
+      }
+    }
+
+    if (gymSession.program.serviceType !== "OTHER") {
+      const max = gymSession.program.maxCapacity ?? 0;
+      if (max > 0 && gymSession._count.bookings >= max) {
+        return Response.json({ error: "Clase llena" }, { status: 400 });
       }
     }
 

@@ -365,7 +365,47 @@ async function main() {
   ]);
   console.log(`   ✓ ${bookings.length} bookings\n`);
 
-  console.log("✅ Seed completado — 28 registros en 6 tablas.");
+  // ─── Optional: Google MEMBER for local validation (TEST_MEMBER_EMAIL in .env.local) ──
+  const testMemberEmail = process.env.TEST_MEMBER_EMAIL;
+  if (testMemberEmail) {
+    console.log("→ Test MEMBER (TEST_MEMBER_EMAIL)");
+    const testMember = await prisma.user.upsert({
+      where:  { email: testMemberEmail },
+      update: { name: "Miembro Test", role: "MEMBER", isActive: true },
+      create: { email: testMemberEmail, name: "Miembro Test", role: "MEMBER", isActive: true },
+    });
+    await prisma.membership.upsert({
+      where:  { id: "seed_membr_google_test_member" },
+      update: {
+        memberId:      testMember.id,
+        planName:      "Grupal Mensual Test",
+        serviceType:   "GROUP",
+        totalSessions: null,
+        usedSessions:  0,
+        startDate:     new Date("2026-05-01"),
+        endDate:       new Date("2026-07-31"),
+        status:        "ACTIVE",
+        amount:        0,
+        paymentStatus: "PAID",
+      },
+      create: {
+        id:            "seed_membr_google_test_member",
+        memberId:      testMember.id,
+        planName:      "Grupal Mensual Test",
+        serviceType:   "GROUP",
+        totalSessions: null,
+        usedSessions:  0,
+        startDate:     new Date("2026-05-01"),
+        endDate:       new Date("2026-07-31"),
+        status:        "ACTIVE",
+        amount:        0,
+        paymentStatus: "PAID",
+      },
+    });
+    console.log(`   ✓ Test MEMBER creado: ${testMemberEmail}\n`);
+  }
+
+  console.log("✅ Seed completado — 28 registros en 6 tablas (+ test member si TEST_MEMBER_EMAIL definido).");
   console.log("   Abre Prisma Studio con: npx prisma studio");
 }
 

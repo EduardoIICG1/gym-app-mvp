@@ -773,11 +773,51 @@ Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado si
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
-2. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
-3. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
-4. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
-5. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
+1. Preparar entorno demo/preview en Vercel (ver sección abajo)
+2. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
+3. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
+4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+6. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
+
+---
+
+## Tarea pendiente: Preparar entorno demo/preview en Vercel
+
+**Contexto:** El deploy en Vercel carga visualmente (build OK tras agregar `prisma generate`), pero no muestra datos. Home dice "No hay comunicados publicados", sin clases ni reservas, Calendar/Profile no cargan datos. Logout no cierra correctamente en el dominio preview.
+
+**Objetivo:** No es necesario dejar producción perfecta ahora. El objetivo inmediato es tener una versión visual estable para usar como referencia de diseño (Claude Design, Figma, Stitch, etc.).
+
+**Pendientes concretos:**
+
+1. **Validar DATABASE_URL/DIRECT_URL de Vercel**
+   - Confirmar que apuntan a la misma instancia Supabase que local (o a una separada para preview).
+   - Si apuntan a la misma DB que local, los datos ya existen y el problema puede ser de conexión, pooler config, o variables mal copiadas.
+   - Si apuntan a una DB separada, la DB está vacía y requiere seed.
+
+2. **Ejecutar seed/demo data en la DB usada por Vercel**
+   - Si la DB de Vercel es distinta, correr `npx tsx prisma/seed.ts` apuntando a esa DB (con DIRECT_URL correcto).
+   - Evaluar si conviene un script de "seed preview" con datos mínimos representativos, sin borrar datos productivos si comparten DB.
+   - Nunca correr seed destructivo sobre datos reales.
+
+3. **Revisar AUTH_URL para preview vs production**
+   - `AUTH_URL` debe coincidir con el dominio de Vercel preview (ej. `https://gym-app-mvp-git-feat-fase6.vercel.app` o el dominio asignado).
+   - Google OAuth: los Authorized redirect URIs en Google Cloud Console deben incluir el dominio preview exacto: `https://[dominio-vercel]/api/auth/callback/google`.
+   - Si AUTH_URL no coincide, NextAuth rechaza los callbacks y el login falla.
+
+4. **Revisar logout en dominio preview**
+   - `signOut({ callbackUrl: "/" })` redirige a `/` tras logout.
+   - En preview, verificar que `callbackUrl` no quede atrapado en un loop de redirección por middleware.
+   - Si el logout parece "refrescar" sin cerrar sesión, puede ser cookie domain mismatch o que el callback URL no está autorizado en Google Console.
+
+5. **Validar Calendar/Profile con datos reales**
+   - Depende de la resolución de los puntos 1 y 2 (DB con datos).
+   - También depende de que el usuario autenticado en Vercel exista en la DB con `isActive: true` (el auth actual requiere usuario pre-registrado).
+
+6. **Definir si Vercel preview usa DB demo o DB productiva**
+   - **Opción A — Misma DB (Supabase):** más simple, datos reales, riesgo si se comparte con usuarios reales.
+   - **Opción B — DB separada para preview/staging:** más seguro, pero requiere provisionar otra instancia en Supabase y re-seed.
+   - Recomendación para ahora: usar la misma DB de Supabase que local si aún no hay usuarios reales en producción.
 
 ## Advertencias antes de producción
 

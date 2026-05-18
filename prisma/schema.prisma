@@ -49,6 +49,18 @@ enum PaymentStatus {
   OVERDUE
 }
 
+enum AnnouncementType {
+  INFO
+  ALERT
+  EVENT
+  MAINTENANCE
+}
+
+enum AnnouncementStatus {
+  PUBLISHED
+  ARCHIVED
+}
+
 // ─── Business Models ─────────────────────────────────────────────────────────
 
 model User {
@@ -69,6 +81,7 @@ model User {
   bookings        Booking[]
   memberships     Membership[]
   defaultPrograms Program[]     @relation("DefaultCoach")
+  announcements   Announcement[] @relation("AuthorAnnouncements")
 }
 
 // Many-to-many: Member ↔ Coach with service type
@@ -166,4 +179,26 @@ model Membership {
 
   @@index([memberId])
   @@index([status])
+}
+
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String?
+  content     String
+  type        AnnouncementType   @default(INFO)
+  authorId    String
+  isPinned    Boolean            @default(false)
+  publishedAt DateTime           @default(now())
+  expiresAt   DateTime?
+  linkUrl     String?
+  linkLabel   String?
+  status      AnnouncementStatus @default(PUBLISHED)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  author User @relation("AuthorAnnouncements", fields: [authorId], references: [id])
+
+  @@index([status])
+  @@index([authorId])
+  @@index([publishedAt])
 }

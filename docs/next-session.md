@@ -543,13 +543,80 @@ Opción robusta (tabla separada para historial completo):
 
 ---
 
+### Módulo Comunicados/Announcements ✅ — Implementado (2026-05-17)
+
+#### Modelo
+
+- `prisma/schema.prisma`: enums `AnnouncementType` (INFO | ALERT | EVENT | MAINTENANCE), `AnnouncementStatus` (PUBLISHED | ARCHIVED). Modelo `Announcement` con campos: `id`, `title?`, `content`, `type`, `authorId`, `isPinned`, `publishedAt`, `expiresAt?`, `linkUrl?`, `linkLabel?`, `status`, `createdAt`, `updatedAt`. Relación `User.announcements`.
+
+#### API
+
+- `GET /api/announcements`: auth requerida. MEMBER solo ve PUBLISHED no vencidos. ADMIN/COACH pueden pedir `?status=archived`. Orden: `isPinned DESC, publishedAt DESC`. `Cache-Control: no-store`. Usa `findMany` con `select` explícito (incluye `linkUrl`/`linkLabel`).
+- `POST /api/announcements`: ADMIN/COACH. `authorId` siempre del JWT. `isPinned` ignorado silenciosamente para COACH (guarda `false`). Valida `linkUrl`: debe ser `http://` o `https://`. `linkLabel` fallback a `"Ver enlace"`.
+- `PATCH /api/announcements/[id]`: ADMIN edita cualquier comunicado. COACH solo los propios (`authorId === user.id`). `isPinned` solo aceptado para ADMIN. Archivado: `{ status: "archived" }`.
+
+#### Home (`src/app/page.tsx`)
+
+- Layout responsive desktop: grid `minmax(0,1.5fr)` (main) + `minmax(320px,0.8fr)` (aside). Max-width 1200px.
+- **Carrusel "Novedades destacadas"**: visible para todos los roles. Si 0 pineados → oculto. Si 1 → card sola. Si ≥2 → flechas `‹`/`›` + contador `N/M` + dots clicables. Estado `carouselIdx` con clamp `safeIdx`.
+- **Feed "Comunicados"**: visible para todos los roles. ADMIN/COACH ven formulario de creación (título opcional, textarea, selector de tipo, checkbox "Pinear" solo ADMIN). MEMBER solo lectura.
+- Links: si `linkUrl` existe → botón CTA con color del tipo, `target="_blank"`, `rel="noopener noreferrer"`. Aparece en carrusel y en cards del feed.
+- Archivar: ADMIN puede archivar cualquiera; COACH solo los propios. Actualización local sin refetch.
+
+#### Seed
+
+- 4 announcements con IDs estables (`seed_ann_pinned_1`, `seed_ann_pinned_2`, `seed_ann_alert_1`, `seed_ann_info_1`).
+- `annPinned1`: INFO, isPinned=true, linkUrl="https://www.instagram.com", linkLabel="Síguenos en Instagram" (TODO: actualizar con handle real de Instagram de Primary Performance).
+- `annPinned2`: EVENT, isPinned=true, sin link.
+
+#### Nota técnica: Turbopack cache + Prisma schema
+
+Al agregar campos al modelo `Announcement` con `prisma generate`, el servidor dev con Turbopack puede no invalidar el bundle de `@prisma/client`. Fix documentado: `rm -rf .next` + reiniciar `npm run dev`. El `select` explícito en `findMany` garantiza que los campos nuevos se incluyen en la query SQL.
+
+#### Backlog: edición de comunicados (no implementado)
+
+Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado sin necesidad de archivarlo y recrearlo.
+
+**Campos editables:**
+- `title`, `content`, `type`, `linkUrl`, `linkLabel`, `expiresAt`
+- `isPinned`: solo ADMIN
+
+**Reglas por rol:**
+- ADMIN: edita cualquier comunicado (todos los campos).
+- COACH: edita solo sus propios comunicados; no puede cambiar `isPinned`.
+- MEMBER: solo lectura.
+
+**Implementación:** el backend (`PATCH /api/announcements/[id]`) ya soporta edición de todos estos campos con las reglas de permisos correctas. Falta solo el **formulario de edición en el frontend** — una versión pre-poblada del formulario de creación que se activa al hacer clic en "Editar" en las cards del feed (visible solo para ADMIN/COACH autorizados).
+
+**Riesgo:** bajo. El contrato de API ya existe. Solo requiere estado local en el Home o un modal de edición.
+
+#### Backlog: textos largos y "Ver más"
+
+- Contenido largo (>3–4 líneas) debe truncarse con un botón "Ver más" que expanda el texto en la misma card.
+- Alternativa: ruta `/announcements/[id]` como página de detalle completo.
+- Decisión pendiente: ¿truncado inline o ruta separada?
+
+#### Backlog: ruta /announcements/[id]
+
+- Página de detalle de un comunicado específico.
+- Útil para compartir links directos y para contenido largo.
+- Requiere `GET /api/announcements/[id]` (actualmente solo existe `PATCH`).
+- No implementar hasta tener caso de uso concreto.
+
+#### Backlog: imágenes y GIFs (fuera de alcance MVP)
+
+- Requiere: storage (Supabase Storage o CDN), validación de tipo/tamaño, preview en formulario, eliminación de archivos huérfanos, seguridad.
+- No implementar en Fase 6.
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
 1. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
 2. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
-3. Módulo Comunicados/Announcements (feed real)
-4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+3. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+4. Edición inline de comunicados (formulario pre-poblado en Home)
 5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
 
 ## Advertencias antes de producción

@@ -41,6 +41,12 @@ const ID = {
   bookLuciaGrupal:   "seed_book_lucia_grupal",
   bookAnaPersonal:   "seed_book_ana_personal",
   bookCarlosKinesio: "seed_book_carlos_kinesio",
+
+  // Announcements
+  annPinned1: "seed_ann_pinned_1",
+  annPinned2: "seed_ann_pinned_2",
+  annAlert1:  "seed_ann_alert_1",
+  annInfo1:   "seed_ann_info_1",
 };
 
 async function main() {
@@ -365,6 +371,76 @@ async function main() {
   ]);
   console.log(`   ✓ ${bookings.length} bookings\n`);
 
+  // ─── Announcements ────────────────────────────────────────────────────────
+  console.log("→ Announcements");
+  const announcementSeeds = await Promise.all([
+    prisma.announcement.upsert({
+      where:  { id: ID.annPinned1 },
+      // publishedAt más reciente → aparece primero en el carrusel (isPinned DESC, publishedAt DESC)
+      // TODO: reemplazar linkUrl con el handle real de Instagram de Primary Performance
+      update: {
+        publishedAt: new Date("2026-05-17T10:00:00"),
+        linkUrl:     "https://www.instagram.com",
+        linkLabel:   "Síguenos en Instagram",
+      },
+      create: {
+        id:          ID.annPinned1,
+        title:       "¡Bienvenidos a Primary Performance!",
+        content:     "Inauguramos nuestra plataforma digital. Aquí encontrarás tu calendario de clases, reservas y toda la información del gimnasio. Cualquier consulta, escríbenos.",
+        type:        "INFO",
+        authorId:    admin.id,
+        isPinned:    true,
+        status:      "PUBLISHED",
+        publishedAt: new Date("2026-05-17T10:00:00"),
+        linkUrl:     "https://www.instagram.com",
+        linkLabel:   "Síguenos en Instagram",
+      },
+    }),
+    prisma.announcement.upsert({
+      where:  { id: ID.annPinned2 },
+      update: {},
+      create: {
+        id:          ID.annPinned2,
+        title:       "Taller de movilidad — junio 2026",
+        content:     "Próximamente sumamos talleres de movilidad y elongación. Si tienes interés en participar, avísanos para organizar los grupos.",
+        type:        "EVENT",
+        authorId:    admin.id,
+        isPinned:    true,
+        status:      "PUBLISHED",
+        publishedAt: new Date("2026-05-17T09:00:00"),
+      },
+    }),
+    prisma.announcement.upsert({
+      where:  { id: ID.annAlert1 },
+      update: {},
+      create: {
+        id:          ID.annAlert1,
+        title:       "Cambio de horario — semana del 26 de mayo",
+        content:     "Las clases grupales del miércoles 27 de mayo comenzarán a las 19:00 hrs en lugar de las 18:00 hrs. Reagenda si es necesario.",
+        type:        "ALERT",
+        authorId:    admin.id,
+        isPinned:    false,
+        status:      "PUBLISHED",
+        publishedAt: new Date("2026-05-15T10:00:00"),
+      },
+    }),
+    prisma.announcement.upsert({
+      where:  { id: ID.annInfo1 },
+      update: {},
+      create: {
+        id:          ID.annInfo1,
+        title:       null,
+        content:     "Recuerden traer su toalla y botella de agua. El estacionamiento está disponible a partir de las 7:30 hrs.",
+        type:        "INFO",
+        authorId:    coach1.id,
+        isPinned:    false,
+        status:      "PUBLISHED",
+        publishedAt: new Date("2026-05-16T08:00:00"),
+      },
+    }),
+  ]);
+  console.log(`   ✓ ${announcementSeeds.length} announcements\n`);
+
   // ─── Optional: Google MEMBER for local validation (TEST_MEMBER_EMAIL in .env.local) ──
   const testMemberEmail = process.env.TEST_MEMBER_EMAIL;
   if (testMemberEmail) {
@@ -405,7 +481,7 @@ async function main() {
     console.log(`   ✓ Test MEMBER creado: ${testMemberEmail}\n`);
   }
 
-  console.log("✅ Seed completado — 28 registros en 6 tablas (+ test member si TEST_MEMBER_EMAIL definido).");
+  console.log("✅ Seed completado — 32 registros en 7 tablas (+ test member si TEST_MEMBER_EMAIL definido).");
   console.log("   Abre Prisma Studio con: npx prisma studio");
 }
 

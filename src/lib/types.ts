@@ -156,3 +156,21 @@ export interface Group {
   name: string;
   emoji: string;
 }
+
+export type AnnouncementType = "info" | "alert" | "event" | "maintenance";
+export type AnnouncementStatus = "published" | "archived";
+
+export interface Announcement {
+  id: string;
+  title?: string;
+  content: string;
+  type: AnnouncementType;
+  authorId: string;
+  authorName: string;
+  isPinned: boolean;
+  publishedAt: string;
+  expiresAt?: string;
+  linkUrl?: string;
+  linkLabel?: string;
+  status: AnnouncementStatus;
+}

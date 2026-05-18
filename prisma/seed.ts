@@ -398,11 +398,14 @@ async function main() {
     }),
     prisma.announcement.upsert({
       where:  { id: ID.annPinned2 },
-      update: {},
+      // contenido largo → supera CAROUSEL_PREVIEW (180) para forzar "Ver más" en carrusel y feed
+      update: {
+        content: "Próximamente sumamos talleres de movilidad y elongación al calendario de Primary Performance. Los talleres serán grupales, con cupos limitados de 6 personas. Si tienes interés, avísanos para coordinar el grupo y elegir el horario más conveniente para todos.",
+      },
       create: {
         id:          ID.annPinned2,
         title:       "Taller de movilidad — junio 2026",
-        content:     "Próximamente sumamos talleres de movilidad y elongación. Si tienes interés en participar, avísanos para organizar los grupos.",
+        content:     "Próximamente sumamos talleres de movilidad y elongación al calendario de Primary Performance. Los talleres serán grupales, con cupos limitados de 6 personas. Si tienes interés, avísanos para coordinar el grupo y elegir el horario más conveniente para todos.",
         type:        "EVENT",
         authorId:    admin.id,
         isPinned:    true,
@@ -412,11 +415,14 @@ async function main() {
     }),
     prisma.announcement.upsert({
       where:  { id: ID.annAlert1 },
-      update: {},
+      // contenido largo → supera FEED_PREVIEW (240) para forzar "Ver más" en el feed
+      update: {
+        content: "Las clases grupales del miércoles 27 de mayo comenzarán a las 19:00 hrs en lugar de las 18:00 hrs. Este cambio se debe a una actividad especial en el espacio. Si ya tienes tu reserva confirmada, no necesitas hacer nada: tu lugar está asegurado. Para cualquier consulta, escríbenos con anticipación y te respondemos a la brevedad.",
+      },
       create: {
         id:          ID.annAlert1,
         title:       "Cambio de horario — semana del 26 de mayo",
-        content:     "Las clases grupales del miércoles 27 de mayo comenzarán a las 19:00 hrs en lugar de las 18:00 hrs. Reagenda si es necesario.",
+        content:     "Las clases grupales del miércoles 27 de mayo comenzarán a las 19:00 hrs en lugar de las 18:00 hrs. Este cambio se debe a una actividad especial en el espacio. Si ya tienes tu reserva confirmada, no necesitas hacer nada: tu lugar está asegurado. Para cualquier consulta, escríbenos con anticipación y te respondemos a la brevedad.",
         type:        "ALERT",
         authorId:    admin.id,
         isPinned:    false,

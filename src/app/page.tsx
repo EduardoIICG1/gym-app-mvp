@@ -29,6 +29,9 @@ interface HomeReservation {
   status: string;
 }
 
+const CAROUSEL_PREVIEW = 180;
+const FEED_PREVIEW     = 240;
+
 const TYPE_COLORS: Record<string, string> = {
   info:        "#4fc3f7",
   alert:       "#ef4444",
@@ -273,12 +276,13 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Card activa */}
+                {/* Card activa — min-height fijo para evitar saltos entre slides */}
                 <div
                   className="p-4 rounded-xl border"
                   style={{
                     background:  "var(--background)",
                     borderColor: TYPE_COLORS[currentPinned.type] + "50",
+                    minHeight:   "140px",
                   }}
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -300,9 +304,18 @@ export default function Home() {
                       {currentPinned.title}
                     </p>
                   )}
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-xs leading-relaxed line-clamp-3" style={{ color: "var(--text-secondary)" }}>
                     {currentPinned.content}
                   </p>
+                  {currentPinned.content.length > CAROUSEL_PREVIEW && (
+                    <Link
+                      href={`/announcements/${currentPinned.id}`}
+                      className="inline-block mt-1 text-xs font-medium hover:underline"
+                      style={{ color: "#4fc3f7" }}
+                    >
+                      Ver más →
+                    </Link>
+                  )}
                   {currentPinned.linkUrl && (
                     <a
                       href={currentPinned.linkUrl}
@@ -485,9 +498,18 @@ export default function Home() {
                           {ann.title}
                         </p>
                       )}
-                      <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                      <p className="text-sm leading-relaxed line-clamp-4" style={{ color: "var(--text-secondary)" }}>
                         {ann.content}
                       </p>
+                      {ann.content.length > FEED_PREVIEW && (
+                        <Link
+                          href={`/announcements/${ann.id}`}
+                          className="inline-block mt-1 text-xs font-medium hover:underline"
+                          style={{ color: "#4fc3f7" }}
+                        >
+                          Ver más →
+                        </Link>
+                      )}
                       {ann.linkUrl && (
                         <a
                           href={ann.linkUrl}

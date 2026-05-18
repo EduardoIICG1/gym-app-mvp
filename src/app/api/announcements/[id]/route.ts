@@ -20,6 +20,60 @@ const TYPE_REVERSE: Record<string, DbType> = {
   maintenance: "MAINTENANCE",
 };
 
+export async function GET(
+  _: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const role = session.user.role;
+
+  const ann = await prisma.announcement.findUnique({
+    where: { id },
+    select: {
+      id:          true,
+      title:       true,
+      content:     true,
+      type:        true,
+      authorId:    true,
+      isPinned:    true,
+      publishedAt: true,
+      expiresAt:   true,
+      linkUrl:     true,
+      linkLabel:   true,
+      status:      true,
+      author:      { select: { id: true, name: true } },
+    },
+  });
+
+  if (!ann || ann.status !== "PUBLISHED") {
+    return Response.json({ error: "Comunicado no encontrado" }, { status: 404 });
+  }
+
+  // MEMBER: also check expiry
+  if (role === "MEMBER" && ann.expiresAt !== null && ann.expiresAt < new Date()) {
+    return Response.json({ error: "Comunicado no encontrado" }, { status: 404 });
+  }
+
+  return Response.json({
+    id:          ann.id,
+    ...(ann.title    ? { title: ann.title }                                           : {}),
+    content:     ann.content,
+    type:        TYPE_MAP[ann.type],
+    authorId:    ann.authorId,
+    authorName:  ann.author.name ?? "",
+    isPinned:    ann.isPinned,
+    publishedAt: ann.publishedAt.toISOString(),
+    ...(ann.expiresAt ? { expiresAt: ann.expiresAt.toISOString() }                   : {}),
+    ...(ann.linkUrl   ? { linkUrl: ann.linkUrl, linkLabel: ann.linkLabel ?? "Ver enlace" } : {}),
+    status:      ann.status.toLowerCase() as AnnouncementStatus,
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

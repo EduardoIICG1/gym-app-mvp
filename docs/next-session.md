@@ -590,18 +590,28 @@ Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado si
 
 **Riesgo:** bajo. El contrato de API ya existe. Solo requiere estado local en el Home o un modal de edición.
 
-#### Backlog: textos largos y "Ver más"
+#### Preview + "Ver más" + Detalle ✅ — Implementado (2026-05-17)
 
-- Contenido largo (>3–4 líneas) debe truncarse con un botón "Ver más" que expanda el texto en la misma card.
-- Alternativa: ruta `/announcements/[id]` como página de detalle completo.
-- Decisión pendiente: ¿truncado inline o ruta separada?
+**Home — preview truncado:**
+- Carrusel: `line-clamp-3` + "Ver más →" si `content.length > 180`. Card con `minHeight: 140px` para estabilizar la altura entre slides.
+- Feed: `line-clamp-4` + "Ver más →" si `content.length > 240`.
+- CTA externo (`linkUrl`) coexiste independientemente del "Ver más": son acciones separadas (externo vs detalle interno).
+- Textos cortos no muestran "Ver más" innecesariamente.
 
-#### Backlog: ruta /announcements/[id]
+**API — `GET /api/announcements/[id]`:**
+- En `src/app/api/announcements/[id]/route.ts` (junto al PATCH existente).
+- Auth requerida (401 sin sesión). Solo PUBLISHED (ARCHIVED → 404). MEMBER: además filtra `expiresAt < now → 404`.
+- Response: mismo shape que los items del GET list.
+- `Cache-Control: no-store`.
 
-- Página de detalle de un comunicado específico.
-- Útil para compartir links directos y para contenido largo.
-- Requiere `GET /api/announcements/[id]` (actualmente solo existe `PATCH`).
-- No implementar hasta tener caso de uso concreto.
+**Ruta `/announcements/[id]`:**
+- `src/app/announcements/[id]/page.tsx` — Client Component.
+- `useParams()` + fetch a `GET /api/announcements/[id]`.
+- Muestra: badge tipo, badge "📌 Destacado" si aplica, título, contenido completo con `whitespace-pre-wrap`, CTA link externo, autor + fecha.
+- Estado de error/404 con link "← Volver al inicio".
+- Botón "← Volver al inicio" siempre visible arriba.
+
+**Seed actualizado:** `annPinned2` (258 chars) y `annAlert1` (334 chars) tienen contenido largo suficiente para validar "Ver más" en carrusel y feed respectivamente.
 
 #### Backlog: imágenes y GIFs (fuera de alcance MVP)
 

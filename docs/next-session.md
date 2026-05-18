@@ -620,13 +620,106 @@ Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado si
 
 ---
 
+#### Edición inline de comunicados ✅ — Implementado (2026-05-18)
+
+- `src/app/page.tsx`: edición inline directamente en cada card del feed.
+- Al hacer clic en "Editar" (visible solo para ADMIN/COACH autorizados), la card se transforma en formulario pre-poblado.
+- Campos editables: `title`, `content`, `type`, `linkUrl`, `linkLabel`, `expiresAt`; `isPinned` solo ADMIN.
+- Botones: "Guardar" (llama PATCH, actualiza array local + re-sort, cierra form) / "Cancelar" (descarta sin tocar servidor).
+- Validación frontend: `content` no vacío; `linkUrl` vacío o con `http(s)://`.
+- Error inline en rojo si PATCH falla.
+- El carrusel se actualiza automáticamente si cambia `isPinned`.
+- COACH no ve checkbox `isPinned`. Backend ya ignoraba `isPinned` para COACH silenciosamente.
+- MEMBER no ve botón "Editar".
+
+**Permisos:**
+- ADMIN: edita cualquier comunicado.
+- COACH: edita solo sus propios comunicados (validado en backend por `authorId`).
+- MEMBER: solo lectura.
+
+**Nota de diagnóstico "Sin permisos":** si aparece al editar, el JWT real del usuario no es ADMIN. El DevPanel solo cambia el rol visual; el backend siempre lee el JWT real. Verificar con `/api/auth/session-test`.
+
+---
+
+#### Modal "Crear comunicado" ✅ — Implementado (2026-05-18)
+
+- `src/app/page.tsx`: reemplazado el formulario de creación siempre visible por patrón tipo Facebook/LinkedIn.
+- **Trigger compacto:** botón `[+] ¿Qué quieres comunicar?` — visible solo ADMIN/COACH.
+- **Modal:** overlay negro 65%, card centrada `max-w-lg`, fondo `--card`.
+- Campos: `title` (opcional), `content` (obligatorio, `autoFocus`), selector de tipo, `linkUrl`, `linkLabel` (condicional si hay URL), `expiresAt`, checkbox `isPinned` (solo ADMIN).
+- Cierre: botón `×`, botón "Cancelar", clic en overlay, tecla Escape.
+- "Publicar" deshabilitado si `content` está vacío.
+- Error inline si POST falla (antes era fallo silencioso).
+- Al publicar: cierra modal, actualiza feed y carrusel sin reload.
+- `linkUrl` y `expiresAt` no existían en el formulario anterior; ahora disponibles en creación.
+
+---
+
+#### Accesibilidad A-/A+ y mejora de contraste ✅ — Implementado (2026-05-18)
+
+**Controles de tamaño de letra:**
+- `src/lib/useFontSize.ts`: hook nuevo, mismo patrón que `useTheme`. 3 niveles: `normal` (16px), `large` (18px), `xlarge` (20px).
+- `src/components/Navbar.tsx`: botones A- y A+ junto al toggle light/dark. Usan `var(--text-primary)` para visibilidad en ambos modos. Disabled con opacity 30% en los extremos.
+- `src/app/globals.css`: `html[data-font-size="large"] { font-size: 18px }` / `html[data-font-size="xlarge"] { font-size: 20px }`. Escala todos los `rem`/`em` de Tailwind automáticamente.
+- `src/app/layout.tsx`: script anti-flash extendido para restaurar `data-font-size` de localStorage sin parpadeo.
+- Preferencia persistida en `localStorage` (`pp_font_size`).
+
+**Mejora de contraste dark/light:**
+- `--text-secondary` dark: `#71717a` → `#d4d4d8` (zinc-300, contraste ~13:1 sobre `#0a0a0f`).
+- `--text-secondary` light: `#5a5a72` → `#374151` (slate-700, contraste ~9:1 sobre `#f0f0f4`).
+- `--text-muted` nuevo: dark `#a1a1aa`, light `#6b7280` — para metadata/timestamps.
+- Metadata del feed (fechas, autores) migrada de `color: var(--text-secondary) + opacity: 0.5` a `color: var(--text-muted)` — elimina la penalización de contraste por doble oscurecimiento.
+
+**Navbar adaptativa:**
+- `--navbar-bg` nuevo: dark `rgba(17,17,20,0.92)`, light `rgba(240,240,244,0.92)`.
+- Reemplaza el fondo hardcodeado oscuro → Navbar ahora adapta a ambos modos.
+- `--hover-overlay`: dark `rgba(255,255,255,0.06)`, light `rgba(0,0,0,0.06)`.
+- Clase `.nav-icon-btn` en `globals.css` para hover adaptativo.
+
+---
+
+#### Archivar comunicados — confirm + error visible ✅ — Implementado (2026-05-18)
+
+- `src/app/page.tsx`: `handleArchive` tenía fallo silencioso (no mostraba error si PATCH fallaba).
+- Ahora incluye `confirm("¿Archivar este comunicado?")` antes de ejecutar.
+- Error capturado y mostrado en banner rojo sobre la lista de comunicados.
+- Captura también errores de red.
+- Si el comunicado estaba pineado, desaparece del carrusel automáticamente al archivar.
+
+---
+
+#### Backlog: portadas visuales para comunicados (no implementado)
+
+**Objetivo:** dar identidad visual a cada comunicado mediante una portada de color/gradiente seleccionable.
+
+**Modelo:** agregar `coverImageKey String?` al modelo `Announcement` en Prisma.
+
+**Claves controladas:** `training`, `mobility`, `community`, `nutrition`, `event`, `maintenance`.
+
+**Implementación prevista:** CSS gradients por clave (sin archivos de imagen reales en primera iteración). Cuando haya imágenes reales: `public/announcement-covers/{key}.jpg`.
+
+**Fallback por tipo:** INFO → `community`, ALERT → `maintenance`, EVENT → `event`, MAINTENANCE → `maintenance`.
+
+**Superficies afectadas:**
+- Carrusel: fondo degradado + overlay oscuro + texto siempre encima.
+- Feed: acento sutil (franja de color izquierda) — sin imagen de fondo para mantenerlo limpio.
+- Detalle `/announcements/[id]`: banner de portada ~180px con overlay y título encima.
+- Modal de creación y form de edición: selector compacto de chips de color.
+
+**Requisitos antes de implementar:**
+- `prisma db push` (nullable, sin migración de datos).
+- `prisma generate` + `rm -rf .next` (Turbopack cache).
+- Build limpio confirmado antes de avanzar a UI.
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
-2. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
-3. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
-4. Edición inline de comunicados (formulario pre-poblado en Home)
+1. Portadas visuales para comunicados (análisis completo listo, aprobación requerida)
+2. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
+3. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
+4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
 5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
 
 ## Advertencias antes de producción

@@ -78,8 +78,23 @@ export default function Home() {
   const [newType, setNewType] = useState<AnnouncementType>("info");
   const [newPinned, setNewPinned] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [archivingId,  setArchivingId]  = useState<string | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
+  const [editingId,   setEditingId]   = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({
+    title: "", content: "", type: "info" as AnnouncementType,
+    linkUrl: "", linkLabel: "", expiresAt: "", isPinned: false,
+  });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [saving,    setSaving]    = useState(false);
+
+  // ── Create modal ─────────────────────────────────────────────────────────
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newLinkUrl,   setNewLinkUrl]   = useState("");
+  const [newLinkLabel, setNewLinkLabel] = useState("");
+  const [newExpiresAt, setNewExpiresAt] = useState("");
+  const [createError,  setCreateError]  = useState<string | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -104,6 +119,16 @@ export default function Home() {
       .then(data => setReservations(data));
   }, [activeUser.id, activeUser.isLoading, activeUser.role]);
 
+  // Close create modal on Escape
+  useEffect(() => {
+    if (!showCreateModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setShowCreateModal(false); setCreateError(null); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showCreateModal]);
+
   // Fetch announcements once auth is ready
   useEffect(() => {
     if (activeUser.isLoading) return;
@@ -117,9 +142,21 @@ export default function Home() {
     })();
   }, [activeUser.isLoading]);
 
+  function openCreateModal() {
+    setNewContent(""); setNewTitle(""); setNewType("info"); setNewPinned(false);
+    setNewLinkUrl(""); setNewLinkLabel(""); setNewExpiresAt(""); setCreateError(null);
+    setShowCreateModal(true);
+  }
+
   async function handleCreateAnnouncement(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!newContent.trim() || creating) return;
+    const url = newLinkUrl.trim();
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+      setCreateError("La URL debe comenzar con http:// o https://");
+      return;
+    }
+    setCreateError(null);
     setCreating(true);
     try {
       const res = await fetch("/api/announcements", {
@@ -127,9 +164,11 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
           ...(newTitle.trim() ? { title: newTitle.trim() } : {}),
-          content:  newContent.trim(),
-          type:     newType,
-          isPinned: newPinned,
+          content:   newContent.trim(),
+          type:      newType,
+          isPinned:  newPinned,
+          ...(url ? { linkUrl: url, linkLabel: newLinkLabel.trim() || "Ver enlace" } : {}),
+          ...(newExpiresAt ? { expiresAt: new Date(newExpiresAt).toISOString() } : {}),
         }),
       });
       if (res.ok) {
@@ -141,11 +180,13 @@ export default function Home() {
               new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
           )
         );
-        setNewContent("");
-        setNewTitle("");
-        setNewType("info");
-        setNewPinned(false);
+        setShowCreateModal(false);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setCreateError((data as { error?: string }).error ?? "Error al publicar. Intenta nuevamente.");
       }
+    } catch {
+      setCreateError("Error de red. Intenta nuevamente.");
     } finally {
       setCreating(false);
     }
@@ -153,14 +194,23 @@ export default function Home() {
 
   async function handleArchive(id: string) {
     if (archivingId) return;
+    if (!confirm("¿Archivar este comunicado?")) return;
     setArchivingId(id);
+    setArchiveError(null);
     try {
       const res = await fetch(`/api/announcements/${id}`, {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ status: "archived" }),
       });
-      if (res.ok) setAnnouncements(prev => prev.filter(a => a.id !== id));
+      if (res.ok) {
+        setAnnouncements(prev => prev.filter(a => a.id !== id));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setArchiveError((data as { error?: string }).error ?? "Error al archivar. Intenta nuevamente.");
+      }
+    } catch {
+      setArchiveError("Error de red. Intenta nuevamente.");
     } finally {
       setArchivingId(null);
     }
@@ -170,6 +220,75 @@ export default function Home() {
     if (activeUser.role === "admin") return true;
     if (activeUser.role === "coach") return ann.authorId === activeUser.id;
     return false;
+  }
+
+  function canEdit(ann: Announcement): boolean {
+    if (activeUser.role === "admin") return true;
+    if (activeUser.role === "coach") return ann.authorId === activeUser.id;
+    return false;
+  }
+
+  function startEdit(ann: Announcement) {
+    setEditingId(ann.id);
+    setEditDraft({
+      title:     ann.title ?? "",
+      content:   ann.content,
+      type:      ann.type,
+      linkUrl:   ann.linkUrl ?? "",
+      linkLabel: ann.linkLabel ?? "",
+      expiresAt: ann.expiresAt ? ann.expiresAt.slice(0, 16) : "",
+      isPinned:  ann.isPinned,
+    });
+    setEditError(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingId || saving) return;
+    if (!editDraft.content.trim()) {
+      setEditError("El contenido no puede estar vacío.");
+      return;
+    }
+    const url = editDraft.linkUrl.trim();
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+      setEditError("La URL debe comenzar con http:// o https://");
+      return;
+    }
+    setEditError(null);
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        title:     editDraft.title.trim() || null,
+        content:   editDraft.content.trim(),
+        type:      editDraft.type,
+        linkUrl:   url || null,
+        linkLabel: url ? (editDraft.linkLabel.trim() || "Ver enlace") : null,
+        expiresAt: editDraft.expiresAt ? new Date(editDraft.expiresAt).toISOString() : null,
+      };
+      if (activeUser.role === "admin") body.isPinned = editDraft.isPinned;
+      const res = await fetch(`/api/announcements/${editingId}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
+      if (res.ok) {
+        const updated: Announcement = await res.json();
+        setAnnouncements(prev =>
+          prev
+            .map(a => a.id === updated.id ? updated : a)
+            .sort(
+              (a, b) =>
+                Number(b.isPinned) - Number(a.isPinned) ||
+                new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+            )
+        );
+        setEditingId(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setEditError((data as { error?: string }).error ?? "Error al guardar. Intenta nuevamente.");
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   const gymDow = gymDayOfWeek();
@@ -241,7 +360,7 @@ export default function Home() {
                   </p>
                   {pinnedAnnouncements.length > 1 && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                         {safeIdx + 1} / {pinnedAnnouncements.length}
                       </span>
                       <button
@@ -295,7 +414,7 @@ export default function Home() {
                     >
                       {TYPE_LABELS[currentPinned.type]}
                     </span>
-                    <span className="text-xs ml-auto" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
+                    <span className="text-xs ml-auto" style={{ color: "var(--text-muted)" }}>
                       📌
                     </span>
                   </div>
@@ -331,7 +450,7 @@ export default function Home() {
                       {currentPinned.linkLabel ?? "Ver enlace"} →
                     </a>
                   )}
-                  <p className="text-xs mt-2" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
+                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
                     {formatAnnDate(currentPinned.publishedAt)} · {currentPinned.authorName}
                   </p>
                 </div>
@@ -368,77 +487,34 @@ export default function Home() {
                 Comunicados
               </h3>
 
-              {/* Create form — ADMIN / COACH only */}
+              {/* Create trigger — ADMIN / COACH only */}
               {canCreate && (
-                <form onSubmit={handleCreateAnnouncement} className="mb-5 space-y-2">
-                  <input
-                    type="text"
-                    placeholder="Título (opcional)"
-                    value={newTitle}
-                    onChange={e => setNewTitle(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
-                    style={{
-                      background:  "var(--background)",
-                      borderColor: "var(--card-border)",
-                      color:       "var(--text-primary)",
-                    }}
-                  />
-                  <textarea
-                    placeholder="Escribe un comunicado..."
-                    value={newContent}
-                    onChange={e => setNewContent(e.target.value)}
-                    rows={3}
-                    className="w-full text-sm px-3 py-2 rounded-xl border outline-none resize-none"
-                    style={{
-                      background:  "var(--background)",
-                      borderColor: "var(--card-border)",
-                      color:       "var(--text-primary)",
-                    }}
-                  />
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {(["info", "alert", "event", "maintenance"] as AnnouncementType[]).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setNewType(t)}
-                        className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                        style={{
-                          background:  newType === t ? TYPE_COLORS[t] + "30" : "var(--background)",
-                          color:       newType === t ? TYPE_COLORS[t] : "var(--text-secondary)",
-                          border:      `1px solid ${newType === t ? TYPE_COLORS[t] + "60" : "var(--card-border)"}`,
-                        }}
-                      >
-                        {TYPE_LABELS[t]}
-                      </button>
-                    ))}
-                    {activeUser.role === "admin" && (
-                      <label
-                        className="flex items-center gap-1.5 text-xs cursor-pointer ml-auto"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={newPinned}
-                          onChange={e => setNewPinned(e.target.checked)}
-                          className="w-3.5 h-3.5"
-                        />
-                        Pinear
-                      </label>
-                    )}
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!newContent.trim() || creating}
-                    className="w-full text-sm font-semibold py-2 rounded-xl"
-                    style={{
-                      background: newContent.trim() ? "#4fc3f7" : "#4fc3f720",
-                      color:      newContent.trim() ? "#0a0a0a" : "var(--text-secondary)",
-                      cursor:     newContent.trim() ? "pointer" : "not-allowed",
-                    }}
+                <button
+                  onClick={openCreateModal}
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border mb-5"
+                  style={{
+                    background:  "var(--background)",
+                    borderColor: "var(--card-border)",
+                    color:       "var(--text-muted)",
+                  }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
                   >
-                    {creating ? "Publicando..." : "Publicar comunicado"}
-                  </button>
-                </form>
+                    +
+                  </div>
+                  <span className="text-sm">¿Qué quieres comunicar?</span>
+                </button>
+              )}
+
+              {archiveError && (
+                <p
+                  className="text-xs px-3 py-2 rounded-xl mb-3"
+                  style={{ background: "#ef444420", color: "#ef4444", border: "1px solid #ef444440" }}
+                >
+                  {archiveError}
+                </p>
               )}
 
               {announcementsLoading ? (
@@ -446,89 +522,223 @@ export default function Home() {
                   Cargando...
                 </p>
               ) : announcements.length === 0 ? (
-                <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                   No hay comunicados publicados
                 </p>
               ) : (
                 <div className="space-y-3">
                   {announcements.map(ann => (
-                    <div
-                      key={ann.id}
-                      className="p-4 rounded-xl border"
-                      style={{
-                        background:  "var(--background)",
-                        borderColor: ann.isPinned
-                          ? TYPE_COLORS[ann.type] + "40"
-                          : "var(--card-border)",
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-2">
+                    editingId === ann.id ? (
+                      /* ── edit form ── */
+                      <div
+                        key={ann.id}
+                        className="p-4 rounded-xl border space-y-2"
+                        style={{
+                          background:  "var(--card)",
+                          borderColor: TYPE_COLORS[editDraft.type] + "60",
+                        }}
+                      >
+                        <input
+                          type="text"
+                          placeholder="Título (opcional)"
+                          value={editDraft.title}
+                          onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))}
+                          className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                          style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+                        />
+                        <textarea
+                          placeholder="Contenido"
+                          value={editDraft.content}
+                          onChange={e => setEditDraft(d => ({ ...d, content: e.target.value }))}
+                          rows={4}
+                          className="w-full text-sm px-3 py-2 rounded-xl border outline-none resize-none"
+                          style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+                        />
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className="text-xs font-semibold px-2 py-0.5 rounded"
-                            style={{
-                              background: TYPE_COLORS[ann.type] + "20",
-                              color:      TYPE_COLORS[ann.type],
-                            }}
-                          >
-                            {TYPE_LABELS[ann.type]}
-                          </span>
-                          {ann.isPinned && (
-                            <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.55 }}>
-                              📌
-                            </span>
+                          {(["info", "alert", "event", "maintenance"] as AnnouncementType[]).map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setEditDraft(d => ({ ...d, type: t }))}
+                              className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                              style={{
+                                background:  editDraft.type === t ? TYPE_COLORS[t] + "30" : "var(--background)",
+                                color:       editDraft.type === t ? TYPE_COLORS[t] : "var(--text-secondary)",
+                                border:      `1px solid ${editDraft.type === t ? TYPE_COLORS[t] + "60" : "var(--card-border)"}`,
+                              }}
+                            >
+                              {TYPE_LABELS[t]}
+                            </button>
+                          ))}
+                          {activeUser.role === "admin" && (
+                            <label
+                              className="flex items-center gap-1.5 text-xs cursor-pointer ml-auto"
+                              style={{ color: "var(--text-secondary)" }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editDraft.isPinned}
+                                onChange={e => setEditDraft(d => ({ ...d, isPinned: e.target.checked }))}
+                                className="w-3.5 h-3.5"
+                              />
+                              Pinear
+                            </label>
                           )}
                         </div>
-                        {canArchive(ann) && (
+                        <input
+                          type="text"
+                          placeholder="URL externa (opcional, https://...)"
+                          value={editDraft.linkUrl}
+                          onChange={e => setEditDraft(d => ({ ...d, linkUrl: e.target.value }))}
+                          className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                          style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+                        />
+                        {editDraft.linkUrl.trim() && (
+                          <input
+                            type="text"
+                            placeholder='Etiqueta del enlace (ej. "Ver convocatoria")'
+                            value={editDraft.linkLabel}
+                            onChange={e => setEditDraft(d => ({ ...d, linkLabel: e.target.value }))}
+                            className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                            style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+                          />
+                        )}
+                        <div>
+                          <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>
+                            Vence el (opcional)
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={editDraft.expiresAt}
+                            onChange={e => setEditDraft(d => ({ ...d, expiresAt: e.target.value }))}
+                            className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                            style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+                          />
+                        </div>
+                        {editError && (
+                          <p className="text-xs" style={{ color: "#ef4444" }}>{editError}</p>
+                        )}
+                        <div className="flex gap-2 pt-1">
                           <button
-                            onClick={() => handleArchive(ann.id)}
-                            disabled={archivingId === ann.id}
-                            className="text-xs shrink-0 px-2 py-0.5 rounded hover:opacity-100"
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={saving || !editDraft.content.trim()}
+                            className="flex-1 text-sm font-semibold py-2 rounded-xl"
                             style={{
-                              color:   "var(--text-secondary)",
-                              opacity: archivingId === ann.id ? 0.3 : 0.55,
+                              background: editDraft.content.trim() ? "#4fc3f7" : "#4fc3f720",
+                              color:      editDraft.content.trim() ? "#0a0a0a" : "var(--text-secondary)",
+                              cursor:     editDraft.content.trim() ? "pointer" : "not-allowed",
                             }}
                           >
-                            Archivar
+                            {saving ? "Guardando..." : "Guardar"}
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => { setEditingId(null); setEditError(null); }}
+                            disabled={saving}
+                            className="text-sm px-4 py-2 rounded-xl border"
+                            style={{
+                              background:  "var(--background)",
+                              borderColor: "var(--card-border)",
+                              color:       "var(--text-secondary)",
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </div>
-                      {ann.title && (
-                        <p className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>
-                          {ann.title}
+                    ) : (
+                      /* ── read view ── */
+                      <div
+                        key={ann.id}
+                        className="p-4 rounded-xl border"
+                        style={{
+                          background:  "var(--background)",
+                          borderColor: ann.isPinned
+                            ? TYPE_COLORS[ann.type] + "40"
+                            : "var(--card-border)",
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className="text-xs font-semibold px-2 py-0.5 rounded"
+                              style={{
+                                background: TYPE_COLORS[ann.type] + "20",
+                                color:      TYPE_COLORS[ann.type],
+                              }}
+                            >
+                              {TYPE_LABELS[ann.type]}
+                            </span>
+                            {ann.isPinned && (
+                              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                📌
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {canEdit(ann) && (
+                              <button
+                                onClick={() => startEdit(ann)}
+                                disabled={!!archivingId}
+                                className="text-xs px-2 py-0.5 rounded hover:opacity-100"
+                                style={{ color: "#4fc3f7", opacity: archivingId ? 0.3 : 0.75 }}
+                              >
+                                Editar
+                              </button>
+                            )}
+                            {canArchive(ann) && (
+                              <button
+                                onClick={() => handleArchive(ann.id)}
+                                disabled={archivingId === ann.id}
+                                className="text-xs px-2 py-0.5 rounded hover:opacity-100"
+                                style={{
+                                  color:   "var(--text-secondary)",
+                                  opacity: archivingId === ann.id ? 0.3 : 0.55,
+                                }}
+                              >
+                                Archivar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {ann.title && (
+                          <p className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+                            {ann.title}
+                          </p>
+                        )}
+                        <p className="text-sm leading-relaxed line-clamp-4" style={{ color: "var(--text-secondary)" }}>
+                          {ann.content}
                         </p>
-                      )}
-                      <p className="text-sm leading-relaxed line-clamp-4" style={{ color: "var(--text-secondary)" }}>
-                        {ann.content}
-                      </p>
-                      {ann.content.length > FEED_PREVIEW && (
-                        <Link
-                          href={`/announcements/${ann.id}`}
-                          className="inline-block mt-1 text-xs font-medium hover:underline"
-                          style={{ color: "#4fc3f7" }}
-                        >
-                          Ver más →
-                        </Link>
-                      )}
-                      {ann.linkUrl && (
-                        <a
-                          href={ann.linkUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block mt-3 text-sm font-semibold px-3 py-1.5 rounded-lg"
-                          style={{
-                            background: TYPE_COLORS[ann.type] + "30",
-                            color:      TYPE_COLORS[ann.type],
-                            border:     `1px solid ${TYPE_COLORS[ann.type]}60`,
-                          }}
-                        >
-                          {ann.linkLabel ?? "Ver enlace"} →
-                        </a>
-                      )}
-                      <p className="text-xs mt-2" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
-                        {formatAnnDate(ann.publishedAt)} · {ann.authorName}
-                      </p>
-                    </div>
+                        {ann.content.length > FEED_PREVIEW && (
+                          <Link
+                            href={`/announcements/${ann.id}`}
+                            className="inline-block mt-1 text-xs font-medium hover:underline"
+                            style={{ color: "#4fc3f7" }}
+                          >
+                            Ver más →
+                          </Link>
+                        )}
+                        {ann.linkUrl && (
+                          <a
+                            href={ann.linkUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block mt-3 text-sm font-semibold px-3 py-1.5 rounded-lg"
+                            style={{
+                              background: TYPE_COLORS[ann.type] + "30",
+                              color:      TYPE_COLORS[ann.type],
+                              border:     `1px solid ${TYPE_COLORS[ann.type]}60`,
+                            }}
+                          >
+                            {ann.linkLabel ?? "Ver enlace"} →
+                          </a>
+                        )}
+                        <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                          {formatAnnDate(ann.publishedAt)} · {ann.authorName}
+                        </p>
+                      </div>
+                    )
                   ))}
                 </div>
               )}
@@ -647,7 +857,7 @@ export default function Home() {
                   Mis próximas reservas
                 </h3>
                 {upcomingReservations.length === 0 ? (
-                  <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                     Sin próximas reservas
                   </p>
                 ) : (
@@ -883,6 +1093,154 @@ export default function Home() {
 
         </div>
       </div>
+
+      {/* ── Create announcement modal ───────────────────────────────────── */}
+      {showCreateModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.65)" }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowCreateModal(false); setCreateError(null); } }}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border"
+            style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+          >
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: "var(--card-border)" }}
+            >
+              <h3 className="font-bold text-base" style={{ color: "var(--text-primary)" }}>
+                Crear comunicado
+              </h3>
+              <button
+                onClick={() => { setShowCreateModal(false); setCreateError(null); }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center nav-icon-btn text-lg leading-none"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Body */}
+            <form onSubmit={handleCreateAnnouncement} className="px-6 py-5 space-y-3">
+              <input
+                type="text"
+                placeholder="Título (opcional)"
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+              />
+              <textarea
+                placeholder="¿Qué quieres comunicar? *"
+                value={newContent}
+                onChange={e => setNewContent(e.target.value)}
+                rows={4}
+                autoFocus
+                className="w-full text-sm px-3 py-2 rounded-xl border outline-none resize-none"
+                style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+              />
+
+              {/* Type selector */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {(["info", "alert", "event", "maintenance"] as AnnouncementType[]).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setNewType(t)}
+                    className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                    style={{
+                      background:  newType === t ? TYPE_COLORS[t] + "30" : "var(--background)",
+                      color:       newType === t ? TYPE_COLORS[t] : "var(--text-secondary)",
+                      border:      `1px solid ${newType === t ? TYPE_COLORS[t] + "60" : "var(--card-border)"}`,
+                    }}
+                  >
+                    {TYPE_LABELS[t]}
+                  </button>
+                ))}
+                {activeUser.role === "admin" && (
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer ml-auto" style={{ color: "var(--text-secondary)" }}>
+                    <input
+                      type="checkbox"
+                      checked={newPinned}
+                      onChange={e => setNewPinned(e.target.checked)}
+                      className="w-3.5 h-3.5"
+                    />
+                    Pinear
+                  </label>
+                )}
+              </div>
+
+              {/* Link fields */}
+              <input
+                type="text"
+                placeholder="URL externa (opcional, https://...)"
+                value={newLinkUrl}
+                onChange={e => setNewLinkUrl(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+              />
+              {newLinkUrl.trim() && (
+                <input
+                  type="text"
+                  placeholder='Etiqueta del enlace (ej. "Ver convocatoria")'
+                  value={newLinkLabel}
+                  onChange={e => setNewLinkLabel(e.target.value)}
+                  className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                  style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+                />
+              )}
+
+              {/* Expiry */}
+              <div>
+                <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
+                  Vence el (opcional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={newExpiresAt}
+                  onChange={e => setNewExpiresAt(e.target.value)}
+                  className="w-full text-sm px-3 py-2 rounded-xl border outline-none"
+                  style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+                />
+              </div>
+
+              {/* Error */}
+              {createError && (
+                <p className="text-xs px-3 py-2 rounded-xl" style={{ background: "#ef444420", color: "#ef4444", border: "1px solid #ef444440" }}>
+                  {createError}
+                </p>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={!newContent.trim() || creating}
+                  className="flex-1 text-sm font-semibold py-2.5 rounded-xl"
+                  style={{
+                    background: newContent.trim() ? "#4fc3f7" : "#4fc3f720",
+                    color:      newContent.trim() ? "#0a0a0a" : "var(--text-secondary)",
+                    cursor:     newContent.trim() ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {creating ? "Publicando..." : "Publicar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowCreateModal(false); setCreateError(null); }}
+                  disabled={creating}
+                  className="text-sm px-5 py-2.5 rounded-xl border"
+                  style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

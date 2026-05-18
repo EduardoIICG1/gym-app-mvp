@@ -13,11 +13,16 @@
 
   /* Text */
   --text-primary: #ffffff;
-  --text-secondary: #71717a;
+  --text-secondary: #d4d4d8;   /* content/labels — legible silver */
+  --text-muted: #a1a1aa;       /* metadata/timestamps — secondary */
+
+  /* Nav */
+  --navbar-bg: rgba(17, 17, 20, 0.92);
+  --hover-overlay: rgba(255, 255, 255, 0.06);
 
   /* Semantic aliases */
   --foreground: var(--text-primary);
-  --muted-foreground: var(--text-secondary);
+  --muted-foreground: var(--text-muted);
   --border: var(--card-border);
 
   /* Service / class type accent colors */
@@ -91,14 +96,29 @@
   }
 }
 
+/* ─── Font-size accessibility scale ─────────────────────────────────────── */
+html[data-font-size="large"]  { font-size: 18px; }
+html[data-font-size="xlarge"] { font-size: 20px; }
+
+/* ─── Adaptive nav icon button ───────────────────────────────────────────── */
+.nav-icon-btn {
+  transition: background-color 0.15s;
+}
+.nav-icon-btn:hover {
+  background-color: var(--hover-overlay);
+}
+
 /* ─── Light mode overrides ───────────────────────────────────────────────── */
 html:not(.dark) {
   --background: #f0f0f4;
   --card: #ffffff;
   --card-border: #e2e2e8;
   --text-primary: #0f0f14;
-  --text-secondary: #5a5a72;
+  --text-secondary: #374151;   /* slate-700 — dark grey */
+  --text-muted: #6b7280;       /* gray-500 — secondary metadata */
+  --navbar-bg: rgba(240, 240, 244, 0.92);
+  --hover-overlay: rgba(0, 0, 0, 0.06);
   --foreground: var(--text-primary);
-  --muted-foreground: var(--text-secondary);
+  --muted-foreground: var(--text-muted);
   --border: var(--card-border);
 }

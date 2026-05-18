@@ -14,6 +14,19 @@ const TYPE_COLORS: Record<string, string> = {
   maintenance: "#f59e0b",
 };
 
+const COVER_GRADIENTS: Record<string, string> = {
+  training:    "135deg, #0f2944 0%, #0ea5e9 100%",
+  mobility:    "135deg, #052e1a 0%, #10b981 100%",
+  community:   "135deg, #1e1060 0%, #7c3aed 100%",
+  nutrition:   "135deg, #431407 0%, #f59e0b 100%",
+  event:       "135deg, #2d0a4e 0%, #c026d3 100%",
+  maintenance: "135deg, #1c1917 0%, #57534e 100%",
+};
+
+const DEFAULT_COVER: Record<string, string> = {
+  info: "community", alert: "maintenance", event: "event", maintenance: "maintenance",
+};
+
 const TYPE_LABELS: Record<string, string> = {
   info:        "Info",
   alert:       "Alerta",
@@ -89,33 +102,46 @@ export default function AnnouncementDetailPage() {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl p-6 border"
+            className="rounded-2xl border overflow-hidden"
             style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
           >
-            {/* Tipo + badge pinned */}
-            <div className="flex items-center gap-2 mb-4">
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded"
-                style={{
-                  background: TYPE_COLORS[announcement.type] + "20",
-                  color:      TYPE_COLORS[announcement.type],
-                }}
-              >
-                {TYPE_LABELS[announcement.type]}
-              </span>
-              {announcement.isPinned && (
-                <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
-                  📌 Destacado
-                </span>
-              )}
-            </div>
+            {/* Cover banner */}
+            {(() => {
+              const coverKey = announcement.coverImageKey ?? DEFAULT_COVER[announcement.type] ?? "community";
+              const gradient = COVER_GRADIENTS[coverKey] ?? COVER_GRADIENTS.community;
+              return (
+                <div
+                  className="relative flex items-end px-6 pt-8 pb-5"
+                  style={{ background: `linear-gradient(${gradient})`, minHeight: "140px" }}
+                >
+                  <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.45)" }} />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded"
+                        style={{ background: "rgba(255,255,255,0.18)", color: "#ffffff" }}
+                      >
+                        {TYPE_LABELS[announcement.type]}
+                      </span>
+                      {announcement.isPinned && (
+                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
+                          📌 Destacado
+                        </span>
+                      )}
+                    </div>
+                    {announcement.title && (
+                      <h1 className="text-xl font-bold leading-snug" style={{ color: "#ffffff" }}>
+                        {announcement.title}
+                      </h1>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
-            {/* Título */}
-            {announcement.title && (
-              <h1 className="text-xl font-bold mb-3 leading-snug" style={{ color: "var(--text-primary)" }}>
-                {announcement.title}
-              </h1>
-            )}
+            {/* Body */}
+            <div className="p-6">
+            {/* Título ya se muestra en el banner — espacio vacío si no hay título */}
 
             {/* Contenido completo — whitespace-pre-wrap respeta saltos de línea */}
             <p
@@ -145,14 +171,11 @@ export default function AnnouncementDetailPage() {
             {/* Footer: autor + fecha */}
             <div
               className="mt-6 pt-4 text-xs"
-              style={{
-                borderTop: "1px solid var(--card-border)",
-                color:     "var(--text-secondary)",
-                opacity:   0.6,
-              }}
+              style={{ borderTop: "1px solid var(--card-border)", color: "var(--text-muted)" }}
             >
               {announcement.authorName} · {formatDate(announcement.publishedAt)}
             </div>
+            </div>{/* end body */}
           </motion.div>
         ) : null}
 

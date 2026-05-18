@@ -43,10 +43,11 @@ export async function GET(
       isPinned:    true,
       publishedAt: true,
       expiresAt:   true,
-      linkUrl:     true,
-      linkLabel:   true,
-      status:      true,
-      author:      { select: { id: true, name: true } },
+      linkUrl:       true,
+      linkLabel:     true,
+      coverImageKey: true,
+      status:        true,
+      author:        { select: { id: true, name: true } },
     },
   });
 
@@ -69,7 +70,8 @@ export async function GET(
     isPinned:    ann.isPinned,
     publishedAt: ann.publishedAt.toISOString(),
     ...(ann.expiresAt ? { expiresAt: ann.expiresAt.toISOString() }                   : {}),
-    ...(ann.linkUrl   ? { linkUrl: ann.linkUrl, linkLabel: ann.linkLabel ?? "Ver enlace" } : {}),
+    ...(ann.linkUrl      ? { linkUrl: ann.linkUrl, linkLabel: ann.linkLabel ?? "Ver enlace" } : {}),
+    ...(ann.coverImageKey ? { coverImageKey: ann.coverImageKey }                             : {}),
     status:      ann.status.toLowerCase() as AnnouncementStatus,
   }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -97,6 +99,8 @@ export async function PATCH(
     if (role === "COACH" && existing.authorId !== session.user.id) {
       return Response.json({ error: "Sin permisos" }, { status: 403 });
     }
+
+    const ALLOWED_COVERS = new Set(["training","mobility","community","nutrition","event","maintenance"]);
 
     const body = await request.json();
 
@@ -140,6 +144,9 @@ export async function PATCH(
           : body.linkLabel !== undefined
             ? { linkLabel: body.linkLabel?.trim() || existing.linkLabel || "Ver enlace" }
             : {}),
+        ...(body.coverImageKey !== undefined
+          ? { coverImageKey: ALLOWED_COVERS.has(body.coverImageKey) ? body.coverImageKey : null }
+          : {}),
       },
       include: { author: { select: { id: true, name: true } } },
     });
@@ -154,7 +161,8 @@ export async function PATCH(
       isPinned:    updated.isPinned,
       publishedAt: updated.publishedAt.toISOString(),
       ...(updated.expiresAt ? { expiresAt: updated.expiresAt.toISOString() }                      : {}),
-      ...(updated.linkUrl   ? { linkUrl: updated.linkUrl, linkLabel: updated.linkLabel ?? "Ver enlace" } : {}),
+      ...(updated.linkUrl      ? { linkUrl: updated.linkUrl, linkLabel: updated.linkLabel ?? "Ver enlace" } : {}),
+      ...(updated.coverImageKey ? { coverImageKey: updated.coverImageKey }                               : {}),
       status:      updated.status.toLowerCase() as AnnouncementStatus,
     });
   } catch {

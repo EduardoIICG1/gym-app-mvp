@@ -713,14 +713,71 @@ Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado si
 
 ---
 
+#### Portadas visuales para comunicados ✅ — Implementado (2026-05-18)
+
+**Modelo:**
+- `coverImageKey String?` agregado al modelo `Announcement` en `prisma/schema.prisma`.
+- `prisma db push` exitoso. `prisma generate` ejecutado. `.next` limpiado.
+- Valores controlados (no upload libre): `training`, `mobility`, `community`, `nutrition`, `event`, `maintenance`.
+- Nullable → registros existentes sin portada conservan diseño anterior sin regresión.
+
+**API:**
+- `GET /api/announcements` y `GET /api/announcements/[id]`: devuelven `coverImageKey` en el response.
+- `POST /api/announcements`: acepta `coverImageKey`, validado contra `ALLOWED_COVERS = Set(...)`, guarda `null` si inválido.
+- `PATCH /api/announcements/[id]`: acepta `coverImageKey` — reemplaza o limpia (null).
+
+**Constantes (fase 1 — CSS gradients):**
+- `COVER_GRADIENTS`: mapa de 6 claves → gradiente CSS `linear-gradient(135deg, ...)`.
+- `COVER_ACCENT`: mapa de 6 claves → color de acento para borderes del feed.
+- `COVER_LABELS`: nombres en español para el selector.
+- `DEFAULT_COVER`: fallback por `type`: INFO→community, ALERT→maintenance, EVENT→event, MAINTENANCE→maintenance.
+- `effectiveCover(ann)`: devuelve `coverImageKey` si existe, sino el fallback por tipo.
+
+**UI — `CoverSelector` (componente definido en `page.tsx`):**
+- Chips con preview de color (square 12px) + label. Click en chip seleccionado → deselecciona (limpia portada).
+- Aparece en: modal de creación y form de edición inline.
+
+**Carrusel (`src/app/page.tsx`):**
+- Fondo `linear-gradient` derivado de `effectiveCover(currentPinned)`.
+- Overlay `rgba(0,0,0,0.48)` garantiza legibilidad del texto sobre cualquier gradiente.
+- Texto blanco forzado (#ffffff / rgba(255,255,255,X)) — independiente del tema.
+- `minHeight` aumentado de 140px a 160px para más impacto visual.
+- Badge tipo y CTA link con estilos blancos semitransparentes.
+
+**Feed (`src/app/page.tsx`):**
+- `borderColor` de la card usa `COVER_ACCENT[coverImageKey]` al 55% si hay `coverImageKey` explícito.
+- Sin `coverImageKey`: comportamiento anterior (pinned → type color, no pinned → card-border).
+- No hay imagen de fondo en el feed para no sobrecargarlo.
+
+**Detalle `/announcements/[id]` (`src/app/announcements/[id]/page.tsx`):**
+- Banner de portada ~140px al tope del card con `linear-gradient`, overlay, y título + badge tipo encima.
+- Contenido (texto, CTA, footer) en un `<div>` separado debajo del banner.
+- Footer: `color: var(--text-muted)`, sin `opacity` extra (mejora de contraste también aplicada aquí).
+
+**Seed:**
+- `annPinned1` (INFO, "Bienvenidos"): `coverImageKey: "community"`.
+- `annPinned2` (EVENT, "Taller de movilidad"): `coverImageKey: "mobility"`.
+
+#### Backlog: portadas visuales — fase 2 y más (no implementar todavía)
+
+- Reemplazar gradientes CSS por imágenes reales locales en `public/announcement-covers/{key}.jpg`.
+- Upload de imágenes propias por el usuario (requiere Supabase Storage o CDN equivalente).
+- Validación de peso, tipo MIME, dimensiones mínimas.
+- Compresión y resize del lado del servidor.
+- Crop y preview antes de publicar.
+- GIFs animados (requiere decisión de rendimiento/storage separada).
+- Likes y comentarios persistentes (requiere nuevo modelo en Prisma: `Reaction`, `Comment`).
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Portadas visuales para comunicados (análisis completo listo, aprobación requerida)
-2. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
-3. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
-4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
-5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+1. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
+2. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
+3. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+4. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+5. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
 
 ## Advertencias antes de producción
 

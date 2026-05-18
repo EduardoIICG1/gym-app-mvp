@@ -32,6 +32,89 @@ interface HomeReservation {
 const CAROUSEL_PREVIEW = 180;
 const FEED_PREVIEW     = 240;
 
+// ── Cover visual constants ────────────────────────────────────────────────
+const COVER_KEYS = ["training","mobility","community","nutrition","event","maintenance"] as const;
+type CoverKey = typeof COVER_KEYS[number];
+
+const COVER_GRADIENTS: Record<CoverKey, string> = {
+  training:    "135deg, #0f2944 0%, #0ea5e9 100%",
+  mobility:    "135deg, #052e1a 0%, #10b981 100%",
+  community:   "135deg, #1e1060 0%, #7c3aed 100%",
+  nutrition:   "135deg, #431407 0%, #f59e0b 100%",
+  event:       "135deg, #2d0a4e 0%, #c026d3 100%",
+  maintenance: "135deg, #1c1917 0%, #57534e 100%",
+};
+
+const COVER_ACCENT: Record<CoverKey, string> = {
+  training:    "#0ea5e9",
+  mobility:    "#10b981",
+  community:   "#7c3aed",
+  nutrition:   "#f59e0b",
+  event:       "#c026d3",
+  maintenance: "#78716c",
+};
+
+const COVER_LABELS: Record<CoverKey, string> = {
+  training:    "Entrenamiento",
+  mobility:    "Movilidad",
+  community:   "Comunidad",
+  nutrition:   "Nutrición",
+  event:       "Evento",
+  maintenance: "Aviso",
+};
+
+const DEFAULT_COVER: Record<string, CoverKey> = {
+  info:        "community",
+  alert:       "maintenance",
+  event:       "event",
+  maintenance: "maintenance",
+};
+
+function effectiveCover(ann: { coverImageKey?: string; type: string }): CoverKey {
+  const key = ann.coverImageKey ?? DEFAULT_COVER[ann.type];
+  return (COVER_KEYS as readonly string[]).includes(key) ? (key as CoverKey) : "community";
+}
+
+function CoverSelector({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (k: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-xs mb-1.5 block" style={{ color: "var(--text-muted)" }}>
+        Portada visual
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {COVER_KEYS.map(k => {
+          const selected = value === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onChange(selected ? "" : k)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
+              style={{
+                background:  selected ? `linear-gradient(${COVER_GRADIENTS[k]})` : "var(--background)",
+                color:       selected ? "#ffffff" : "var(--text-secondary)",
+                border:      `1px solid ${selected ? "transparent" : "var(--card-border)"}`,
+              }}
+            >
+              <span
+                className="w-3 h-3 rounded-sm shrink-0"
+                style={{ background: `linear-gradient(${COVER_GRADIENTS[k]})` }}
+              />
+              {COVER_LABELS[k]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const TYPE_COLORS: Record<string, string> = {
   info:        "#4fc3f7",
   alert:       "#ef4444",
@@ -85,16 +168,18 @@ export default function Home() {
   const [editDraft, setEditDraft] = useState({
     title: "", content: "", type: "info" as AnnouncementType,
     linkUrl: "", linkLabel: "", expiresAt: "", isPinned: false,
+    coverImageKey: "",
   });
   const [editError, setEditError] = useState<string | null>(null);
   const [saving,    setSaving]    = useState(false);
 
   // ── Create modal ─────────────────────────────────────────────────────────
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newLinkUrl,   setNewLinkUrl]   = useState("");
-  const [newLinkLabel, setNewLinkLabel] = useState("");
-  const [newExpiresAt, setNewExpiresAt] = useState("");
-  const [createError,  setCreateError]  = useState<string | null>(null);
+  const [newLinkUrl,      setNewLinkUrl]      = useState("");
+  const [newLinkLabel,    setNewLinkLabel]    = useState("");
+  const [newExpiresAt,    setNewExpiresAt]    = useState("");
+  const [newCoverImageKey, setNewCoverImageKey] = useState("");
+  const [createError,     setCreateError]    = useState<string | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -144,7 +229,8 @@ export default function Home() {
 
   function openCreateModal() {
     setNewContent(""); setNewTitle(""); setNewType("info"); setNewPinned(false);
-    setNewLinkUrl(""); setNewLinkLabel(""); setNewExpiresAt(""); setCreateError(null);
+    setNewLinkUrl(""); setNewLinkLabel(""); setNewExpiresAt(""); setNewCoverImageKey("");
+    setCreateError(null);
     setShowCreateModal(true);
   }
 
@@ -169,6 +255,7 @@ export default function Home() {
           isPinned:  newPinned,
           ...(url ? { linkUrl: url, linkLabel: newLinkLabel.trim() || "Ver enlace" } : {}),
           ...(newExpiresAt ? { expiresAt: new Date(newExpiresAt).toISOString() } : {}),
+          ...(newCoverImageKey ? { coverImageKey: newCoverImageKey } : {}),
         }),
       });
       if (res.ok) {
@@ -231,13 +318,14 @@ export default function Home() {
   function startEdit(ann: Announcement) {
     setEditingId(ann.id);
     setEditDraft({
-      title:     ann.title ?? "",
-      content:   ann.content,
-      type:      ann.type,
-      linkUrl:   ann.linkUrl ?? "",
-      linkLabel: ann.linkLabel ?? "",
-      expiresAt: ann.expiresAt ? ann.expiresAt.slice(0, 16) : "",
-      isPinned:  ann.isPinned,
+      title:         ann.title ?? "",
+      content:       ann.content,
+      type:          ann.type,
+      linkUrl:       ann.linkUrl ?? "",
+      linkLabel:     ann.linkLabel ?? "",
+      expiresAt:     ann.expiresAt ? ann.expiresAt.slice(0, 16) : "",
+      isPinned:      ann.isPinned,
+      coverImageKey: ann.coverImageKey ?? "",
     });
     setEditError(null);
   }
@@ -262,7 +350,8 @@ export default function Home() {
         type:      editDraft.type,
         linkUrl:   url || null,
         linkLabel: url ? (editDraft.linkLabel.trim() || "Ver enlace") : null,
-        expiresAt: editDraft.expiresAt ? new Date(editDraft.expiresAt).toISOString() : null,
+        expiresAt:     editDraft.expiresAt ? new Date(editDraft.expiresAt).toISOString() : null,
+        coverImageKey: editDraft.coverImageKey || null,
       };
       if (activeUser.role === "admin") body.isPinned = editDraft.isPinned;
       const res = await fetch(`/api/announcements/${editingId}`, {
@@ -395,64 +484,67 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Card activa — min-height fijo para evitar saltos entre slides */}
+                {/* Card activa — cover gradient + overlay */}
                 <div
-                  className="p-4 rounded-xl border"
+                  className="p-4 rounded-xl relative overflow-hidden"
                   style={{
-                    background:  "var(--background)",
-                    borderColor: TYPE_COLORS[currentPinned.type] + "50",
-                    minHeight:   "140px",
+                    background: `linear-gradient(${COVER_GRADIENTS[effectiveCover(currentPinned)]})`,
+                    minHeight:  "160px",
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded"
-                      style={{
-                        background: TYPE_COLORS[currentPinned.type] + "20",
-                        color:      TYPE_COLORS[currentPinned.type],
-                      }}
-                    >
-                      {TYPE_LABELS[currentPinned.type]}
-                    </span>
-                    <span className="text-xs ml-auto" style={{ color: "var(--text-muted)" }}>
-                      📌
-                    </span>
-                  </div>
-                  {currentPinned.title && (
-                    <p className="text-sm font-bold mb-1 leading-snug" style={{ color: "var(--text-primary)" }}>
-                      {currentPinned.title}
+                  {/* overlay asegura legibilidad sobre cualquier gradiente */}
+                  <div
+                    className="absolute inset-0 rounded-xl"
+                    style={{ background: "rgba(0,0,0,0.48)" }}
+                  />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded"
+                        style={{ background: "rgba(255,255,255,0.18)", color: "#ffffff" }}
+                      >
+                        {TYPE_LABELS[currentPinned.type]}
+                      </span>
+                      <span className="text-xs ml-auto" style={{ color: "rgba(255,255,255,0.55)" }}>
+                        📌
+                      </span>
+                    </div>
+                    {currentPinned.title && (
+                      <p className="text-sm font-bold mb-1 leading-snug" style={{ color: "#ffffff" }}>
+                        {currentPinned.title}
+                      </p>
+                    )}
+                    <p className="text-xs leading-relaxed line-clamp-3" style={{ color: "rgba(255,255,255,0.82)" }}>
+                      {currentPinned.content}
                     </p>
-                  )}
-                  <p className="text-xs leading-relaxed line-clamp-3" style={{ color: "var(--text-secondary)" }}>
-                    {currentPinned.content}
-                  </p>
-                  {currentPinned.content.length > CAROUSEL_PREVIEW && (
-                    <Link
-                      href={`/announcements/${currentPinned.id}`}
-                      className="inline-block mt-1 text-xs font-medium hover:underline"
-                      style={{ color: "#4fc3f7" }}
-                    >
-                      Ver más →
-                    </Link>
-                  )}
-                  {currentPinned.linkUrl && (
-                    <a
-                      href={currentPinned.linkUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block mt-3 text-sm font-semibold px-3 py-1.5 rounded-lg"
-                      style={{
-                        background: TYPE_COLORS[currentPinned.type] + "30",
-                        color:      TYPE_COLORS[currentPinned.type],
-                        border:     `1px solid ${TYPE_COLORS[currentPinned.type]}60`,
-                      }}
-                    >
-                      {currentPinned.linkLabel ?? "Ver enlace"} →
-                    </a>
-                  )}
-                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                    {formatAnnDate(currentPinned.publishedAt)} · {currentPinned.authorName}
-                  </p>
+                    {currentPinned.content.length > CAROUSEL_PREVIEW && (
+                      <Link
+                        href={`/announcements/${currentPinned.id}`}
+                        className="inline-block mt-1 text-xs font-medium hover:underline"
+                        style={{ color: "rgba(255,255,255,0.85)" }}
+                      >
+                        Ver más →
+                      </Link>
+                    )}
+                    {currentPinned.linkUrl && (
+                      <a
+                        href={currentPinned.linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block mt-3 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                        style={{
+                          background: "rgba(255,255,255,0.15)",
+                          color:      "#ffffff",
+                          border:     "1px solid rgba(255,255,255,0.3)",
+                        }}
+                      >
+                        {currentPinned.linkLabel ?? "Ver enlace"} →
+                      </a>
+                    )}
+                    <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      {formatAnnDate(currentPinned.publishedAt)} · {currentPinned.authorName}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Dots de navegación — solo cuando hay más de 1 */}
@@ -603,6 +695,10 @@ export default function Home() {
                             style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
                           />
                         )}
+                        <CoverSelector
+                          value={editDraft.coverImageKey}
+                          onChange={k => setEditDraft(d => ({ ...d, coverImageKey: k }))}
+                        />
                         <div>
                           <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>
                             Vence el (opcional)
@@ -654,9 +750,11 @@ export default function Home() {
                         className="p-4 rounded-xl border"
                         style={{
                           background:  "var(--background)",
-                          borderColor: ann.isPinned
-                            ? TYPE_COLORS[ann.type] + "40"
-                            : "var(--card-border)",
+                          borderColor: ann.coverImageKey
+                            ? COVER_ACCENT[effectiveCover(ann)] + "55"
+                            : ann.isPinned
+                              ? TYPE_COLORS[ann.type] + "40"
+                              : "var(--card-border)",
                         }}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
@@ -1191,6 +1289,12 @@ export default function Home() {
                   style={{ background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-primary)" }}
                 />
               )}
+
+              {/* Cover visual */}
+              <CoverSelector
+                value={newCoverImageKey}
+                onChange={setNewCoverImageKey}
+              />
 
               {/* Expiry */}
               <div>

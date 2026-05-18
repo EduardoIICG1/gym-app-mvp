@@ -172,5 +172,6 @@ export interface Announcement {
   expiresAt?: string;
   linkUrl?: string;
   linkLabel?: string;
+  coverImageKey?: string;
   status: AnnouncementStatus;
 }

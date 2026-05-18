@@ -49,10 +49,11 @@ async function fetchAnnouncements(
       isPinned:    true,
       publishedAt: true,
       expiresAt:   true,
-      linkUrl:     true,
-      linkLabel:   true,
-      status:      true,
-      author:      { select: { id: true, name: true } },
+      linkUrl:      true,
+      linkLabel:    true,
+      coverImageKey: true,
+      status:       true,
+      author:       { select: { id: true, name: true } },
     },
     orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
     take: limit,
@@ -72,7 +73,8 @@ function toResponse(a: Row) {
     isPinned:    a.isPinned,
     publishedAt: a.publishedAt.toISOString(),
     ...(a.expiresAt ? { expiresAt: a.expiresAt.toISOString() }                        : {}),
-    ...(a.linkUrl   ? { linkUrl:   a.linkUrl, linkLabel: a.linkLabel ?? "Ver enlace" } : {}),
+    ...(a.linkUrl      ? { linkUrl: a.linkUrl, linkLabel: a.linkLabel ?? "Ver enlace" } : {}),
+    ...(a.coverImageKey ? { coverImageKey: a.coverImageKey }                          : {}),
     status:      a.status.toLowerCase() as AnnouncementStatus,
   };
 }
@@ -112,8 +114,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "Sin permisos" }, { status: 403 });
     }
 
+    const ALLOWED_COVERS = new Set(["training","mobility","community","nutrition","event","maintenance"]);
+
     const body = await request.json();
-    const { title, content, type, isPinned, expiresAt, linkUrl, linkLabel } = body;
+    const { title, content, type, isPinned, expiresAt, linkUrl, linkLabel, coverImageKey } = body;
+    const cleanCoverKey = ALLOWED_COVERS.has(coverImageKey) ? (coverImageKey as string) : null;
 
     if (!content?.trim()) {
       return Response.json({ error: "content es requerido" }, { status: 400 });
@@ -135,9 +140,10 @@ export async function POST(request: Request) {
         authorId:   session.user.id,
         isPinned:   role === "ADMIN" ? Boolean(isPinned) : false,
         expiresAt:  expiresAt ? new Date(expiresAt) : null,
-        linkUrl:    cleanLinkUrl,
-        linkLabel:  cleanLinkUrl ? (linkLabel?.trim() || "Ver enlace") : null,
-        status:     "PUBLISHED",
+        linkUrl:      cleanLinkUrl,
+        linkLabel:    cleanLinkUrl ? (linkLabel?.trim() || "Ver enlace") : null,
+        coverImageKey: cleanCoverKey,
+        status:       "PUBLISHED",
       },
       include: { author: { select: { id: true, name: true } } },
     });
@@ -155,6 +161,7 @@ export async function POST(request: Request) {
       ...(created.linkUrl
         ? { linkUrl: created.linkUrl, linkLabel: created.linkLabel ?? "Ver enlace" }
         : {}),
+      ...(created.coverImageKey ? { coverImageKey: created.coverImageKey } : {}),
       status: "published" as AnnouncementStatus,
     }, { status: 201 });
   } catch {

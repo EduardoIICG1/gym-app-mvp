@@ -17,6 +17,9 @@ const BOOKING_TO_ATTENDANCE: Partial<Record<BookingStatus, AttendanceStatus>> = 
   ABSENT:   "absent",
 };
 
+// Cancellation window: member gets session refund only if cancelling more than this before class start
+const CANCEL_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
+
 async function fetchBookings(filter: { memberId?: string; sessionId?: string }) {
   return prisma.booking.findMany({
     where: filter,
@@ -101,6 +104,10 @@ export async function POST(request: Request) {
     if (gymSession.status === "CANCELLED") {
       return Response.json({ error: "Clase cancelada" }, { status: 400 });
     }
+    // Track which membership to increment (set inside gating block, used in transaction below)
+    let validMembershipId: string | null = null;
+    let validTotalSessions: number | null = null;
+
     // Membership gating — MEMBER only; ADMIN/COACH bypass
     if (session.user.role === "MEMBER") {
       const serviceType = gymSession.program.serviceType;
@@ -153,6 +160,11 @@ export async function POST(request: Request) {
           { status: 403 }
         );
       }
+      // valid is confirmed non-null here — capture for session tracking
+      if (valid.totalSessions !== null) {
+        validMembershipId   = valid.id;
+        validTotalSessions  = valid.totalSessions;
+      }
     }
 
     if (gymSession.program.serviceType !== "OTHER") {
@@ -169,16 +181,30 @@ export async function POST(request: Request) {
       return Response.json({ error: "Ya tienes esta clase reservada" }, { status: 400 });
     }
 
-    const booking = await prisma.booking.create({
-      data: { sessionId: classId, memberId, status: "CONFIRMED" },
-      include: {
-        session: { include: { program: true } },
-        member: { select: { id: true, name: true, email: true } },
-      },
+    const booking = await prisma.$transaction(async (tx) => {
+      const newBooking = await tx.booking.create({
+        data: { sessionId: classId, memberId, status: "CONFIRMED" },
+        include: {
+          session: { include: { program: true } },
+          member: { select: { id: true, name: true, email: true } },
+        },
+      });
+      if (validMembershipId !== null && validTotalSessions !== null) {
+        // Atomic increment — WHERE guard prevents race-condition over-consumption
+        const incremented = await tx.membership.updateMany({
+          where: { id: validMembershipId, usedSessions: { lt: validTotalSessions } },
+          data:  { usedSessions: { increment: 1 } },
+        });
+        if (incremented.count === 0) throw new Error("SESSION_CONFLICT");
+      }
+      return newBooking;
     });
 
     return Response.json(toReservation(booking), { status: 201 });
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message === "SESSION_CONFLICT") {
+      return Response.json({ error: "No tienes sesiones disponibles en tu membresía." }, { status: 403 });
+    }
     return Response.json({ error: "Error interno" }, { status: 500 });
   }
 }
@@ -198,17 +224,57 @@ export async function DELETE(request: Request) {
 
     const booking = await prisma.booking.findFirst({
       where: { sessionId: classId, memberId, status: { not: "CANCELLED" } },
+      include: {
+        session: {
+          select: {
+            startsAt: true,
+            program: { select: { serviceType: true } },
+          },
+        },
+      },
     });
     if (!booking) {
       return Response.json({ error: "Reserva no encontrada" }, { status: 404 });
     }
 
-    await prisma.booking.update({
-      where: { id: booking.id },
-      data: { status: "CANCELLED" },
+    const now   = new Date();
+    const isLate = booking.session.startsAt.getTime() - now.getTime() <= CANCEL_WINDOW_MS;
+
+    // Only look for a membership to credit if the cancel is within the free window
+    let membershipToCredit: { id: string } | null = null;
+    if (!isLate) {
+      membershipToCredit = await prisma.membership.findFirst({
+        where: {
+          memberId,
+          serviceType:   booking.session.program.serviceType,
+          status:        "ACTIVE",
+          totalSessions: { not: null },
+          usedSessions:  { gt: 0 },
+        },
+        orderBy: { createdAt: "desc" },
+        select:  { id: true },
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: booking.id },
+        data:  { status: "CANCELLED" },
+      });
+      if (membershipToCredit) {
+        // Guard against decrement below zero (defensive — should never trigger)
+        await tx.membership.updateMany({
+          where: { id: membershipToCredit.id, usedSessions: { gt: 0 } },
+          data:  { usedSessions: { decrement: 1 } },
+        });
+      }
     });
 
-    return Response.json({ success: true });
+    return Response.json({
+      success: true,
+      late:    isLate,
+      ...(isLate ? { message: "Cancelación tardía: la sesión no será recuperada." } : {}),
+    });
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });
   }

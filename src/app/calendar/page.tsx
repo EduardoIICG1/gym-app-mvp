@@ -19,6 +19,7 @@ import { DAY_NAMES_SHORT, MONTH_NAMES_SHORT, ATTENDANCE_STATUS_LABELS } from "@/
 
 const DAY_SHORT = DAY_NAMES_SHORT;
 const MONTHS = MONTH_NAMES_SHORT;
+const CANCEL_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function getWeekDates(offset: number) {
   const today = new Date();
@@ -161,14 +162,28 @@ function ClassModal({
 
           {/* CTA */}
           {reserved ? (
-            <motion.button
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              onClick={onCancel} disabled={loading}
-              className="w-full py-3 rounded-xl font-semibold text-sm text-white disabled:opacity-50"
-              style={{ background: "#ef4444" }}
-            >
-              {loading ? "Procesando..." : "Cancelar Reserva"}
-            </motion.button>
+            <>
+              <motion.button
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={onCancel} disabled={loading}
+                className="w-full py-3 rounded-xl font-semibold text-sm text-white disabled:opacity-50"
+                style={{ background: "#ef4444" }}
+              >
+                {loading ? "Procesando..." : "Cancelar Reserva"}
+              </motion.button>
+              {(() => {
+                const sessionStart = new Date(`${dateStr}T${cls.startTime}:00`);
+                const deadline     = new Date(sessionStart.getTime() - CANCEL_WINDOW_MS);
+                const isLate       = new Date() >= deadline;
+                return (
+                  <p className="text-xs text-center mt-2" style={{ color: isLate ? "#f59e0b" : "var(--text-muted)" }}>
+                    {isLate
+                      ? "Cancelación tardía: no recuperarás la sesión"
+                      : `Cancelación libre hasta las ${deadline.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}`}
+                  </p>
+                );
+              })()}
+            </>
           ) : bookingStatus === "booking_closed" ? (
             <button disabled className="w-full py-3 rounded-xl font-semibold text-sm cursor-not-allowed"
               style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
@@ -857,13 +872,19 @@ export default function CalendarPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ classId, userId: CURRENT_USER_ID, classDate: dateStr }),
     });
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setReservations(prev => prev.filter(r => !(r.classId === classId && r.classDate === dateStr)));
       setClasses(prev => prev.map(c => c.id === classId ? { ...c, reservedCount: Math.max(0, c.reservedCount - 1) } : c));
-      setToast({ msg: "Reserva cancelada", ok: true });
+      setToast({
+        msg: (data as { late?: boolean }).late
+          ? "Cancelación tardía: la sesión no será recuperada."
+          : "Reserva cancelada",
+        ok: true,
+      });
       setModal(null);
     } else {
-      setToast({ msg: "Error al cancelar", ok: false });
+      setToast({ msg: (data as { error?: string }).error || "Error al cancelar", ok: false });
     }
     setActionLoading(false);
   };

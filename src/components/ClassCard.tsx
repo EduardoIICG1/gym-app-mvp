@@ -15,6 +15,7 @@ interface ClassCardProps {
   isReserved: boolean;
   isLoading: boolean;
   membershipBlocked?: boolean;
+  cancelHint?: { isLate: boolean; deadline: string };
   onReserve: (classId: string) => void;
   onCancel: (classId: string) => void;
 }
@@ -31,6 +32,7 @@ export function ClassCard({
   isReserved,
   isLoading,
   membershipBlocked = false,
+  cancelHint,
   onReserve,
   onCancel,
 }: ClassCardProps) {
@@ -133,6 +135,17 @@ export function ClassCard({
                   ? "Sin cupos"
                   : "Reservar clase"}
         </button>
+
+        {isReserved && cancelHint && (
+          <p
+            className="text-xs text-center mt-2"
+            style={{ color: cancelHint.isLate ? "#f59e0b" : "var(--text-muted)" }}
+          >
+            {cancelHint.isLate
+              ? "Cancelación tardía: no recuperarás la sesión"
+              : `Cancelación libre hasta las ${cancelHint.deadline}`}
+          </p>
+        )}
 
         <Link
           href={`/classes/${id}?from=classes`}

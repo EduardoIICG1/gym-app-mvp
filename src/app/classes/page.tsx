@@ -4,11 +4,23 @@ import { useEffect, useState } from "react";
 import { ClassCard } from "@/components/ClassCard";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 
+const CANCEL_WINDOW_MS = 2 * 60 * 60 * 1000; // mirrors API constant
+
+function computeCancelHint(sessionDate: string, startTime: string): { isLate: boolean; deadline: string } {
+  const sessionStart = new Date(`${sessionDate}T${startTime}:00`);
+  const deadline     = new Date(sessionStart.getTime() - CANCEL_WINDOW_MS);
+  return {
+    isLate:   new Date() >= deadline,
+    deadline: deadline.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
 interface Class {
   id: string;
   name: string;
   coach: string;
   dayOfWeek: number;
+  sessionDate: string;
   startTime: string;
   endTime: string;
   capacity: number;
@@ -48,6 +60,7 @@ export default function ClassesPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
+  const [cancelNotice, setCancelNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentUser.isLoading) return; // wait for real session
@@ -112,22 +125,27 @@ export default function ClassesPage() {
   const handleCancel = async (classId: string) => {
     try {
       setActionLoading(true);
+      setCancelNotice(null);
       const res = await fetch("/api/reservations", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ classId }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        throw new Error("Failed to cancel reservation");
+        throw new Error(data.error || "Error al cancelar");
       }
 
-      // Update local state
       setReservations(reservations.filter((id) => id !== classId));
 
       const classesRes = await fetch("/api/classes");
       const classesData = await classesRes.json();
       setClasses(classesData);
+
+      if (data.late) {
+        setCancelNotice("Cancelación realizada. La sesión no será recuperada.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to cancel");
     } finally {
@@ -160,6 +178,13 @@ export default function ClassesPage() {
           </div>
         )}
 
+        {/* Late cancel notice */}
+        {cancelNotice && (
+          <div className="border px-4 py-3 rounded-lg mb-8" style={{ background: "#f59e0b15", borderColor: "#f59e0b40", color: "#f59e0b" }}>
+            {cancelNotice}
+          </div>
+        )}
+
         {/* Empty state */}
         {!loading && classes.length === 0 && !error && (
           <div className="text-center py-12">
@@ -184,6 +209,7 @@ export default function ClassesPage() {
                 isReserved={reservations.includes(cls.id)}
                 isLoading={actionLoading}
                 membershipBlocked={currentUser.role === "member" && !validServiceTypes.has(cls.serviceType)}
+                cancelHint={reservations.includes(cls.id) ? computeCancelHint(cls.sessionDate, cls.startTime) : undefined}
                 onReserve={handleReserve}
                 onCancel={handleCancel}
               />

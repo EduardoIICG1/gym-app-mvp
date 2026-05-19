@@ -120,7 +120,19 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const booking = await resolveBookingWithSession(id);
+    // Richer query: need coachId for canManage + serviceType for membership credit
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        session: {
+          select: {
+            coachId: true,
+            program: { select: { serviceType: true } },
+          },
+        },
+        member: { select: { id: true } },
+      },
+    });
     if (!booking) {
       return Response.json({ error: "Reserva no encontrada" }, { status: 404 });
     }
@@ -133,9 +145,30 @@ export async function DELETE(
       return Response.json({ error: "La reserva ya está cancelada" }, { status: 400 });
     }
 
-    await prisma.booking.update({
-      where: { id },
-      data: { status: "CANCELLED" },
+    // Admin/Coach override: always credit the session back regardless of timing
+    const membershipToCredit = await prisma.membership.findFirst({
+      where: {
+        memberId:      booking.member.id,
+        serviceType:   booking.session.program.serviceType,
+        status:        "ACTIVE",
+        totalSessions: { not: null },
+        usedSessions:  { gt: 0 },
+      },
+      orderBy: { createdAt: "desc" },
+      select:  { id: true },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id },
+        data:  { status: "CANCELLED" },
+      });
+      if (membershipToCredit) {
+        await tx.membership.updateMany({
+          where: { id: membershipToCredit.id, usedSessions: { gt: 0 } },
+          data:  { usedSessions: { decrement: 1 } },
+        });
+      }
     });
 
     return Response.json({ success: true, bookingId: id });

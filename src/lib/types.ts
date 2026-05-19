@@ -89,6 +89,8 @@ export interface Membership {
   amount: number;
   startDate: string;
   endDate: string;
+  totalSessions?: number | null;
+  usedSessions?: number;
   coachId?: string;
   coachName?: string;
   notes?: string;

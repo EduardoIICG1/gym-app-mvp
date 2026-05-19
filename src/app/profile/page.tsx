@@ -206,10 +206,37 @@ function ProfileContent() {
                         <MembershipBadge status={ms.membershipStatus} />
                       </div>
                     </div>
-                    <div className="flex gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    <div className="flex gap-4 text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
                       <span>Inicio: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.startDate)}</span></span>
                       <span>Vence: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.endDate)}</span></span>
                     </div>
+                    {ms.totalSessions != null && ms.usedSessions !== undefined && (
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            Sesiones usadas
+                          </span>
+                          <span className="text-xs font-semibold" style={{
+                            color: ms.usedSessions >= ms.totalSessions ? "#ef4444" : "var(--text-primary)",
+                          }}>
+                            {ms.usedSessions} / {ms.totalSessions}
+                            {ms.totalSessions - ms.usedSessions <= 0
+                              ? " — sin sesiones"
+                              : ` — ${ms.totalSessions - ms.usedSessions} restante${ms.totalSessions - ms.usedSessions === 1 ? "" : "s"}`}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width:      `${Math.min((ms.usedSessions / ms.totalSessions) * 100, 100)}%`,
+                              background: ms.usedSessions >= ms.totalSessions ? "#ef4444" : "#4fc3f7",
+                              transition: "width 0.4s ease",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

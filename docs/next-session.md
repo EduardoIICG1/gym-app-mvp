@@ -319,17 +319,41 @@ El estado actual del Booking se persiste (`Booking.status`). No existe historial
 
 ---
 
-### Task futura: Reglas de cancelación y cambio de clase por MEMBER
-**Objetivo:** definir e implementar las políticas del gimnasio para cancelación de reservas.
+### Política de cancelación y consumo de sesiones ✅ — Implementado (2026-05-18)
 
-**Pendiente de decisión de producto:**
-- ¿Con cuántas horas de anticipación puede cancelar un MEMBER?
-- ¿Hay penalización por cancelación tardía (afecta créditos de sesiones)?
-- ¿Puede el MEMBER cambiar de sesión (cancelar una y reservar otra del mismo servicio)?
-- ¿Sesión vencida = sin crédito (sesión usada)?
-- Estas reglas deben estar en un reglamento explícito antes de implementar
+**Regla MVP aprobada:**
+- `CANCEL_WINDOW_HOURS = 2`. Cancelación antes de la ventana → sesión devuelta; después → sesión consumida igual.
+- Si `membership.totalSessions === null`: `usedSessions` nunca se toca (membresías ilimitadas).
+- Consumo al reservar, devolución al cancelar (solo dentro de ventana).
 
-**No implementar hasta tener reglamento definido.**
+**Backend (`src/app/api/reservations/route.ts`):**
+- `POST`: booking + incremento de `usedSessions` en `$transaction`. Guard `usedSessions < totalSessions` previene race conditions. `SESSION_CONFLICT` (count=0) → 403.
+- `DELETE`: calcula `isLate` desde `session.startsAt`. Dentro de ventana → decrementa (guard `usedSessions > 0`). Fuera → no decrementa. Response incluye `{ late: boolean }`.
+- `DELETE /api/reservations/[id]` (admin/coach): siempre devuelve sesión sin importar ventana.
+
+**Validación:** script `prisma/validate-sessions.ts` (no commiteado) — 17/17 checks passed.
+
+**UI — aviso de ventana de cancelación:**
+- `src/app/classes/page.tsx`: `computeCancelHint(sessionDate, startTime)` → `{ isLate, deadline }`. Pasado a `ClassCard.cancelHint`. Banner ámbar si cancelación fue tardía.
+- `src/components/ClassCard.tsx`: texto bajo botón de cancelar: "Cancelación libre hasta las HH:mm" / "Cancelación tardía: no recuperarás la sesión".
+- `src/app/calendar/page.tsx`: hint en `ClassModal` bajo el botón de cancelar.
+- `src/app/profile/page.tsx`: en reservas próximas muestra "Cancela antes de las HH:mm" o "Cancelación tardía".
+
+**Commit:** `bdb3b4e feat: enforce cancellation policy and session consumption`
+
+---
+
+### Balance de sesiones visible para MEMBER ✅ — Implementado (2026-05-18)
+
+**Problema:** el sistema consumía y devolvía sesiones correctamente, pero el MEMBER no tenía visibilidad de su balance.
+
+**`src/lib/types.ts`:** `totalSessions?: number | null` y `usedSessions?: number` agregados a la interfaz `Membership`.
+
+**`src/app/profile/page.tsx`:** barra de progreso en cada card de membresía cuando `totalSessions != null`. Muestra "X sesiones usadas / N" + "X restantes" o "sin sesiones". Barra roja cuando agotadas.
+
+**`src/app/classes/page.tsx`:** computa `sessionBalanceMap: Record<serviceType, remainingSessions>` desde las membresías activas con `totalSessions` no nulo. Pasa `sessionBalance` a cada `ClassCard`.
+
+**`src/components/ClassCard.tsx`:** prop `sessionBalance?: number`. Muestra "X sesiones restantes" (o "Sin sesiones disponibles" en rojo) bajo el botón cuando el MEMBER no está inscrito en esa clase.
 
 ---
 
@@ -774,11 +798,12 @@ Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado si
 
 Backlog abierto. Opciones priorizadas:
 1. Preparar entorno demo/preview en Vercel (ver sección abajo)
-2. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
+2. ~~Definir política de consumo de `usedSessions`~~ ✅ Implementado
 3. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
 4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
 5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
 6. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
+7. Vista de membresía en Home MEMBER — alerta si membresía vencida o sin sesiones
 
 ---
 

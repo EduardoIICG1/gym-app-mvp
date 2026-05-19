@@ -57,6 +57,7 @@ export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [reservations, setReservations] = useState<string[]>([]);
   const [validServiceTypes, setValidServiceTypes] = useState<Set<string>>(new Set());
+  const [sessionBalanceMap, setSessionBalanceMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
@@ -82,6 +83,17 @@ export default function ClassesPage() {
             if (memRes.ok) {
               const memData: MembershipItem[] = await memRes.json();
               setValidServiceTypes(computeValidServiceTypes(memData));
+              const balanceMap: Record<string, number> = {};
+              memData.forEach((m) => {
+                if (
+                  m.membershipStatus === "active" &&
+                  m.totalSessions != null &&
+                  m.usedSessions !== undefined
+                ) {
+                  balanceMap[m.serviceType] = m.totalSessions - m.usedSessions;
+                }
+              });
+              setSessionBalanceMap(balanceMap);
             }
           }
         }
@@ -210,6 +222,7 @@ export default function ClassesPage() {
                 isLoading={actionLoading}
                 membershipBlocked={currentUser.role === "member" && !validServiceTypes.has(cls.serviceType)}
                 cancelHint={reservations.includes(cls.id) ? computeCancelHint(cls.sessionDate, cls.startTime) : undefined}
+                sessionBalance={sessionBalanceMap[cls.serviceType]}
                 onReserve={handleReserve}
                 onCancel={handleCancel}
               />

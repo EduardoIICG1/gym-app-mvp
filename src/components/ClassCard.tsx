@@ -16,6 +16,7 @@ interface ClassCardProps {
   isLoading: boolean;
   membershipBlocked?: boolean;
   cancelHint?: { isLate: boolean; deadline: string };
+  sessionBalance?: number;
   onReserve: (classId: string) => void;
   onCancel: (classId: string) => void;
 }
@@ -33,6 +34,7 @@ export function ClassCard({
   isLoading,
   membershipBlocked = false,
   cancelHint,
+  sessionBalance,
   onReserve,
   onCancel,
 }: ClassCardProps) {
@@ -144,6 +146,14 @@ export function ClassCard({
             {cancelHint.isLate
               ? "Cancelación tardía: no recuperarás la sesión"
               : `Cancelación libre hasta las ${cancelHint.deadline}`}
+          </p>
+        )}
+
+        {!isReserved && sessionBalance !== undefined && (
+          <p className="text-xs text-center mt-2" style={{ color: sessionBalance <= 0 ? "#ef4444" : "var(--text-muted)" }}>
+            {sessionBalance <= 0
+              ? "Sin sesiones disponibles"
+              : `${sessionBalance} sesión${sessionBalance === 1 ? "" : "es"} restante${sessionBalance === 1 ? "" : "s"}`}
           </p>
         )}
 

@@ -29,6 +29,23 @@ interface HomeReservation {
   status: string;
 }
 
+interface HomeMembership {
+  membershipStatus: string;
+  serviceType: string;
+  startDate: string;
+  endDate: string;
+  totalSessions: number | null;
+  usedSessions: number;
+}
+
+type MemberAlertSeverity = "critical" | "no_sessions" | "pending";
+
+interface MembershipAlert {
+  serviceType: string;
+  severity: MemberAlertSeverity;
+  message: string;
+}
+
 const CAROUSEL_PREVIEW = 180;
 const FEED_PREVIEW     = 240;
 
@@ -129,6 +146,64 @@ const TYPE_LABELS: Record<string, string> = {
   maintenance: "Mantenimiento",
 };
 
+const SVC_LABEL: Record<string, string> = {
+  group:             "Clases grupales",
+  personal_training: "Entrenamiento personal",
+  kinesiology:       "Kinesiología",
+};
+
+const ALERT_COLORS: Record<MemberAlertSeverity, { bg: string; accent: string }> = {
+  critical:    { bg: "rgba(239,68,68,0.08)",  accent: "#ef4444" },
+  no_sessions: { bg: "rgba(245,158,11,0.08)", accent: "#f59e0b" },
+  pending:     { bg: "rgba(234,179,8,0.08)",  accent: "#eab308" },
+};
+
+function computeMembershipAlerts(ms: HomeMembership[], today: string): MembershipAlert[] {
+  if (ms.length === 0) {
+    return [{ serviceType: "none", severity: "critical", message: "No tienes una membresía activa. Contacta a administración." }];
+  }
+  const byService: Record<string, HomeMembership[]> = {};
+  for (const m of ms) {
+    if (!byService[m.serviceType]) byService[m.serviceType] = [];
+    byService[m.serviceType].push(m);
+  }
+  const alerts: MembershipAlert[] = [];
+  for (const [svc, list] of Object.entries(byService)) {
+    const label = SVC_LABEL[svc] ?? svc;
+    const isOk = (m: HomeMembership) =>
+      m.membershipStatus === "active" &&
+      m.startDate <= today &&
+      (m.endDate === "" || m.endDate >= today) &&
+      (m.totalSessions == null || (m.usedSessions ?? 0) < m.totalSessions);
+    if (list.some(isOk)) continue;
+    const hasCritical = list.some(m =>
+      m.membershipStatus === "expired" ||
+      m.membershipStatus === "cancelled" ||
+      (m.membershipStatus === "active" && m.endDate !== "" && m.endDate < today)
+    );
+    const hasNoSessions = list.some(m =>
+      m.membershipStatus === "active" &&
+      m.startDate <= today &&
+      (m.endDate === "" || m.endDate >= today) &&
+      m.totalSessions !== null &&
+      (m.usedSessions ?? 0) >= m.totalSessions
+    );
+    const hasPending = list.some(m =>
+      m.membershipStatus === "pending" ||
+      (m.membershipStatus === "active" && m.startDate > today)
+    );
+    if (hasCritical) {
+      alerts.push({ serviceType: svc, severity: "critical",    message: `Tu membresía de ${label} está vencida o inactiva. Contacta a administración.` });
+    } else if (hasNoSessions) {
+      alerts.push({ serviceType: svc, severity: "no_sessions", message: `No tienes sesiones disponibles en ${label}. Contacta a administración para renovar tu plan.` });
+    } else if (hasPending) {
+      alerts.push({ serviceType: svc, severity: "pending",     message: `Tu membresía de ${label} aún no está activa.` });
+    }
+  }
+  const order: Record<MemberAlertSeverity, number> = { critical: 0, no_sessions: 1, pending: 2 };
+  return alerts.sort((a, b) => order[a.severity] - order[b.severity]);
+}
+
 function currentWeekStart(): string {
   const today = new Date();
   const diff = (today.getDay() + 6) % 7; // days since Monday
@@ -152,6 +227,10 @@ export default function Home() {
   const [classes, setClasses] = useState<HomeClass[]>([]);
   const [reservations, setReservations] = useState<HomeReservation[]>([]);
   const [classesLoading, setClassesLoading] = useState(true);
+
+  // ── Membership alerts state (MEMBER only) ────────────────────────────────
+  const [membershipAlerts,   setMembershipAlerts]   = useState<MembershipAlert[]>([]);
+  const [membershipsLoading, setMembershipsLoading] = useState(true);
 
   // ── Announcements state ──────────────────────────────────────────────────
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -202,6 +281,19 @@ export default function Home() {
     fetch(`/api/reservations?userId=${activeUser.id}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setReservations(data));
+  }, [activeUser.id, activeUser.isLoading, activeUser.role]);
+
+  // Fetch membership alerts (MEMBER only)
+  useEffect(() => {
+    if (activeUser.isLoading) return;
+    if (activeUser.role !== "member") { setMembershipsLoading(false); return; }
+    fetch("/api/memberships")
+      .then(r => r.ok ? r.json() : [])
+      .then((data: HomeMembership[]) => {
+        setMembershipAlerts(computeMembershipAlerts(data, new Date().toISOString().slice(0, 10)));
+      })
+      .catch(() => {})
+      .finally(() => setMembershipsLoading(false));
   }, [activeUser.id, activeUser.isLoading, activeUser.role]);
 
   // Close create modal on Escape
@@ -940,6 +1032,29 @@ export default function Home() {
                   </div>
                 )}
               </motion.div>
+            )}
+
+            {/* MEMBER: Alertas de membresía */}
+            {activeUser.role === "member" && !membershipsLoading && membershipAlerts.length > 0 && (
+              <div className="space-y-2">
+                {membershipAlerts.map((alert) => {
+                  const c = ALERT_COLORS[alert.severity];
+                  return (
+                    <motion.div
+                      key={alert.serviceType}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.12 }}
+                      className="rounded-xl px-4 py-3.5"
+                      style={{ background: c.bg, borderLeft: `4px solid ${c.accent}` }}
+                    >
+                      <p className="text-sm" style={{ color: "var(--text-primary)", lineHeight: "1.55" }}>
+                        {alert.message}
+                      </p>
+                    </motion.div>
+                  );
+                })}
+              </div>
             )}
 
             {/* MEMBER: Mis próximas reservas */}

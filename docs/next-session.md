@@ -794,16 +794,49 @@ Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado si
 
 ---
 
+### Flujo de Renovación de Membresías ✅ — Implementado (2026-05-19)
+
+**Commits:**
+- `33ee64f` fix: secure membership mutations and persist total sessions
+- `41b94db` feat: add membership renewal endpoint
+- `b075e07` feat: add membership renewal modal
+
+**Implementado:**
+
+- `POST /api/memberships` y `PUT /api/memberships/[id]`: auth añadida (401/403). COACH verificado contra `MemberCoach` por `memberId + coachId + serviceType + isActive`. `totalSessions` ahora se persiste en creación y edición.
+- `POST /api/memberships/[id]/renew` (archivo nuevo): endpoint de renovación server-side. Copia campos desde la membresía origen, calcula fechas automáticamente, valida solapamiento, crea membresía nueva con `usedSessions = 0` y `status = ACTIVE`.
+- `/admin/memberships`: modal "Renovar" con datos pre-poblados desde la membresía origen. Botón "↻ Renovar" visible solo en la membresía más reciente por `memberId + serviceType` (calculado con `isMoreRecent` — `endDate = ""` = sin fecha = siempre más reciente). COACH no ve campos `amount`/`paymentStatus`. Campo "Sesiones usadas" (read-only) añadido al modal de edición.
+
+**Reglas de negocio:**
+- Renovar crea una **membresía nueva**; la origen queda intacta como historial.
+- `usedSessions` siempre se resetea a 0.
+- `serviceType` es inmutable desde la origen.
+- COACH no puede editar `amount` ni `paymentStatus` (siempre `PENDING`).
+- MEMBER no puede crear, editar ni renovar membresías (403).
+- Lógica de fechas: `endDate` futuro → `newStart = endDate + 1 día`; vencida o sin fecha → `newStart = hoy`; `newEnd` preserva duración origen (fallback: +30 días).
+- Guard de solapamiento: 409 si existe otra membresía ACTIVE del mismo `memberId + serviceType` en el período solicitado (excluye la fuente para evitar autoconflicto en membresías sin fecha fin).
+
+**Pendientes controlados:**
+- Validar COACH real con JWT COACH (`TEST_COACH_EMAIL` con reasignación de sesión seed — requiere cuenta Google con rol COACH).
+- Validar ciclo MEMBER post-renovación: alerta Home desaparece automáticamente al tener membresía activa. Pendiente de validación manual con `setup-member-test.ts`.
+- KPI "Sin sesiones" / "Requieren atención" en dashboard admin — deliberadamente excluido del bloque.
+- Botón Renovar desde `/profile` (vista ADMIN del perfil del alumno) — backlog.
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Preparar entorno demo/preview en Vercel (ver sección abajo)
-2. ~~Definir política de consumo de `usedSessions`~~ ✅ Implementado
-3. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
-4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
-5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
-6. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
-7. Vista de membresía en Home MEMBER — alerta si membresía vencida o sin sesiones
+1. ~~Definir política de consumo de `usedSessions`~~ ✅ Implementado
+2. ~~Alerta membresía vencida/sin sesiones en Home MEMBER~~ ✅ Implementado
+3. ~~Flujo de renovación de membresías~~ ✅ Implementado
+4. **Validar ciclo MEMBER post-renovación** — verificar que la alerta Home desaparece al renovar
+5. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
+6. KPI "Sin sesiones" / "Requieren atención" en dashboard admin
+7. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+8. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+9. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
+10. Preparar entorno demo/preview en Vercel (ver sección abajo)
 
 ---
 

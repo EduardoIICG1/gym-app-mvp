@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { Plus, Search } from "lucide-react";
@@ -34,6 +35,34 @@ function initials(name: string) {
 function todayStr(): string { return new Date().toISOString().slice(0, 10); }
 function addDays(date: string, days: number): string {
   const d = new Date(date); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10);
+}
+
+// Returns true if membership `a` is more recent than `b` for the same member+service.
+// endDate === "" means no end date (unlimited) → treated as "infinite future" → always more recent.
+function isMoreRecent(a: Membership, b: Membership): boolean {
+  const aNoEnd = a.endDate === "";
+  const bNoEnd = b.endDate === "";
+  if (aNoEnd && bNoEnd) return a.startDate > b.startDate;
+  if (aNoEnd) return true;
+  if (bNoEnd) return false;
+  if (a.endDate !== b.endDate) return a.endDate > b.endDate;
+  return a.startDate > b.startDate; // tiebreak by start date
+}
+
+function computeRenewDates(m: Membership): { startDate: string; endDate: string } {
+  const today = todayStr();
+  const newStart = m.endDate && m.endDate >= today ? addDays(m.endDate, 1) : today;
+  const durationDays =
+    m.startDate && m.endDate
+      ? Math.max(Math.round((new Date(m.endDate).getTime() - new Date(m.startDate).getTime()) / 86400000), 1)
+      : 30;
+  return { startDate: newStart, endDate: addDays(newStart, durationDays) };
+}
+
+interface RenewState {
+  planName: string; totalSessions: string;
+  startDate: string; endDate: string;
+  amount: string; paymentStatus: PaymentStatus;
 }
 
 interface Group { studentId: string; studentName: string; studentEmail: string; memberships: Membership[]; }
@@ -76,6 +105,12 @@ export default function MembershipsPage() {
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
+  const activeUser = useCurrentUser();
+  const [renewSource, setRenewSource] = useState<Membership | null>(null);
+  const [renewState,  setRenewState]  = useState<RenewState | null>(null);
+  const [renewing,    setRenewing]    = useState(false);
+  const [renewError,  setRenewError]  = useState<string | null>(null);
+
   const coaches = allMembers.filter((m) => m.roles.includes("coach"));
   const memberOptions = allMembers.filter((m) => !m.roles.includes("coach"));
 
@@ -105,6 +140,17 @@ export default function MembershipsPage() {
     return acc;
   }, []);
 
+  // One Renovar button per (studentId, serviceType) — only the most recent membership.
+  const renewableIds: Set<string> = (() => {
+    const latest = new Map<string, Membership>();
+    for (const m of memberships) {
+      const key = `${m.studentId}:${m.serviceType}`;
+      const prev = latest.get(key);
+      if (!prev || isMoreRecent(m, prev)) latest.set(key, m);
+    }
+    return new Set(Array.from(latest.values()).map(m => m.id));
+  })();
+
   const total = memberships.length;
   const active = memberships.filter((m) => m.membershipStatus === "active").length;
   const expiringSoon = memberships.filter((m) => { if (m.membershipStatus !== "active") return false; const d = daysUntil(m.endDate); return d >= 0 && d <= 7; }).length;
@@ -130,6 +176,58 @@ export default function MembershipsPage() {
     if (res.ok) { const updated: Membership = await res.json(); setMemberships((prev) => prev.map((m) => m.id === updated.id ? updated : m)); showToast("Membresía actualizada"); }
     else { showToast("Error al actualizar", false); }
     setSaving(false); setEditing(null); setEditState(null);
+  };
+
+  const openRenew = (m: Membership) => {
+    const { startDate, endDate } = computeRenewDates(m);
+    setRenewSource(m);
+    setRenewState({
+      planName:      m.plan,
+      totalSessions: m.totalSessions != null ? String(m.totalSessions) : "",
+      startDate,
+      endDate,
+      amount:        String(m.amount),
+      paymentStatus: "pending",
+    });
+    setRenewError(null);
+  };
+
+  const handleRenew = async () => {
+    if (!renewSource || !renewState || renewing) return;
+    setRenewing(true);
+    setRenewError(null);
+    const isAdmin = activeUser.role === "admin";
+    const body: Record<string, unknown> = {
+      planName:      renewState.planName,
+      totalSessions: renewState.totalSessions !== "" ? Number(renewState.totalSessions) : null,
+      startDate:     renewState.startDate,
+      endDate:       renewState.endDate,
+      ...(isAdmin && {
+        amount:        Number(renewState.amount),
+        paymentStatus: renewState.paymentStatus,
+      }),
+    };
+    const res = await fetch(`/api/memberships/${renewSource.id}/renew`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const created: Membership = await res.json();
+      setMemberships(prev => [created, ...prev]);
+      setRenewSource(null);
+      setRenewState(null);
+      showToast("Membresía renovada correctamente");
+    } else {
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      const msg =
+        res.status === 403 ? (data.error ?? "No tienes permiso para renovar esta membresía.") :
+        res.status === 409 ? "Ya existe una membresía activa para este servicio en el período seleccionado." :
+        res.status === 404 ? "La membresía original ya no existe." :
+        (data.error ?? "No se pudo renovar la membresía. Intenta nuevamente.");
+      setRenewError(msg);
+    }
+    setRenewing(false);
   };
 
   const openAddServiceForGroup = (studentId: string) => { setAddServiceForm(defaultAddService(studentId)); setShowAddService(true); };
@@ -338,13 +436,41 @@ export default function MembershipsPage() {
 
                       {m.notes && <p className="text-xs mb-3 italic" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{m.notes}</p>}
 
-                      <button
-                        onClick={() => openEdit(m)}
-                        className="w-full text-xs py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
-                        style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
-                      >
-                        Editar membresía
-                      </button>
+                      {m.totalSessions != null && (
+                        <div className="flex justify-between text-xs mb-3">
+                          <span style={{ color: "var(--text-secondary)" }}>Sesiones</span>
+                          <span style={{ color: (m.usedSessions ?? 0) >= m.totalSessions ? "#ef4444" : "var(--text-primary)" }}>
+                            {m.usedSessions ?? 0} / {m.totalSessions} usadas
+                          </span>
+                        </div>
+                      )}
+
+                      {renewableIds.has(m.id) ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => openEdit(m)}
+                            className="flex-1 text-xs py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
+                            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => openRenew(m)}
+                            className="flex-1 text-xs py-1.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                            style={{ background: "#4fc3f715", color: "#4fc3f7", border: "1px solid #4fc3f730" }}
+                          >
+                            ↻ Renovar
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => openEdit(m)}
+                          className="w-full text-xs py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
+                          style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                        >
+                          Editar
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -593,6 +719,132 @@ export default function MembershipsPage() {
                     className="flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90"
                     style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}>
                     {saving ? "Guardando..." : "Guardar"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Renew Modal */}
+      <AnimatePresence>
+        {renewSource && renewState && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => { setRenewSource(null); setRenewState(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-md rounded-2xl border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Renovar membresía</h2>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{renewSource.studentName}</span>
+                      <span style={{ color: "var(--text-muted)" }}>·</span>
+                      <ServiceBadge type={renewSource.serviceType} />
+                    </div>
+                  </div>
+                  <button onClick={() => { setRenewSource(null); setRenewState(null); }} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                </div>
+
+                {/* Origin reference */}
+                <div className="rounded-xl px-4 py-3 mb-4 text-xs space-y-1" style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}>
+                  <p className="font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Membresía origen (referencia)</p>
+                  <div className="flex justify-between">
+                    <span style={{ color: "var(--text-secondary)" }}>Vigencia</span>
+                    <span style={{ color: "var(--text-primary)" }}>
+                      {formatDate(renewSource.startDate)} → {renewSource.endDate ? formatDate(renewSource.endDate) : "Sin fecha fin"}
+                    </span>
+                  </div>
+                  {renewSource.totalSessions != null && (
+                    <div className="flex justify-between">
+                      <span style={{ color: "var(--text-secondary)" }}>Sesiones</span>
+                      <span style={{ color: "var(--text-primary)" }}>{renewSource.usedSessions ?? 0} / {renewSource.totalSessions} usadas</span>
+                    </div>
+                  )}
+                  {activeUser.role === "coach" && (
+                    <div className="flex justify-between">
+                      <span style={{ color: "var(--text-secondary)" }}>Monto de referencia</span>
+                      <span style={{ color: "var(--text-primary)" }}>${renewSource.amount.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Editable fields */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Plan / nombre</label>
+                    <input type="text" value={renewState.planName}
+                      onChange={(e) => setRenewState({ ...renewState, planName: e.target.value })}
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Sesiones totales (pack)</label>
+                    <input type="number" min="1" placeholder="Dejar vacío para ilimitado"
+                      value={renewState.totalSessions}
+                      onChange={(e) => setRenewState({ ...renewState, totalSessions: e.target.value })}
+                      className={inputCls} style={inputStyle} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Fecha inicio</label>
+                      <input type="date" value={renewState.startDate}
+                        onChange={(e) => setRenewState({ ...renewState, startDate: e.target.value })}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Fecha fin</label>
+                      <input type="date" value={renewState.endDate}
+                        onChange={(e) => setRenewState({ ...renewState, endDate: e.target.value })}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                  </div>
+
+                  {/* ADMIN only: amount + paymentStatus */}
+                  {activeUser.role === "admin" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Monto ($)</label>
+                        <input type="number" value={renewState.amount}
+                          onChange={(e) => setRenewState({ ...renewState, amount: e.target.value })}
+                          className={inputCls} style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Estado pago</label>
+                        <select value={renewState.paymentStatus}
+                          onChange={(e) => setRenewState({ ...renewState, paymentStatus: e.target.value as PaymentStatus })}
+                          className={inputCls} style={inputStyle}>
+                          {(["paid", "pending", "overdue"] as const).map((v) => <option key={v} value={v}>{PAYMENT_LABELS[v]}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {renewError && (
+                  <p className="text-xs mt-3 font-medium" style={{ color: "#ef4444" }}>{renewError}</p>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => { setRenewSource(null); setRenewState(null); }}
+                    className="flex-1 py-2 rounded-xl text-sm font-medium hover:bg-white/5 transition-colors"
+                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={handleRenew} disabled={renewing || !renewState.startDate || !renewState.endDate}
+                    className="flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}>
+                    {renewing ? "Renovando..." : "Crear renovación"}
                   </button>
                 </div>
               </div>

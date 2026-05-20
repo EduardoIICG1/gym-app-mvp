@@ -163,6 +163,12 @@ export async function POST(
             ? Number(body.totalSessions)
             : null)
         : source.totalSessions;
+    if (newTotalSessions !== null && newTotalSessions <= 0) {
+      return Response.json(
+        { error: "El número de sesiones debe ser al menos 1. Deja el campo vacío para acceso ilimitado." },
+        { status: 400 }
+      );
+    }
 
     // amount: ADMIN can override; COACH inherits from source
     const newAmount =

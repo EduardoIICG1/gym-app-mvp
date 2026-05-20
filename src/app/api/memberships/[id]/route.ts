@@ -95,9 +95,16 @@ export async function PUT(
       updateData.endDate = body.endDate ? new Date(body.endDate + "T23:59:59") : null;
     }
     if (body.totalSessions !== undefined) {
-      updateData.totalSessions = (body.totalSessions !== null && body.totalSessions !== "")
+      const parsedSessions = (body.totalSessions !== null && body.totalSessions !== "")
         ? Number(body.totalSessions)
         : null;
+      if (parsedSessions !== null && parsedSessions <= 0) {
+        return Response.json(
+          { error: "El número de sesiones debe ser al menos 1. Deja el campo vacío para acceso ilimitado." },
+          { status: 400 }
+        );
+      }
+      updateData.totalSessions = parsedSessions;
     }
 
     const updated = await prisma.membership.update({

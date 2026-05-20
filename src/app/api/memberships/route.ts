@@ -158,6 +158,12 @@ export async function POST(request: Request) {
     const start = new Date(startDate + "T00:00:00");
     const end = endDate ? new Date(endDate + "T23:59:59") : null;
     const sessions = totalSessions != null && totalSessions !== "" ? Number(totalSessions) : null;
+    if (sessions !== null && sessions <= 0) {
+      return Response.json(
+        { error: "El número de sesiones debe ser al menos 1. Deja el campo vacío para acceso ilimitado." },
+        { status: 400 }
+      );
+    }
 
     // Check for overlapping active membership for same member+service
     const duplicate = await prisma.membership.findFirst({

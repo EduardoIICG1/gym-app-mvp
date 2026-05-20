@@ -117,6 +117,7 @@ export async function POST(request: Request) {
 
       const memberships = await prisma.membership.findMany({
         where: { memberId, serviceType },
+        orderBy: { createdAt: "desc" },
       });
 
       if (memberships.length === 0) {

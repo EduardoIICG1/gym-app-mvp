@@ -169,6 +169,10 @@ export default function MembershipsPage() {
   };
   const handleSave = async () => {
     if (!editing || !editState) return;
+    if (editState.totalSessions === 0) {
+      showToast("El número de sesiones debe ser al menos 1. Deja el campo vacío para acceso ilimitado.", false);
+      return;
+    }
     setSaving(true);
     const res = await fetch(`/api/memberships/${editing.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editState),
@@ -194,6 +198,10 @@ export default function MembershipsPage() {
 
   const handleRenew = async () => {
     if (!renewSource || !renewState || renewing) return;
+    if (renewState.totalSessions !== "" && Number(renewState.totalSessions) === 0) {
+      setRenewError("El número de sesiones debe ser al menos 1. Deja el campo vacío para acceso ilimitado.");
+      return;
+    }
     setRenewing(true);
     setRenewError(null);
     const isAdmin = activeUser.role === "admin";
@@ -234,6 +242,10 @@ export default function MembershipsPage() {
   const openAddServiceGeneral = () => { setAddServiceForm(defaultAddService("")); setShowAddService(true); };
   const handleAddService = async () => {
     if (!addServiceForm.studentId) { showToast("Selecciona un miembro", false); return; }
+    if (addServiceForm.totalSessions !== "" && Number(addServiceForm.totalSessions) === 0) {
+      showToast("El número de sesiones debe ser al menos 1. Deja el campo vacío para acceso ilimitado.", false);
+      return;
+    }
     setAddingService(true);
     const coachObj = addServiceForm.coachId ? coaches.find((c) => c.id === addServiceForm.coachId) : null;
     const body = {

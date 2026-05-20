@@ -39,19 +39,20 @@ function addDays(date: string, days: number): string {
 interface Group { studentId: string; studentName: string; studentEmail: string; memberships: Membership[]; }
 interface EditState {
   plan: MembershipPlan; membershipStatus: MembershipStatus; paymentStatus: PaymentStatus;
-  amount: number; startDate: string; endDate: string;
+  amount: number; startDate: string; endDate: string; totalSessions: number | null;
 }
 interface AddServiceForm {
   studentId: string; serviceType: ServiceType; plan: MembershipPlan;
   membershipStatus: MembershipStatus; paymentStatus: PaymentStatus;
   amount: string; startDate: string; endDate: string; coachId: string; notes: string;
+  totalSessions: string;
 }
 
 const defaultAddService = (studentId = ""): AddServiceForm => ({
   studentId, serviceType: "group", plan: "mensual",
   membershipStatus: "active", paymentStatus: "pending",
   amount: "1200", startDate: todayStr(), endDate: addDays(todayStr(), 30),
-  coachId: "", notes: "",
+  coachId: "", notes: "", totalSessions: "",
 });
 
 const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40";
@@ -118,7 +119,7 @@ export default function MembershipsPage() {
 
   const openEdit = (m: Membership) => {
     setEditing(m);
-    setEditState({ plan: m.plan, membershipStatus: m.membershipStatus, paymentStatus: m.paymentStatus, amount: m.amount, startDate: m.startDate, endDate: m.endDate });
+    setEditState({ plan: m.plan, membershipStatus: m.membershipStatus, paymentStatus: m.paymentStatus, amount: m.amount, startDate: m.startDate, endDate: m.endDate, totalSessions: m.totalSessions ?? null });
   };
   const handleSave = async () => {
     if (!editing || !editState) return;
@@ -137,7 +138,12 @@ export default function MembershipsPage() {
     if (!addServiceForm.studentId) { showToast("Selecciona un miembro", false); return; }
     setAddingService(true);
     const coachObj = addServiceForm.coachId ? coaches.find((c) => c.id === addServiceForm.coachId) : null;
-    const body = { ...addServiceForm, amount: Number(addServiceForm.amount), ...(coachObj && { coachId: coachObj.id, coachName: coachObj.name }) };
+    const body = {
+      ...addServiceForm,
+      amount: Number(addServiceForm.amount),
+      totalSessions: addServiceForm.totalSessions !== "" ? Number(addServiceForm.totalSessions) : null,
+      ...(coachObj && { coachId: coachObj.id, coachName: coachObj.name }),
+    };
     const res = await fetch("/api/memberships", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setAddingService(false);
     if (res.ok) { setShowAddService(false); showToast("Servicio agregado correctamente"); await fetchMemberships(); }
@@ -442,6 +448,13 @@ export default function MembershipsPage() {
                         className={inputCls} style={inputStyle} />
                     </div>
                   </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Sesiones totales (pack)</label>
+                    <input type="number" min="1" placeholder="Dejar vacío para ilimitado"
+                      value={addServiceForm.totalSessions}
+                      onChange={(e) => setAddServiceForm((f) => ({ ...f, totalSessions: e.target.value }))}
+                      className={inputCls} style={inputStyle} />
+                  </div>
                   {(addServiceForm.serviceType === "personal_training" || addServiceForm.serviceType === "kinesiology") && (
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach / Profesional</label>
@@ -520,6 +533,21 @@ export default function MembershipsPage() {
                       <input type="number" value={editState.amount}
                         onChange={(e) => setEditState({ ...editState, amount: Number(e.target.value) })}
                         className={inputCls} style={inputStyle} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Sesiones totales</label>
+                      <input type="number" min="1" placeholder="Ilimitado"
+                        value={editState.totalSessions ?? ""}
+                        onChange={(e) => setEditState({ ...editState, totalSessions: e.target.value !== "" ? Number(e.target.value) : null })}
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Sesiones usadas</label>
+                      <input type="text" readOnly
+                        value={editing.usedSessions ?? 0}
+                        className={inputCls} style={{ ...inputStyle, opacity: 0.5, cursor: "default" }} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">

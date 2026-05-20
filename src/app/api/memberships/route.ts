@@ -117,15 +117,35 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
+  }
+  if (session.user.role !== "ADMIN" && session.user.role !== "COACH") {
+    return Response.json({ error: "Sin permisos" }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const {
       studentId, serviceType, plan, startDate, endDate,
-      membershipStatus = "active", paymentStatus = "pending", amount,
+      membershipStatus = "active", paymentStatus = "pending", amount, totalSessions,
     } = body;
 
     if (!studentId || !serviceType || !plan || !startDate) {
       return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
+    }
+
+    const dbSvcType: DbServiceType = SVC_REVERSE[serviceType] ?? "GROUP";
+
+    // COACH: must have an active MemberCoach relation for this member+service
+    if (session.user.role === "COACH") {
+      const relation = await prisma.memberCoach.findFirst({
+        where: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType, isActive: true },
+      });
+      if (!relation) {
+        return Response.json({ error: "No tienes permiso para agregar servicios a este miembro" }, { status: 403 });
+      }
     }
 
     const member = await prisma.user.findUnique({ where: { id: studentId } });
@@ -134,10 +154,10 @@ export async function POST(request: Request) {
     }
 
     const dbStatus: DbStatus = STATUS_REVERSE[membershipStatus] ?? "ACTIVE";
-    const dbSvcType: DbServiceType = SVC_REVERSE[serviceType] ?? "GROUP";
     const dbPayment: DbPaymentStatus = PAYMENT_REVERSE[paymentStatus] ?? "PENDING";
     const start = new Date(startDate + "T00:00:00");
     const end = endDate ? new Date(endDate + "T23:59:59") : null;
+    const sessions = totalSessions != null && totalSessions !== "" ? Number(totalSessions) : null;
 
     // Check for overlapping active membership for same member+service
     const duplicate = await prisma.membership.findFirst({
@@ -173,6 +193,7 @@ export async function POST(request: Request) {
         status: dbStatus,
         amount: amount != null ? Number(amount) : 0,
         paymentStatus: dbPayment,
+        ...(sessions !== null ? { totalSessions: sessions } : {}),
       },
       include: { member: { select: { id: true, name: true, email: true } } },
     });

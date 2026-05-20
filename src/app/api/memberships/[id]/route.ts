@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Membership, ServiceType, MembershipStatus, PaymentStatus } from "@/lib/types";
 import type {
@@ -42,6 +43,14 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
+  }
+  if (session.user.role !== "ADMIN" && session.user.role !== "COACH") {
+    return Response.json({ error: "Sin permisos" }, { status: 403 });
+  }
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -51,6 +60,16 @@ export async function PUT(
       return Response.json({ error: "Membresía no encontrada" }, { status: 404 });
     }
 
+    // COACH: must have an active MemberCoach relation for this member+service
+    if (session.user.role === "COACH") {
+      const relation = await prisma.memberCoach.findFirst({
+        where: { memberId: existing.memberId, coachId: session.user.id, serviceType: existing.serviceType, isActive: true },
+      });
+      if (!relation) {
+        return Response.json({ error: "No tienes permiso para editar esta membresía" }, { status: 403 });
+      }
+    }
+
     const updateData: {
       planName?: string;
       status?: DbStatus;
@@ -58,6 +77,7 @@ export async function PUT(
       amount?: number;
       startDate?: Date;
       endDate?: Date | null;
+      totalSessions?: number | null;
     } = {};
 
     if (body.plan !== undefined) updateData.planName = String(body.plan);
@@ -73,6 +93,11 @@ export async function PUT(
     }
     if (body.endDate !== undefined) {
       updateData.endDate = body.endDate ? new Date(body.endDate + "T23:59:59") : null;
+    }
+    if (body.totalSessions !== undefined) {
+      updateData.totalSessions = (body.totalSessions !== null && body.totalSessions !== "")
+        ? Number(body.totalSessions)
+        : null;
     }
 
     const updated = await prisma.membership.update({

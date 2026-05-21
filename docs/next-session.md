@@ -894,6 +894,74 @@ Cuando un MEMBER paga o regulariza hoy, el gym necesita activar el acceso de inm
 
 ---
 
+---
+
+### Validación COACH real — Parcialmente validada (2026-05-21)
+
+**Setup realizado:**
+- Cuenta COACH: `primary.coach.test@gmail.com` (`id: cmpfy5if...`), role=COACH, isActive=true
+- MemberCoach PT activa: coach ↔ `performanceprimary.task@gmail.com`, serviceType=PERSONAL_TRAINING
+- Sesión PT de prueba: `test_sess_pt_coach`, 2026-05-26 14:00–15:00, asignada al coach
+
+**Validado:**
+- Home COACH carga correctamente; "Próximas clases" muestra la sesión PT asignada
+- Calendario: sesión propia abre ManageModal; sesiones ajenas abren ClassModal (read-only)
+- `/admin/classes` y `/admin/members` cargan para COACH — gap documentado (ve toda la base)
+- `/admin/memberships` **no aparece en la navegación** para COACH — gap crítico identificado
+
+**Gaps documentados:**
+- COACH ve todos los miembros en `/admin/members`, no solo los suyos
+- COACH ve todas las clases en `/admin/classes`, incluyendo las de otros coaches
+- COACH no tiene acceso al módulo de membresías desde la navegación → no puede renovar/reactivar sin acceso directo por URL
+- No se validó asistencia por ausencia de bookings en la sesión de prueba
+
+**Pendientes para completar validación COACH:**
+- Dar acceso a membresías en navegación COACH (filtrado por sus alumnos)
+- Validar renovación de membresía PT desde COACH real (endpoint ya preparado)
+- Filtrar `/admin/members` para mostrar solo alumnos del coach
+- Crear booking en `test_sess_pt_coach` para validar flujo de asistencia
+
+---
+
+### Modelo de origen de membresía — BLOQUE 1 ✅ — Implementado (2026-05-21)
+
+**Commits:**
+- `7fb7a21` feat: add membership grant type to schema
+- `763fe03` feat: propagate membership grant type through api
+- `f37eac7` feat: add grant type ui to memberships
+- `b77da61` chore: add grant type to seed memberships
+
+**Qué se implementó:**
+
+**Schema:** enum `GrantType` (PURCHASED | RENEWAL | REACTIVATION | GIFT | COMPENSATION | TRIAL), campo `WAIVED` en `PaymentStatus`, campos `grantType @default(PURCHASED)`, `grantedById?` y `grantReason?` en `Membership`. Relación `grantedBy` hacia `User`.
+
+**API:** los tres endpoints de membresía (POST, PUT, POST renew) aceptan `grantType` y `grantReason`. `grantedById` siempre del JWT (nunca del cliente). Tipos no comerciales fuerzan `amount = 0` y `paymentStatus = WAIVED`. COACH puede crear GIFT para sus alumnos; COMPENSATION y TRIAL requieren ADMIN.
+
+**UI (`/admin/memberships`):** selector "Tipo de acceso" en modal Agregar; campo "Motivo" para tipos no comerciales; amount y paymentStatus read-only para GIFT/COMPENSATION/TRIAL; modal Editar muestra tipo de acceso y motivo como read-only; badge en cards para tipos distintos a PURCHASED; KPI Ingresos excluye tipos no comerciales.
+
+**Seed:** membresías base actualizadas con `grantType: "PURCHASED"` y `grantedById: admin.id`.
+
+**Reglas de negocio:**
+- PURCHASED / RENEWAL / REACTIVATION son accesos comerciales; cuentan en ingresos si `paymentStatus = PAID`
+- GIFT / COMPENSATION / TRIAL son accesos no comerciales; `amount = 0`, `paymentStatus = WAIVED`, no suman a ingresos
+- Elegibilidad para reservar **no cambia por grantType** — si la membresía está ACTIVE, vigente y con sesiones disponibles, el MEMBER puede reservar sin importar cómo se originó
+- `grantedById` y `grantReason` permiten trazabilidad de quién otorgó el acceso y por qué motivo
+
+**Por qué importa:**
+Refleja la realidad del gym boutique donde no todo acceso viene de una compra directa. Coaches y dueña pueden otorgar beneficios por permanencia, compensar clases perdidas o dar trials, sin contaminar los reportes financieros ni imponer una operación rígida.
+
+**Validación realizada:**
+- Regalía creada correctamente; badge morado visible en card; motivo visible; amount = $0; paymentStatus = Exonerado
+- Modal Editar de Regalía muestra amount read-only y "Exonerado" en lugar del select; backend fuerza WAIVED en PUT
+- Compensación y Trial no se validaron por solapamiento con membresía activa existente (no es bug de grantType)
+
+**Pendientes controlados:**
+- Validar Compensación y Trial con fechas/servicios sin solapamiento
+- Filtrar vistas COACH para mostrar solo sus alumnos (gap de membresías y miembros)
+- Decidir si COACH puede crear GIFT desde UI sin restricción adicional en producción
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
@@ -901,12 +969,14 @@ Backlog abierto. Opciones priorizadas:
 2. ~~Alerta membresía vencida/sin sesiones en Home MEMBER~~ ✅ Implementado
 3. ~~Flujo de renovación de membresías~~ ✅ Implementado
 4. ~~Validar ciclo MEMBER post-renovación~~ ✅ Validado (2026-05-20)
-5. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
-6. KPI "Sin sesiones" / "Requieren atención" en dashboard admin
-7. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
-8. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
-9. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
-10. Preparar entorno demo/preview en Vercel (ver sección abajo)
+5. ~~Modelo de origen de membresía (grantType)~~ ✅ Implementado (2026-05-21)
+6. **MVP de invitaciones/agendamiento** — COACH invita alumnos elegibles a una clase; MEMBER acepta/rechaza; al aceptar se crea Booking CONFIRMED
+7. Completar validación COACH real: filtrar membresías/miembros por coach, dar acceso a navbar, validar asistencia
+8. KPI "Sin sesiones" / "Requieren atención" en dashboard admin
+9. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+10. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+11. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
+12. Preparar entorno demo/preview en Vercel (ver sección abajo)
 
 ---
 

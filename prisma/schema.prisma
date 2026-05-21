@@ -47,6 +47,16 @@ enum PaymentStatus {
   PAID
   PENDING
   OVERDUE
+  WAIVED
+}
+
+enum GrantType {
+  PURCHASED
+  RENEWAL
+  REACTIVATION
+  GIFT
+  COMPENSATION
+  TRIAL
 }
 
 enum AnnouncementType {
@@ -75,13 +85,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  coachSessions   Session[]     @relation("CoachSessions")
-  coachRelations  MemberCoach[] @relation("CoachRelations")
-  memberRelations MemberCoach[] @relation("MemberRelations")
-  bookings        Booking[]
-  memberships     Membership[]
-  defaultPrograms Program[]     @relation("DefaultCoach")
-  announcements   Announcement[] @relation("AuthorAnnouncements")
+  coachSessions      Session[]      @relation("CoachSessions")
+  coachRelations     MemberCoach[]  @relation("CoachRelations")
+  memberRelations    MemberCoach[]  @relation("MemberRelations")
+  bookings           Booking[]
+  memberships        Membership[]
+  defaultPrograms    Program[]      @relation("DefaultCoach")
+  announcements      Announcement[] @relation("AuthorAnnouncements")
+  grantedMemberships Membership[]   @relation("MembershipGrantedBy")
 }
 
 // Many-to-many: Member ↔ Coach with service type
@@ -172,10 +183,14 @@ model Membership {
   status        MembershipStatus @default(ACTIVE)
   amount        Int              @default(0)
   paymentStatus PaymentStatus    @default(PAID)
+  grantType     GrantType        @default(PURCHASED)
+  grantedById   String?
+  grantReason   String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @default(now()) @updatedAt
 
-  member User @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member    User  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("MembershipGrantedBy", fields: [grantedById], references: [id])
 
   @@index([memberId])
   @@index([status])

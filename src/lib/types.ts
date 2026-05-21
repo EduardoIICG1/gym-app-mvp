@@ -7,7 +7,7 @@ export type BookingMode = "regular" | "makeup_only";
 export type AttendanceStatus = "pending_attendance" | "attended" | "absent";
 export type ReservationStatus = "reserved" | "attended" | "absent" | "cancelled";
 export type MembershipStatus = "active" | "expired" | "cancelled" | "pending";
-export type PaymentStatus = "paid" | "pending" | "overdue";
+export type PaymentStatus = "paid" | "pending" | "overdue" | "waived";
 export type MembershipPlan = "mensual" | "trimestral" | "semestral" | "anual";
 
 export interface GymClass {

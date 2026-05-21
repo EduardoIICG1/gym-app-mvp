@@ -31,6 +31,7 @@ const PAYMENT_MAP: Record<DbPaymentStatus, PaymentStatus> = {
   PAID:    "paid",
   PENDING: "pending",
   OVERDUE: "overdue",
+  WAIVED:  "waived",
 };
 
 const PAYMENT_REVERSE: Record<string, DbPaymentStatus> = {

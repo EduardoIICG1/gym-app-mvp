@@ -59,10 +59,26 @@ function computeRenewDates(m: Membership): { startDate: string; endDate: string 
   return { startDate: newStart, endDate: addDays(newStart, durationDays) };
 }
 
+function computeFromTodayDates(m: Membership): { startDate: string; endDate: string } {
+  const today = todayStr();
+  const durationDays =
+    m.startDate && m.endDate
+      ? Math.max(Math.round((new Date(m.endDate).getTime() - new Date(m.startDate).getTime()) / 86400000), 1)
+      : 30;
+  return { startDate: today, endDate: addDays(today, durationDays) };
+}
+
+function defaultRenewMode(m: Membership): "next_cycle" | "from_today" {
+  if (m.membershipStatus !== "active") return "from_today";
+  if (m.totalSessions != null && (m.usedSessions ?? 0) >= m.totalSessions) return "from_today";
+  return "next_cycle";
+}
+
 interface RenewState {
   planName: string; totalSessions: string;
   startDate: string; endDate: string;
   amount: string; paymentStatus: PaymentStatus;
+  renewMode: "next_cycle" | "from_today";
 }
 
 interface Group { studentId: string; studentName: string; studentEmail: string; memberships: Membership[]; }
@@ -151,6 +167,13 @@ export default function MembershipsPage() {
     return new Set(Array.from(latest.values()).map(m => m.id));
   })();
 
+  const showOverlapWarning =
+    renewSource !== null &&
+    renewState?.renewMode === "from_today" &&
+    renewSource.membershipStatus === "active" &&
+    renewSource.endDate !== "" &&
+    renewSource.endDate >= todayStr();
+
   const total = memberships.length;
   const active = memberships.filter((m) => m.membershipStatus === "active").length;
   const expiringSoon = memberships.filter((m) => { if (m.membershipStatus !== "active") return false; const d = daysUntil(m.endDate); return d >= 0 && d <= 7; }).length;
@@ -183,7 +206,8 @@ export default function MembershipsPage() {
   };
 
   const openRenew = (m: Membership) => {
-    const { startDate, endDate } = computeRenewDates(m);
+    const mode = defaultRenewMode(m);
+    const { startDate, endDate } = mode === "from_today" ? computeFromTodayDates(m) : computeRenewDates(m);
     setRenewSource(m);
     setRenewState({
       planName:      m.plan,
@@ -192,8 +216,17 @@ export default function MembershipsPage() {
       endDate,
       amount:        String(m.amount),
       paymentStatus: "pending",
+      renewMode:     mode,
     });
     setRenewError(null);
+  };
+
+  const handleRenewModeChange = (mode: "next_cycle" | "from_today") => {
+    if (!renewSource || !renewState) return;
+    const { startDate, endDate } = mode === "from_today"
+      ? computeFromTodayDates(renewSource)
+      : computeRenewDates(renewSource);
+    setRenewState({ ...renewState, renewMode: mode, startDate, endDate });
   };
 
   const handleRenew = async () => {
@@ -789,6 +822,40 @@ export default function MembershipsPage() {
                       <span style={{ color: "var(--text-secondary)" }}>Monto de referencia</span>
                       <span style={{ color: "var(--text-primary)" }}>${renewSource.amount.toLocaleString()}</span>
                     </div>
+                  )}
+                </div>
+
+                {/* Mode selector */}
+                <div className="mb-4">
+                  <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Inicio de la renovación</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["next_cycle", "from_today"] as const).map((mode) => {
+                      const selected = renewState.renewMode === mode;
+                      const label = mode === "next_cycle" ? "Siguiente ciclo" : "Activar desde hoy";
+                      const help  = mode === "next_cycle"
+                        ? "La nueva membresía comenzará cuando termine la actual."
+                        : "El miembro podrá reservar desde hoy si la membresía queda activa.";
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => handleRenewModeChange(mode)}
+                          className="text-left p-3 rounded-xl border transition-colors"
+                          style={selected
+                            ? { background: "#4fc3f715", borderColor: "#4fc3f750", color: "var(--text-primary)" }
+                            : { background: "var(--background)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }
+                          }
+                        >
+                          <p className="text-xs font-semibold mb-0.5">{label}</p>
+                          <p className="text-xs" style={{ opacity: 0.7 }}>{help}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {showOverlapWarning && (
+                    <p className="text-xs mt-2 px-3 py-2 rounded-lg" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", color: "#f59e0b" }}>
+                      El período anterior aún no termina. Se creará una membresía activa desde hoy para reactivar el servicio.
+                    </p>
                   )}
                 </div>
 

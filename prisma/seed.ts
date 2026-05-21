@@ -285,7 +285,7 @@ async function main() {
   const memberships = await Promise.all([
     prisma.membership.upsert({
       where:  { id: ID.membrAna },
-      update: { planName: "Personal 10 sesiones", status: "ACTIVE", amount: 65000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-07-31") },
+      update: { planName: "Personal 10 sesiones", status: "ACTIVE", amount: 65000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-07-31"), grantType: "PURCHASED", grantedById: admin.id },
       create: {
         id:            ID.membrAna,
         memberId:      mem1.id,
@@ -298,11 +298,13 @@ async function main() {
         status:        "ACTIVE",
         amount:        65000,
         paymentStatus: "PAID",
+        grantType:     "PURCHASED",
+        grantedById:   admin.id,
       },
     }),
     prisma.membership.upsert({
       where:  { id: ID.membrCarlos },
-      update: { planName: "Kinesiología 8 sesiones", status: "ACTIVE", amount: 48000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-06-30") },
+      update: { planName: "Kinesiología 8 sesiones", status: "ACTIVE", amount: 48000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-06-30"), grantType: "PURCHASED", grantedById: admin.id },
       create: {
         id:            ID.membrCarlos,
         memberId:      mem2.id,
@@ -315,11 +317,13 @@ async function main() {
         status:        "ACTIVE",
         amount:        48000,
         paymentStatus: "PAID",
+        grantType:     "PURCHASED",
+        grantedById:   admin.id,
       },
     }),
     prisma.membership.upsert({
       where:  { id: ID.membrLucia },
-      update: { planName: "Grupal Mensual", status: "ACTIVE", amount: 25000, paymentStatus: "PENDING", startDate: new Date("2026-05-01"), endDate: new Date("2026-05-31") },
+      update: { planName: "Grupal Mensual", status: "ACTIVE", amount: 25000, paymentStatus: "PENDING", startDate: new Date("2026-05-01"), endDate: new Date("2026-05-31"), grantType: "PURCHASED", grantedById: admin.id },
       create: {
         id:            ID.membrLucia,
         memberId:      mem3.id,
@@ -332,6 +336,8 @@ async function main() {
         status:        "ACTIVE",
         amount:        25000,
         paymentStatus: "PENDING",
+        grantType:     "PURCHASED",
+        grantedById:   admin.id,
       },
     }),
   ]);
@@ -473,6 +479,8 @@ async function main() {
         status:        "ACTIVE",
         amount:        0,
         paymentStatus: "PAID",
+        grantType:     "PURCHASED",
+        grantedById:   admin.id,
       },
       create: {
         id:            "seed_membr_google_test_member",
@@ -486,6 +494,8 @@ async function main() {
         status:        "ACTIVE",
         amount:        0,
         paymentStatus: "PAID",
+        grantType:     "PURCHASED",
+        grantedById:   admin.id,
       },
     });
     console.log(`   ✓ Test MEMBER creado: ${testMemberEmail}\n`);

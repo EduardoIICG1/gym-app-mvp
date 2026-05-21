@@ -824,13 +824,83 @@ Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado si
 
 ---
 
+---
+
+### Validación ciclo MEMBER post-renovación ✅ — Validado (2026-05-20)
+
+**Escenario validado (Scenario B):**
+- MEMBER con GROUP vencida + PT ACTIVE 5/5 agotada.
+- Alertas Home correctas (roja GROUP, ámbar PT) antes de renovar.
+- ADMIN renova GROUP desde hoy → alerta GROUP desaparece; reserva grupal habilitada.
+- ADMIN renova PT antigua (5/5) con modo "Activar desde hoy" → nueva PT ACTIVE 0/10 desde hoy; alerta PT desaparece; clases PT visibles en Calendario.
+- Membresías anteriores intactas (5/5 y GROUP vencida preservadas como historial).
+- Reserva PT no se pudo probar por clase sin cupos (no por bloqueo de membresía — comportamiento correcto).
+
+**Observación operativa documentada:**
+La renovación con endDate futuro (ej. PT activa hasta dic 2026) creaba el siguiente ciclo para 2027 — correcto para renovación anticipada pero no para reactivación inmediata cuando el alumno paga hoy. Esto generó el bloque "Activar desde hoy" implementado a continuación.
+
+---
+
+### Robustez de membresías — Bloque A ✅ — Implementado (2026-05-20)
+
+**Commit:** `3200012` fix: prevent zero-session memberships
+
+**Problema resuelto:** el sistema aceptaba `totalSessions = 0`, creando membresías con pack que bloqueaban al MEMBER desde el primer momento (0 sesiones disponibles) sin mensaje de error.
+
+**Regla de producto:**
+- Campo vacío → `null` → acceso ilimitado.
+- Número > 0 → pack válido.
+- `0` → inválido; rechazado con mensaje claro.
+
+**Cambios:**
+- Frontend (3 modales en `/admin/memberships`): validación antes del fetch. Modal Renovar usa `renewError`; modales Añadir y Editar usan toast.
+- Backend (3 endpoints): `POST /api/memberships`, `PUT /api/memberships/[id]`, `POST /api/memberships/[id]/renew` rechazan `totalSessions <= 0` con HTTP 400.
+- `POST /api/reservations`: `findMany` de membresías ahora incluye `orderBy: { createdAt: "desc" }`. Garantiza que si hay dos membresías ACTIVE solapadas, el sistema evalúa primero la más reciente válida.
+
+---
+
+### Toggle "Siguiente ciclo / Activar desde hoy" — Bloque B ✅ — Implementado (2026-05-20)
+
+**Commit:** `451876a` feat: add renew mode selector
+
+**Gap resuelto:**
+Cuando un MEMBER paga o regulariza hoy, el gym necesita activar el acceso de inmediato. La renovación anticipada (siguiente ciclo) es correcta para renovaciones planificadas, pero no sirve cuando el alumno necesita reservar esta tarde.
+
+**Cambios en `/admin/memberships`:**
+
+- Selector de dos opciones en el modal Renovar, entre el panel de referencia y los campos editables:
+  - **Siguiente ciclo:** `newStart = endDate + 1 día` si endDate es futuro. Para renovaciones planificadas.
+  - **Activar desde hoy:** `newStart = hoy` siempre. Para reactivar acceso inmediato.
+- Defaults inteligentes:
+  - Membresía vencida, cancelada o pendiente → default: **Activar desde hoy**.
+  - ACTIVE con sesiones agotadas → default: **Activar desde hoy**.
+  - ACTIVE con sesiones disponibles → default: **Siguiente ciclo**.
+- Aviso de solapamiento (ámbar, no bloqueante): visible cuando se elige "Activar desde hoy" y la membresía origen aún está ACTIVE por fecha. Informa sin impedir la operación.
+- Al cambiar de modo, las fechas se recalculan automáticamente; el admin puede editarlas después.
+
+**Reglas de rol:**
+- ADMIN y COACH pueden usar ambos modos.
+- COACH sigue sin poder modificar `amount` ni `paymentStatus`.
+- El toggle es solo UI — el endpoint recibe `startDate` igual que antes; no hubo cambio de backend.
+
+**Validación:**
+- PT agotada (5/5) → modal abre con "Activar desde hoy" pre-seleccionado → aviso de solapamiento visible → renovación exitosa → MEMBER desbloqueado inmediatamente.
+
+**Pendientes controlados:**
+- Probar reserva PT cuando exista clase con cupos disponibles.
+- Validar COACH real con JWT COACH (no DevPanel).
+- Decidir si el COACH debe poder usar "Activar desde hoy" en producción sin límites financieros (hoy puede, no ve monto ni estado de pago).
+- Documentar guía rápida ADMIN/COACH: cuándo usar cada modo.
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
 1. ~~Definir política de consumo de `usedSessions`~~ ✅ Implementado
 2. ~~Alerta membresía vencida/sin sesiones en Home MEMBER~~ ✅ Implementado
 3. ~~Flujo de renovación de membresías~~ ✅ Implementado
-4. **Validar ciclo MEMBER post-renovación** — verificar que la alerta Home desaparece al renovar
+4. ~~Validar ciclo MEMBER post-renovación~~ ✅ Validado (2026-05-20)
 5. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
 6. KPI "Sin sesiones" / "Requieren atención" en dashboard admin
 7. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)

@@ -6,13 +6,14 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { Plus, Search } from "lucide-react";
 import {
-  Membership, MembershipStatus, MembershipPlan, PaymentStatus, ServiceType, Member,
+  Membership, MembershipStatus, MembershipPlan, PaymentStatus, ServiceType, Member, GrantType,
 } from "@/lib/types";
 import { ServiceBadge, MembershipBadge, PaymentBadge } from "@/components/Badge";
 import {
   SERVICE_LABELS,
   MEMBERSHIP_STATUS_LABELS as STATUS_LABELS,
   PAYMENT_STATUS_LABELS as PAYMENT_LABELS,
+  GRANT_TYPE_LABELS,
 } from "@/lib/labels";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -23,6 +24,16 @@ const PLAN_DAYS: Record<MembershipPlan, number> = {
   mensual: 30, trimestral: 90, semestral: 180, anual: 365,
 };
 const ALL_SERVICES: ServiceType[] = ["group", "personal_training", "kinesiology"];
+
+const NON_COMMERCIAL = new Set<GrantType>(["gift", "compensation", "trial"]);
+
+const GRANT_BADGE: Record<string, { bg: string; color: string }> = {
+  renewal:      { bg: "#4fc3f715", color: "#4fc3f7"  },
+  reactivation: { bg: "#4fc3f715", color: "#4fc3f7"  },
+  gift:         { bg: "#a78bfa15", color: "#a78bfa"  },
+  compensation: { bg: "#f59e0b15", color: "#f59e0b"  },
+  trial:        { bg: "#22c55e15", color: "#22c55e"  },
+};
 
 function formatDate(s: string) { const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; }
 function daysUntil(s: string) {
@@ -91,6 +102,7 @@ interface AddServiceForm {
   membershipStatus: MembershipStatus; paymentStatus: PaymentStatus;
   amount: string; startDate: string; endDate: string; coachId: string; notes: string;
   totalSessions: string;
+  grantType: GrantType; grantReason: string;
 }
 
 const defaultAddService = (studentId = ""): AddServiceForm => ({
@@ -98,6 +110,7 @@ const defaultAddService = (studentId = ""): AddServiceForm => ({
   membershipStatus: "active", paymentStatus: "pending",
   amount: "1200", startDate: todayStr(), endDate: addDays(todayStr(), 30),
   coachId: "", notes: "", totalSessions: "",
+  grantType: "purchased", grantReason: "",
 });
 
 const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40";
@@ -177,7 +190,9 @@ export default function MembershipsPage() {
   const total = memberships.length;
   const active = memberships.filter((m) => m.membershipStatus === "active").length;
   const expiringSoon = memberships.filter((m) => { if (m.membershipStatus !== "active") return false; const d = daysUntil(m.endDate); return d >= 0 && d <= 7; }).length;
-  const totalRevenue = memberships.filter((m) => m.paymentStatus === "paid").reduce((s, m) => s + m.amount, 0);
+  const totalRevenue = memberships
+    .filter((m) => m.paymentStatus === "paid" && !NON_COMMERCIAL.has(m.grantType ?? "purchased"))
+    .reduce((s, m) => s + m.amount, 0);
 
   const kpis = [
     { label: "Total Membresías", value: total, sub: "registradas", accent: "#4fc3f7" },
@@ -238,11 +253,13 @@ export default function MembershipsPage() {
     setRenewing(true);
     setRenewError(null);
     const isAdmin = activeUser.role === "admin";
+    const renewGrantType = renewState.renewMode === "from_today" ? "reactivation" : "renewal";
     const body: Record<string, unknown> = {
       planName:      renewState.planName,
       totalSessions: renewState.totalSessions !== "" ? Number(renewState.totalSessions) : null,
       startDate:     renewState.startDate,
       endDate:       renewState.endDate,
+      grantType:     renewGrantType,
       ...(isAdmin && {
         amount:        Number(renewState.amount),
         paymentStatus: renewState.paymentStatus,
@@ -281,10 +298,13 @@ export default function MembershipsPage() {
     }
     setAddingService(true);
     const coachObj = addServiceForm.coachId ? coaches.find((c) => c.id === addServiceForm.coachId) : null;
+    const isNonCommercialAdd = NON_COMMERCIAL.has(addServiceForm.grantType);
     const body = {
       ...addServiceForm,
-      amount: Number(addServiceForm.amount),
+      amount: isNonCommercialAdd ? 0 : Number(addServiceForm.amount),
+      paymentStatus: isNonCommercialAdd ? "waived" : addServiceForm.paymentStatus,
       totalSessions: addServiceForm.totalSessions !== "" ? Number(addServiceForm.totalSessions) : null,
+      grantReason: addServiceForm.grantReason.trim() || undefined,
       ...(coachObj && { coachId: coachObj.id, coachName: coachObj.name }),
     };
     const res = await fetch("/api/memberships", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -416,11 +436,17 @@ export default function MembershipsPage() {
                       }}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <ServiceBadge type={m.serviceType} />
                           <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#4fc3f715", color: "#4fc3f7" }}>
                             {PLAN_LABELS[m.plan]}
                           </span>
+                          {m.grantType && m.grantType !== "purchased" && GRANT_BADGE[m.grantType] && (
+                            <span className="text-xs px-2 py-0.5 rounded font-semibold"
+                              style={{ background: GRANT_BADGE[m.grantType].bg, color: GRANT_BADGE[m.grantType].color }}>
+                              {GRANT_TYPE_LABELS[m.grantType] ?? m.grantType}
+                            </span>
+                          )}
                         </div>
                         <MembershipBadge status={m.membershipStatus} />
                       </div>
@@ -480,6 +506,7 @@ export default function MembershipsPage() {
                       )}
 
                       {m.notes && <p className="text-xs mb-3 italic" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{m.notes}</p>}
+                      {m.grantReason && <p className="text-xs mb-3 italic" style={{ color: "var(--text-muted)" }}>Motivo: {m.grantReason}</p>}
 
                       {m.totalSessions != null && (
                         <div className="flex justify-between text-xs mb-3">
@@ -571,6 +598,54 @@ export default function MembershipsPage() {
                       ))}
                     </div>
                   </div>
+                  {/* Grant type selector */}
+                  <div>
+                    <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Tipo de acceso</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {(activeUser.role === "admin"
+                        ? (["purchased", "gift", "compensation", "trial"] as GrantType[])
+                        : (["purchased", "gift"] as GrantType[])
+                      ).map((gt) => {
+                        const selected = addServiceForm.grantType === gt;
+                        const badge = GRANT_BADGE[gt];
+                        return (
+                          <button key={gt} type="button"
+                            onClick={() => setAddServiceForm((f) => ({
+                              ...f,
+                              grantType: gt,
+                              amount:        NON_COMMERCIAL.has(gt) ? "0" : (f.amount === "0" ? "1200" : f.amount),
+                              paymentStatus: NON_COMMERCIAL.has(gt) ? "waived" : (f.paymentStatus === "waived" ? "pending" : f.paymentStatus),
+                              grantReason:   NON_COMMERCIAL.has(gt) ? f.grantReason : "",
+                            }))}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                            style={selected
+                              ? { background: badge ? badge.bg : "#4fc3f720", borderColor: badge ? badge.color + "50" : "#4fc3f750", color: badge ? badge.color : "#4fc3f7" }
+                              : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                            {GRANT_TYPE_LABELS[gt] ?? gt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Motivo — visible only for non-commercial */}
+                  {NON_COMMERCIAL.has(addServiceForm.grantType) && (
+                    <div>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                        Motivo <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(recomendado)</span>
+                      </label>
+                      <input type="text"
+                        value={addServiceForm.grantReason}
+                        onChange={(e) => setAddServiceForm((f) => ({ ...f, grantReason: e.target.value }))}
+                        placeholder={
+                          addServiceForm.grantType === "gift"         ? "Ej: Regalía por permanencia" :
+                          addServiceForm.grantType === "compensation"  ? "Ej: Compensación por clase cancelada" :
+                          "Ej: Trial primera semana"
+                        }
+                        className={inputCls} style={inputStyle} />
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Plan</label>
@@ -581,10 +656,14 @@ export default function MembershipsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Monto ($)</label>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                        Monto ($){NON_COMMERCIAL.has(addServiceForm.grantType) && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> — gratuito</span>}
+                      </label>
                       <input type="number" value={addServiceForm.amount}
-                        onChange={(e) => setAddServiceForm((f) => ({ ...f, amount: e.target.value }))}
-                        className={inputCls} style={inputStyle} />
+                        readOnly={NON_COMMERCIAL.has(addServiceForm.grantType)}
+                        onChange={(e) => !NON_COMMERCIAL.has(addServiceForm.grantType) && setAddServiceForm((f) => ({ ...f, amount: e.target.value }))}
+                        className={inputCls}
+                        style={{ ...inputStyle, ...(NON_COMMERCIAL.has(addServiceForm.grantType) ? { opacity: 0.45, cursor: "default" } : {}) }} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -598,11 +677,16 @@ export default function MembershipsPage() {
                     </div>
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Estado pago</label>
-                      <select value={addServiceForm.paymentStatus}
-                        onChange={(e) => setAddServiceForm((f) => ({ ...f, paymentStatus: e.target.value as PaymentStatus }))}
-                        className={inputCls} style={inputStyle}>
-                        {(["paid", "pending", "overdue"] as const).map((v) => <option key={v} value={v}>{PAYMENT_LABELS[v]}</option>)}
-                      </select>
+                      {NON_COMMERCIAL.has(addServiceForm.grantType) ? (
+                        <input type="text" readOnly value="Exonerado"
+                          className={inputCls} style={{ ...inputStyle, opacity: 0.45, cursor: "default" }} />
+                      ) : (
+                        <select value={addServiceForm.paymentStatus}
+                          onChange={(e) => setAddServiceForm((f) => ({ ...f, paymentStatus: e.target.value as PaymentStatus }))}
+                          className={inputCls} style={inputStyle}>
+                          {(["paid", "pending", "overdue"] as const).map((v) => <option key={v} value={v}>{PAYMENT_LABELS[v]}</option>)}
+                        </select>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -690,6 +774,22 @@ export default function MembershipsPage() {
                   <button onClick={() => setEditing(null)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
                 </div>
                 <div className="space-y-4">
+                  {editing.grantType && editing.grantType !== "purchased" && (
+                    <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}>
+                      <div className="flex items-center gap-2">
+                        <span style={{ color: "var(--text-secondary)" }}>Tipo de acceso</span>
+                        {GRANT_BADGE[editing.grantType] && (
+                          <span className="px-2 py-0.5 rounded font-semibold"
+                            style={{ background: GRANT_BADGE[editing.grantType].bg, color: GRANT_BADGE[editing.grantType].color }}>
+                            {GRANT_TYPE_LABELS[editing.grantType] ?? editing.grantType}
+                          </span>
+                        )}
+                      </div>
+                      {editing.grantReason && (
+                        <p className="mt-1 italic" style={{ color: "var(--text-muted)" }}>Motivo: {editing.grantReason}</p>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Plan</label>
@@ -700,10 +800,14 @@ export default function MembershipsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Monto ($)</label>
+                      <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                        Monto ($){editing.grantType && NON_COMMERCIAL.has(editing.grantType) && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> — gratuito</span>}
+                      </label>
                       <input type="number" value={editState.amount}
-                        onChange={(e) => setEditState({ ...editState, amount: Number(e.target.value) })}
-                        className={inputCls} style={inputStyle} />
+                        readOnly={!!(editing.grantType && NON_COMMERCIAL.has(editing.grantType))}
+                        onChange={(e) => { if (!(editing.grantType && NON_COMMERCIAL.has(editing.grantType))) setEditState({ ...editState, amount: Number(e.target.value) }); }}
+                        className={inputCls}
+                        style={{ ...inputStyle, ...(editing.grantType && NON_COMMERCIAL.has(editing.grantType) ? { opacity: 0.45, cursor: "default" } : {}) }} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -732,11 +836,16 @@ export default function MembershipsPage() {
                     </div>
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Estado pago</label>
-                      <select value={editState.paymentStatus}
-                        onChange={(e) => setEditState({ ...editState, paymentStatus: e.target.value as PaymentStatus })}
-                        className={inputCls} style={inputStyle}>
-                        {(["paid", "pending", "overdue"] as const).map((v) => <option key={v} value={v}>{PAYMENT_LABELS[v]}</option>)}
-                      </select>
+                      {editing.grantType && NON_COMMERCIAL.has(editing.grantType) ? (
+                        <input type="text" readOnly value="Exonerado"
+                          className={inputCls} style={{ ...inputStyle, opacity: 0.45, cursor: "default" }} />
+                      ) : (
+                        <select value={editState.paymentStatus}
+                          onChange={(e) => setEditState({ ...editState, paymentStatus: e.target.value as PaymentStatus })}
+                          className={inputCls} style={inputStyle}>
+                          {(["paid", "pending", "overdue"] as const).map((v) => <option key={v} value={v}>{PAYMENT_LABELS[v]}</option>)}
+                        </select>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">

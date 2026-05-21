@@ -119,6 +119,12 @@ export async function PUT(
       updateData.totalSessions = parsedSessions;
     }
 
+    // Non-commercial memberships keep amount=0 and paymentStatus=WAIVED regardless of body
+    if (existing.grantType === "GIFT" || existing.grantType === "COMPENSATION" || existing.grantType === "TRIAL") {
+      updateData.amount = 0;
+      updateData.paymentStatus = "WAIVED";
+    }
+
     const updated = await prisma.membership.update({
       where: { id },
       data: updateData,

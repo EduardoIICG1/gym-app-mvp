@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import type { Membership, ServiceType, MembershipStatus, PaymentStatus } from "@/lib/types";
+import type { Membership, ServiceType, MembershipStatus, PaymentStatus, GrantType } from "@/lib/types";
 import type {
   MembershipStatus as DbStatus,
   ServiceType as DbServiceType,
   PaymentStatus as DbPaymentStatus,
+  GrantType as DbGrantType,
 } from "@prisma/client";
 
 // ── Mapping tables ────────────────────────────────────────────────────────────
@@ -33,7 +34,28 @@ const PAYMENT_REVERSE: Record<string, DbPaymentStatus> = {
   paid:    "PAID",
   pending: "PENDING",
   overdue: "OVERDUE",
+  waived:  "WAIVED",
 };
+
+const GRANT_MAP: Record<DbGrantType, GrantType> = {
+  PURCHASED:    "purchased",
+  RENEWAL:      "renewal",
+  REACTIVATION: "reactivation",
+  GIFT:         "gift",
+  COMPENSATION: "compensation",
+  TRIAL:        "trial",
+};
+
+const GRANT_REVERSE: Record<string, DbGrantType> = {
+  purchased:    "PURCHASED",
+  renewal:      "RENEWAL",
+  reactivation: "REACTIVATION",
+  gift:         "GIFT",
+  compensation: "COMPENSATION",
+  trial:        "TRIAL",
+};
+
+const NON_COMMERCIAL_GRANTS = new Set(["gift", "compensation", "trial"]);
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -138,6 +160,23 @@ export async function POST(
       }
     }
 
+    // ── grantType ────────────────────────────────────────────────────────────
+    const grantTypeRaw = typeof body.grantType === "string" ? body.grantType : "renewal";
+    if (!(grantTypeRaw in GRANT_REVERSE)) {
+      return Response.json({ error: "Tipo de acceso inválido" }, { status: 400 });
+    }
+    const dbGrantType: DbGrantType = GRANT_REVERSE[grantTypeRaw];
+    const isNonCommercial = NON_COMMERCIAL_GRANTS.has(grantTypeRaw);
+
+    // COACH cannot create compensation or trial
+    if (session.user.role === "COACH" && (grantTypeRaw === "compensation" || grantTypeRaw === "trial")) {
+      return Response.json({ error: "Solo ADMIN puede crear compensaciones o trials" }, { status: 403 });
+    }
+
+    const newGrantReason = typeof body.grantReason === "string" && body.grantReason.trim()
+      ? body.grantReason.trim()
+      : undefined;
+
     // ── Dates ────────────────────────────────────────────────────────────────
     const { startDate: suggestedStart, endDate: suggestedEnd } = computeRenewDates(
       { startDate: source.startDate, endDate: source.endDate },
@@ -171,19 +210,19 @@ export async function POST(
       );
     }
 
-    // amount: ADMIN can override; COACH inherits from source
-    const newAmount =
-      session.user.role === "ADMIN" && body.amount != null
-        ? Number(body.amount)
-        : source.amount;
+    // amount: non-commercial forces 0; ADMIN can override; COACH inherits from source
+    const newAmount: number = isNonCommercial
+      ? 0
+      : (session.user.role === "ADMIN" && body.amount != null ? Number(body.amount) : source.amount);
 
-    // paymentStatus: ADMIN can override; COACH always PENDING
-    const newPaymentStatus: DbPaymentStatus =
-      session.user.role === "ADMIN" &&
-      typeof body.paymentStatus === "string" &&
-      body.paymentStatus in PAYMENT_REVERSE
-        ? PAYMENT_REVERSE[body.paymentStatus]
-        : "PENDING";
+    // paymentStatus: non-commercial forces WAIVED; ADMIN can override; COACH always PENDING
+    const newPaymentStatus: DbPaymentStatus = isNonCommercial
+      ? "WAIVED"
+      : (session.user.role === "ADMIN" &&
+         typeof body.paymentStatus === "string" &&
+         body.paymentStatus in PAYMENT_REVERSE
+           ? PAYMENT_REVERSE[body.paymentStatus]
+           : "PENDING");
 
     // ── Overlap guard ────────────────────────────────────────────────────────
     // Exclude the source itself to avoid self-conflict (e.g. unlimited memberships).
@@ -218,6 +257,9 @@ export async function POST(
         usedSessions:  0,
         amount:        newAmount,
         paymentStatus: newPaymentStatus,
+        grantType:     dbGrantType,
+        grantedById:   session.user.id,
+        ...(newGrantReason !== undefined ? { grantReason: newGrantReason } : {}),
         ...(newTotalSessions !== null ? { totalSessions: newTotalSessions } : {}),
       },
       include: { member: { select: { id: true, name: true, email: true } } },
@@ -238,6 +280,9 @@ export async function POST(
       endDate:          created.endDate ? created.endDate.toISOString().slice(0, 10) : "",
       totalSessions:    created.totalSessions,
       usedSessions:     created.usedSessions,
+      grantType:        GRANT_MAP[created.grantType] ?? "renewal",
+      grantedById:      created.grantedById ?? undefined,
+      grantReason:      created.grantReason ?? undefined,
     };
 
     return Response.json(response, { status: 201 });

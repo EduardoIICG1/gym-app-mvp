@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import type { Membership, ServiceType, MembershipStatus, PaymentStatus } from "@/lib/types";
+import type { Membership, ServiceType, MembershipStatus, PaymentStatus, GrantType } from "@/lib/types";
 import type {
   MembershipStatus as DbStatus,
   ServiceType as DbServiceType,
   PaymentStatus as DbPaymentStatus,
+  GrantType as DbGrantType,
 } from "@prisma/client";
 
 const SVC_MAP: Partial<Record<DbServiceType, ServiceType>> = {
@@ -38,6 +39,16 @@ const PAYMENT_REVERSE: Record<string, DbPaymentStatus> = {
   paid:    "PAID",
   pending: "PENDING",
   overdue: "OVERDUE",
+  waived:  "WAIVED",
+};
+
+const GRANT_MAP: Record<DbGrantType, GrantType> = {
+  PURCHASED:    "purchased",
+  RENEWAL:      "renewal",
+  REACTIVATION: "reactivation",
+  GIFT:         "gift",
+  COMPENSATION: "compensation",
+  TRIAL:        "trial",
 };
 
 export async function PUT(
@@ -128,6 +139,9 @@ export async function PUT(
       endDate: updated.endDate ? updated.endDate.toISOString().slice(0, 10) : "",
       totalSessions: updated.totalSessions,
       usedSessions: updated.usedSessions,
+      grantType:   GRANT_MAP[updated.grantType] ?? "purchased",
+      grantedById: updated.grantedById ?? undefined,
+      grantReason: updated.grantReason ?? undefined,
     };
 
     return Response.json(response);

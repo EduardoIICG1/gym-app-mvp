@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import type { Membership, ServiceType, MembershipStatus, PaymentStatus } from "@/lib/types";
+import type { Membership, ServiceType, MembershipStatus, PaymentStatus, GrantType } from "@/lib/types";
 import type {
   MembershipStatus as DbStatus,
   ServiceType as DbServiceType,
   PaymentStatus as DbPaymentStatus,
+  GrantType as DbGrantType,
 } from "@prisma/client";
 
 const SVC_MAP: Partial<Record<DbServiceType, ServiceType>> = {
@@ -44,7 +45,28 @@ const PAYMENT_REVERSE: Record<string, DbPaymentStatus> = {
   paid:    "PAID",
   pending: "PENDING",
   overdue: "OVERDUE",
+  waived:  "WAIVED",
 };
+
+const GRANT_MAP: Record<DbGrantType, GrantType> = {
+  PURCHASED:    "purchased",
+  RENEWAL:      "renewal",
+  REACTIVATION: "reactivation",
+  GIFT:         "gift",
+  COMPENSATION: "compensation",
+  TRIAL:        "trial",
+};
+
+const GRANT_REVERSE: Record<string, DbGrantType> = {
+  purchased:    "PURCHASED",
+  renewal:      "RENEWAL",
+  reactivation: "REACTIVATION",
+  gift:         "GIFT",
+  compensation: "COMPENSATION",
+  trial:        "TRIAL",
+};
+
+const NON_COMMERCIAL_GRANTS = new Set(["gift", "compensation", "trial"]);
 
 async function fetchMemberships(filter: {
   status?: DbStatus;
@@ -85,6 +107,9 @@ function toMembership(m: MembershipRow): MembershipResponse {
     endDate: m.endDate ? m.endDate.toISOString().slice(0, 10) : "",
     totalSessions: m.totalSessions,
     usedSessions: m.usedSessions,
+    grantType:   GRANT_MAP[m.grantType] ?? "purchased",
+    grantedById: m.grantedById ?? undefined,
+    grantReason: m.grantReason ?? undefined,
   };
 }
 
@@ -131,11 +156,19 @@ export async function POST(request: Request) {
     const {
       studentId, serviceType, plan, startDate, endDate,
       membershipStatus = "active", paymentStatus = "pending", amount, totalSessions,
+      grantType: grantTypeRaw = "purchased", grantReason,
     } = body;
 
     if (!studentId || !serviceType || !plan || !startDate) {
       return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
     }
+
+    // Validate grantType
+    if (!(grantTypeRaw in GRANT_REVERSE)) {
+      return Response.json({ error: "Tipo de acceso inválido" }, { status: 400 });
+    }
+    const dbGrantType: DbGrantType = GRANT_REVERSE[grantTypeRaw];
+    const isNonCommercial = NON_COMMERCIAL_GRANTS.has(grantTypeRaw);
 
     const dbSvcType: DbServiceType = SVC_REVERSE[serviceType] ?? "GROUP";
 
@@ -147,6 +180,10 @@ export async function POST(request: Request) {
       if (!relation) {
         return Response.json({ error: "No tienes permiso para agregar servicios a este miembro" }, { status: 403 });
       }
+      // COACH can only create GIFT for own members; COMPENSATION and TRIAL require ADMIN
+      if (grantTypeRaw === "compensation" || grantTypeRaw === "trial") {
+        return Response.json({ error: "Solo ADMIN puede crear compensaciones o trials" }, { status: 403 });
+      }
     }
 
     const member = await prisma.user.findUnique({ where: { id: studentId } });
@@ -155,7 +192,6 @@ export async function POST(request: Request) {
     }
 
     const dbStatus: DbStatus = STATUS_REVERSE[membershipStatus] ?? "ACTIVE";
-    const dbPayment: DbPaymentStatus = PAYMENT_REVERSE[paymentStatus] ?? "PENDING";
     const start = new Date(startDate + "T00:00:00");
     const end = endDate ? new Date(endDate + "T23:59:59") : null;
     const sessions = totalSessions != null && totalSessions !== "" ? Number(totalSessions) : null;
@@ -165,6 +201,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Non-commercial grants force amount=0 and paymentStatus=WAIVED
+    const finalAmount: number  = isNonCommercial ? 0 : (amount != null ? Number(amount) : 0);
+    const dbPayment: DbPaymentStatus = isNonCommercial ? "WAIVED" : (PAYMENT_REVERSE[paymentStatus] ?? "PENDING");
 
     // Check for overlapping active membership for same member+service
     const duplicate = await prisma.membership.findFirst({
@@ -198,8 +238,11 @@ export async function POST(request: Request) {
         startDate: start,
         endDate: end,
         status: dbStatus,
-        amount: amount != null ? Number(amount) : 0,
+        amount: finalAmount,
         paymentStatus: dbPayment,
+        grantType:   dbGrantType,
+        grantedById: session.user.id,
+        grantReason: typeof grantReason === "string" && grantReason.trim() ? grantReason.trim() : undefined,
         ...(sessions !== null ? { totalSessions: sessions } : {}),
       },
       include: { member: { select: { id: true, name: true, email: true } } },

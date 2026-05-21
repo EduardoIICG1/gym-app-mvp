@@ -9,6 +9,7 @@ export type ReservationStatus = "reserved" | "attended" | "absent" | "cancelled"
 export type MembershipStatus = "active" | "expired" | "cancelled" | "pending";
 export type PaymentStatus = "paid" | "pending" | "overdue" | "waived";
 export type MembershipPlan = "mensual" | "trimestral" | "semestral" | "anual";
+export type GrantType = "purchased" | "renewal" | "reactivation" | "gift" | "compensation" | "trial";
 
 export interface GymClass {
   id: string;
@@ -94,6 +95,9 @@ export interface Membership {
   coachId?: string;
   coachName?: string;
   notes?: string;
+  grantType?: GrantType;
+  grantedById?: string;
+  grantReason?: string;
 }
 
 export interface User {

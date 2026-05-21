@@ -19,6 +19,16 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   paid:    "Pagado",
   pending: "Pendiente",
   overdue: "Vencido",
+  waived:  "Exonerado",
+};
+
+export const GRANT_TYPE_LABELS: Record<string, string> = {
+  purchased:    "Comprado",
+  renewal:      "Renovación",
+  reactivation: "Reactivación",
+  gift:         "Regalía",
+  compensation: "Compensación",
+  trial:        "Trial",
 };
 
 export const ROLE_LABELS: Record<string, string> = {

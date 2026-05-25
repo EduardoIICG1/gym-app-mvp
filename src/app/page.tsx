@@ -1204,9 +1204,14 @@ export default function Home() {
                   })}
                 </div>
                 {pendingInvitations.length > 1 && (
-                  <p className="text-xs mt-3" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
-                    Las demás quedarán disponibles en Solicitudes cuando habilitemos la sección.
-                  </p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                      {pendingInvitations.length - 1} más esperando tu respuesta.
+                    </p>
+                    <Link href="/solicitudes" className="text-xs font-semibold hover:underline" style={{ color: "#4fc3f7" }}>
+                      Ver solicitudes →
+                    </Link>
+                  </div>
                 )}
               </motion.div>
             )}

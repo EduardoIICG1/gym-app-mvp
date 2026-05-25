@@ -67,13 +67,20 @@ const STATUS_CONFIG: Record<ClassBookingStatus, { label: string; bg: string; col
   open_for_booking: { label: "Abierta",         bg: "#22c55e20", color: "#22c55e" },
 };
 
+interface CalendarPendingInvitation {
+  id: string;
+  session: { id: string };
+}
+
 // ── Member Class Modal ──────────────────────────────────────────────────────
 function ClassModal({
   cls, dateStr, reserved, canBook, bookingStatus, loading, membershipBlocked,
+  hasPendingInvitation,
   onClose, onReserve, onCancel,
 }: {
   cls: GymClass; dateStr: string; reserved: boolean; canBook: boolean;
   bookingStatus: ClassBookingStatus; loading: boolean; membershipBlocked?: boolean;
+  hasPendingInvitation?: boolean;
   onClose: () => void; onReserve: () => void; onCancel: () => void;
 }) {
   const pct = cls.maxCapacity > 0 ? Math.min((cls.reservedCount / cls.maxCapacity) * 100, 100) : 0;
@@ -157,6 +164,19 @@ function ClassModal({
               <span className="text-xs px-3 py-1 rounded-full font-semibold" style={{ background: statusCfg.bg, color: statusCfg.color }}>
                 {statusCfg.label}
               </span>
+            </div>
+          )}
+
+          {/* Pending invitation notice */}
+          {!reserved && hasPendingInvitation && (
+            <div className="mb-3 p-3 rounded-xl" style={{ background: "#f59e0b10", border: "1px solid #f59e0b30" }}>
+              <p className="text-xs font-semibold mb-0.5" style={{ color: "#f59e0b" }}>Invitado a esta clase</p>
+              <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
+                Tienes una solicitud pendiente para esta clase.
+              </p>
+              <Link href="/solicitudes" className="text-xs font-semibold hover:underline" style={{ color: "#f59e0b" }}>
+                Ver solicitud →
+              </Link>
             </div>
           )}
 
@@ -758,6 +778,7 @@ export default function CalendarPage() {
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
   const [validServiceTypes, setValidServiceTypes] = useState<Set<string> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingInvitations, setPendingInvitations] = useState<CalendarPendingInvitation[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
   const [modal, setModal] = useState<{ cls: GymClass; dateStr: string } | null>(null);
   const [manageModal, setManageModal] = useState<{ cls: GymClass; dateStr: string } | null>(null);
@@ -808,6 +829,13 @@ export default function CalendarPage() {
   }, [toast]);
   useEffect(() => {
     if (!CURRENT_USER_ID || IS_ADMIN_OR_COACH) return;
+    fetch("/api/invitations?status=pending")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setPendingInvitations(data))
+      .catch(() => {});
+  }, [CURRENT_USER_ID, IS_ADMIN_OR_COACH]);
+  useEffect(() => {
+    if (!CURRENT_USER_ID || IS_ADMIN_OR_COACH) return;
     fetch("/api/memberships")
       .then((r) => r.json())
       .then((data: Array<{ membershipStatus: string; serviceType: string; startDate: string; endDate: string; totalSessions?: number | null; usedSessions?: number }>) => {
@@ -830,6 +858,7 @@ export default function CalendarPage() {
   }, [CURRENT_USER_ID, IS_ADMIN_OR_COACH]);
 
   const canBookMakeup = currentMember?.canBookMakeupClasses === true;
+  const pendingInvitedSessions = new Map(pendingInvitations.map(inv => [inv.session.id, true]));
   const coachFilterNames = Array.from(new Set(classes.filter(c => c.eventType !== "blocked_time").map(c => c.coach))).sort();
 
   const isReserved = (classId: string, dateStr: string) =>
@@ -1000,6 +1029,9 @@ export default function CalendarPage() {
           )}
           {reserved && (
             <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>Reservada</span>
+          )}
+          {!reserved && !IS_ADMIN_OR_COACH && pendingInvitedSessions.has(cls.id) && (
+            <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#f59e0b20", color: "#f59e0b" }}>Invitado</span>
           )}
           {IS_ADMIN_OR_COACH ? null : <BookingStatusChip status={bookingStatus} />}
         </div>
@@ -1176,6 +1208,7 @@ export default function CalendarPage() {
               bookingStatus={bookingStatus}
               loading={actionLoading}
               membershipBlocked={validServiceTypes !== null && !validServiceTypes.has(modal.cls.serviceType)}
+              hasPendingInvitation={!IS_ADMIN_OR_COACH && pendingInvitedSessions.has(modal.cls.id)}
               onClose={() => setModal(null)}
               onReserve={() => handleReserve(modal.cls.id, modal.dateStr)}
               onCancel={() => handleCancel(modal.cls.id, modal.dateStr)}

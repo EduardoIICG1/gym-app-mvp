@@ -38,6 +38,23 @@ interface HomeMembership {
   usedSessions: number;
 }
 
+interface PendingInvitation {
+  id: string;
+  status: string;
+  message: string | null;
+  session: {
+    id: string;
+    programName: string;
+    serviceType: string;
+    sessionDate: string;
+    startTime: string;
+    coachName: string;
+    capacity: number;
+    spotsLeft: number | null;
+    status: string;
+  };
+}
+
 type MemberAlertSeverity = "critical" | "no_sessions" | "pending";
 
 interface MembershipAlert {
@@ -152,6 +169,12 @@ const SVC_LABEL: Record<string, string> = {
   kinesiology:       "Kinesiología",
 };
 
+const SVC_SHORT: Record<string, string> = {
+  group:             "Grupal",
+  personal_training: "Personal Training",
+  kinesiology:       "Kinesiología",
+};
+
 const ALERT_COLORS: Record<MemberAlertSeverity, { bg: string; accent: string }> = {
   critical:    { bg: "rgba(239,68,68,0.08)",  accent: "#ef4444" },
   no_sessions: { bg: "rgba(245,158,11,0.08)", accent: "#f59e0b" },
@@ -232,6 +255,12 @@ export default function Home() {
   const [membershipAlerts,   setMembershipAlerts]   = useState<MembershipAlert[]>([]);
   const [membershipsLoading, setMembershipsLoading] = useState(true);
 
+  // ── Pending invitations state (MEMBER only) ──────────────────────────────
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(true);
+  const [respondingId,       setRespondingId]       = useState<string | null>(null);
+  const [inviteErrors,       setInviteErrors]       = useState<Record<string, string>>({});
+
   // ── Announcements state ──────────────────────────────────────────────────
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
@@ -294,6 +323,17 @@ export default function Home() {
       })
       .catch(() => {})
       .finally(() => setMembershipsLoading(false));
+  }, [activeUser.id, activeUser.isLoading, activeUser.role]);
+
+  // Fetch pending invitations (MEMBER only)
+  useEffect(() => {
+    if (activeUser.isLoading) return;
+    if (activeUser.role !== "member") { setInvitationsLoading(false); return; }
+    fetch("/api/invitations?status=pending")
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setPendingInvitations(data))
+      .catch(() => {})
+      .finally(() => setInvitationsLoading(false));
   }, [activeUser.id, activeUser.isLoading, activeUser.role]);
 
   // Close create modal on Escape
@@ -471,6 +511,33 @@ export default function Home() {
       setSaving(false);
     }
   }
+
+  // ── Respond to invitation ────────────────────────────────────────────────
+  const handleRespond = async (invId: string, status: "accepted" | "declined") => {
+    setRespondingId(invId);
+    setInviteErrors(prev => { const n = { ...prev }; delete n[invId]; return n; });
+    try {
+      const r = await fetch(`/api/invitations/${invId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        const msg = (d as { error?: string }).error ?? "Error al responder. Intenta nuevamente.";
+        setInviteErrors(prev => ({ ...prev, [invId]: msg }));
+        return;
+      }
+      setPendingInvitations(prev => prev.filter(i => i.id !== invId));
+      if (status === "accepted" && activeUser.id) {
+        fetch(`/api/reservations?userId=${activeUser.id}`)
+          .then(r2 => r2.ok ? r2.json() : [])
+          .then(data => setReservations(data));
+      }
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   const gymDow = gymDayOfWeek();
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -1055,6 +1122,93 @@ export default function Home() {
                   );
                 })}
               </div>
+            )}
+
+            {/* MEMBER: Convocatorias pendientes */}
+            {activeUser.role === "member" && !invitationsLoading && pendingInvitations.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.13 }}
+                className="rounded-2xl p-6 border"
+                style={{ background: "var(--card)", borderColor: "#4fc3f740" }}
+              >
+                <h3 className="font-bold text-lg mb-1" style={{ color: "var(--text-primary)" }}>
+                  {pendingInvitations.length === 1 ? "¿Asistirás a esta clase?" : "Tienes solicitudes pendientes"}
+                </h3>
+                {pendingInvitations.length > 1 && (
+                  <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
+                    Tienes {pendingInvitations.length} invitaciones de clase por responder.
+                  </p>
+                )}
+                <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
+                  Confirmar asistencia reservará tu cupo si aún hay disponibilidad.
+                </p>
+                <div className="space-y-3">
+                  {(pendingInvitations.length > 1
+                    ? [...pendingInvitations].sort((a, b) => a.session.sessionDate.localeCompare(b.session.sessionDate)).slice(0, 1)
+                    : pendingInvitations
+                  ).map(inv => {
+                    const busy = respondingId === inv.id;
+                    const err  = inviteErrors[inv.id];
+                    const svcLabel = SVC_SHORT[inv.session.serviceType] ?? inv.session.serviceType;
+                    return (
+                      <div
+                        key={inv.id}
+                        className="p-4 rounded-xl border"
+                        style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
+                      >
+                        <p className="font-bold text-sm mb-0.5" style={{ color: "var(--text-primary)" }}>
+                          {inv.session.programName}
+                        </p>
+                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                          {svcLabel} · {inv.session.sessionDate} {inv.session.startTime} · {inv.session.coachName}
+                        </p>
+                        {inv.session.spotsLeft !== null && (
+                          <p className="text-xs mt-0.5" style={{ color: inv.session.spotsLeft === 0 ? "#ef4444" : "#22c55e" }}>
+                            {inv.session.spotsLeft === 0
+                              ? "Sin cupos disponibles"
+                              : `${inv.session.spotsLeft} cupo${inv.session.spotsLeft !== 1 ? "s" : ""} disponible${inv.session.spotsLeft !== 1 ? "s" : ""}`}
+                          </p>
+                        )}
+                        {inv.message && (
+                          <p className="text-xs mt-1 italic" style={{ color: "var(--text-secondary)", opacity: 0.75 }}>
+                            &ldquo;{inv.message}&rdquo;
+                          </p>
+                        )}
+                        {err && (
+                          <p className="text-xs px-2 py-1 rounded mt-2" style={{ background: "#ef444420", color: "#ef4444" }}>
+                            {err}
+                          </p>
+                        )}
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleRespond(inv.id, "accepted")}
+                            disabled={busy}
+                            className="flex-1 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40"
+                            style={{ background: "#4fc3f7", color: "#000" }}
+                          >
+                            {busy ? "..." : "Asistiré"}
+                          </button>
+                          <button
+                            onClick={() => handleRespond(inv.id, "declined")}
+                            disabled={busy}
+                            className="flex-1 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40"
+                            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                          >
+                            No asistiré
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {pendingInvitations.length > 1 && (
+                  <p className="text-xs mt-3" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                    Las demás quedarán disponibles en Solicitudes cuando habilitemos la sección.
+                  </p>
+                )}
+              </motion.div>
             )}
 
             {/* MEMBER: Mis próximas reservas */}

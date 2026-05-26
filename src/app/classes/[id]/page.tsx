@@ -29,6 +29,10 @@ interface SessionDetail {
   reservedCount: number;
   status: string;
   attendees?: Attendee[];
+  memberStatus?: "confirmed" | "pending_invitation" | null;
+  memberBookingId?: string | null;
+  memberInvitationId?: string | null;
+  attendeeNames?: string[];
 }
 
 interface InvitationItem {
@@ -291,6 +295,61 @@ export default function ClassDetailPage() {
       } : prev);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Error al cancelar");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ── Reload session (used after member actions) ───────────────────────────────
+  const reloadSession = async () => {
+    if (!id) return;
+    const r = await fetch(`/api/classes/${id}`);
+    if (r.ok) setSession(await r.json());
+  };
+
+  // ── Member self-cancel ────────────────────────────────────────────────────────
+  const handleMemberCancel = async () => {
+    if (!session) return;
+    if (!confirm("¿Cancelar tu inscripción?")) return;
+    setActionLoading("member-cancel");
+    setActionError("");
+    try {
+      const res = await fetch("/api/reservations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classId: session.id }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? "Error al cancelar");
+      }
+      const data = await res.json();
+      if (data.late) setActionError("Cancelación tardía: la sesión no fue recuperada.");
+      await reloadSession();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Error al cancelar");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ── Member invitation response ────────────────────────────────────────────────
+  const handleInvitationResponse = async (invId: string, status: "accepted" | "declined") => {
+    setActionLoading(`inv-${invId}`);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/invitations/${invId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error ?? "Error al responder");
+      }
+      await reloadSession();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Error al responder");
     } finally {
       setActionLoading(null);
     }
@@ -582,22 +641,117 @@ export default function ClassDetailPage() {
         </motion.div>
       )}
 
-      {/* MEMBER: only count, no names */}
+      {/* MEMBER: own status + actions + sanitized attendee names */}
       {!canSeeAttendees && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="rounded-2xl p-6 border text-center"
-          style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
-        >
-          <p className="text-3xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>
-            {session.reservedCount}
-          </p>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            {session.reservedCount === 1 ? "persona inscrita" : "personas inscritas"} de {session.capacity} cupos
-          </p>
-        </motion.div>
+        <>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="rounded-2xl p-6 border mb-5"
+            style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+          >
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                Tu inscripción
+              </p>
+              {session.memberStatus === "confirmed" && (
+                <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>
+                  Reservada
+                </span>
+              )}
+              {session.memberStatus === "pending_invitation" && (
+                <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#f59e0b20", color: "#f59e0b" }}>
+                  Invitado
+                </span>
+              )}
+            </div>
+
+            {actionError && (
+              <p className="text-xs mb-3 px-2 py-1 rounded" style={{ background: "#ef444420", color: "#ef4444" }}>
+                {actionError}
+              </p>
+            )}
+
+            {session.memberStatus === "pending_invitation" && session.memberInvitationId && (
+              <div>
+                <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
+                  Tienes una solicitud pendiente para esta clase.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleInvitationResponse(session.memberInvitationId!, "accepted")}
+                    disabled={actionLoading !== null}
+                    className="flex-1 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
+                    style={{ background: "#22c55e", color: "#fff" }}
+                  >
+                    {actionLoading !== null ? "..." : "Asistiré"}
+                  </button>
+                  <button
+                    onClick={() => handleInvitationResponse(session.memberInvitationId!, "declined")}
+                    disabled={actionLoading !== null}
+                    className="flex-1 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
+                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                  >
+                    {actionLoading !== null ? "..." : "No asistiré"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {session.memberStatus === "confirmed" && (
+              <div>
+                <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
+                  Estás inscrito/a en esta clase.
+                </p>
+                <button
+                  onClick={handleMemberCancel}
+                  disabled={actionLoading !== null}
+                  className="w-full py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-50"
+                  style={{ background: "#ef444420", color: "#ef4444" }}
+                >
+                  {actionLoading === "member-cancel" ? "Cancelando..." : "Cancelar inscripción"}
+                </button>
+              </div>
+            )}
+
+            {!session.memberStatus && (
+              <div className="text-center">
+                <p className="text-3xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+                  {session.reservedCount}
+                </p>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {session.reservedCount === 1 ? "persona inscrita" : "personas inscritas"} de {session.capacity} cupos
+                </p>
+              </div>
+            )}
+          </motion.div>
+
+          {session.attendeeNames && session.attendeeNames.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="rounded-2xl p-6 border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>
+                Compañeros inscritos ({session.attendeeNames.length})
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {session.attendeeNames.map((name, i) => (
+                  <span
+                    key={i}
+                    className="text-xs px-2.5 py-1 rounded-lg font-medium"
+                    style={{ background: "var(--card-border)", color: "var(--text-primary)" }}
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </>
       )}
 
       {/* ── Convocar alumnos modal ──────────────────────────────────────────── */}

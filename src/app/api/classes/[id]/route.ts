@@ -99,8 +99,27 @@ export async function GET(
     });
   }
 
-  // MEMBER: base data only, no attendees
-  return Response.json(base);
+  // MEMBER: base + sanitized attendee names + own booking/invitation state
+  const memberId = authSession.user.id;
+  const ownBooking = gymSession.bookings.find(
+    (b) => b.member.id === memberId && b.status === "CONFIRMED"
+  );
+  const ownInvitation = await prisma.bookingInvitation.findFirst({
+    where: { sessionId: id, memberId, status: "PENDING" },
+    select: { id: true },
+  });
+  const attendeeNames = gymSession.bookings
+    .filter((b) => b.status === "CONFIRMED")
+    .map((b) => b.member.name ?? "")
+    .filter(Boolean);
+
+  return Response.json({
+    ...base,
+    memberStatus: ownBooking ? "confirmed" : ownInvitation ? "pending_invitation" : null,
+    memberBookingId: ownBooking?.id ?? null,
+    memberInvitationId: ownInvitation?.id ?? null,
+    attendeeNames,
+  });
 }
 
 export async function PUT(

@@ -60,6 +60,10 @@ export async function GET(request: Request) {
   const userIdParam = searchParams.get("userId");
   const classId = searchParams.get("classId");
 
+  const isAdmin  = session.user.role === "ADMIN";
+  const isCoach  = session.user.role === "COACH";
+  const isMember = session.user.role === "MEMBER";
+
   const filter: { memberId?: string; sessionId?: string } = {};
 
   if (userIdParam) {
@@ -67,7 +71,28 @@ export async function GET(request: Request) {
     filter.memberId = session.user.id;
   }
 
-  if (classId) filter.sessionId = classId;
+  if (classId) {
+    if (isMember) {
+      // MEMBER: classId only returns own booking for that class — no attendee list exposure
+      filter.memberId = session.user.id;
+      filter.sessionId = classId;
+    } else if (isCoach) {
+      // COACH: can only see attendees of sessions they own
+      const gymSession = await prisma.session.findUnique({
+        where: { id: classId },
+        select: { coachId: true },
+      });
+      if (!gymSession) {
+        return Response.json({ error: "Sesión no encontrada" }, { status: 404 });
+      }
+      if (gymSession.coachId !== session.user.id) {
+        return Response.json({ error: "Acceso denegado" }, { status: 403 });
+      }
+      filter.sessionId = classId;
+    } else if (isAdmin) {
+      filter.sessionId = classId;
+    }
+  }
 
   const bookings = await fetchBookings(filter);
   return Response.json(bookings.map(toReservation));

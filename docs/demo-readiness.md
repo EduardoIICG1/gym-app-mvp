@@ -50,9 +50,29 @@ Existen en la DB para dar riqueza de datos. No tienen cuentas Google reales y **
 
 | Cuenta real | Tipo | Estado | Sesiones | Alerta |
 |-------------|------|--------|----------|--------|
-| `performanceprimary.task@gmail.com` | GROUP | ACTIVE | 20 disp., expira 31-May | "Membresía expira pronto" |
+| `performanceprimary.task@gmail.com` | GROUP | ACTIVE | 20 disp., expira 31-May | `expiring_soon` — "vence en N días" |
 | `laloosky@gmail.com` | PERSONAL_TRAINING | ACTIVE | 8/10 restantes | Ninguna |
-| `evergara.ing@gmail.com` | GROUP | EXPIRED | vencida 30-Apr | "Membresía vencida" |
+| `evergara.ing@gmail.com` | GROUP | EXPIRED | vencida 30-Apr | `critical` — "membresía vencida" |
+
+### Demo "sin sesiones" (placeholder, visible en admin)
+
+| Cuenta | Tipo | Estado | Sesiones | Alerta |
+|--------|------|--------|----------|--------|
+| `luciap@primaryperf.com` | GROUP | ACTIVE | 5/5 usadas | `no_sessions` — "sin sesiones disponibles" |
+
+> `luciap@primaryperf.com` no tiene cuenta Google real. El estado es visible en `/admin/memberships`.
+> Para demo del alert `no_sessions`, el admin puede mostrar el panel de membresías o describir el flujo.
+
+### Variables opcionales para CTA de renovación
+
+```
+# En .env.local (sin valores reales por defecto)
+NEXT_PUBLIC_GYM_WHATSAPP_NUMBER=521XXXXXXXXXX   # → abre wa.me con mensaje prellenado
+NEXT_PUBLIC_GYM_CONTACT_EMAIL=gym@ejemplo.com   # → fallback mailto si no hay WhatsApp
+```
+
+Si ninguna está definida, el botón "Contactar para renovar" no aparece — solo el texto de la alerta.
+El CTA aparece en alertas: `critical`, `no_sessions`, `expiring_soon`. No aparece en `pending`.
 
 ### Sesiones (relativas a la fecha del seed)
 
@@ -111,7 +131,9 @@ Existen en la DB para dar riqueza de datos. No tienen cuentas Google reales y **
 
 ## Checklist QA — MEMBER GROUP (`performanceprimary.task@gmail.com`)
 
-- [ ] Login con Google → Home con alerta "membresía expira pronto"
+- [ ] Login con Google → Home con alerta naranja "vence en N días" (`expiring_soon`)
+- [ ] Si `NEXT_PUBLIC_GYM_WHATSAPP_NUMBER` está definida → botón "Contactar para renovar" visible en alerta
+- [ ] Si no hay var de entorno → alerta solo texto, sin botón
 - [ ] Home muestra bloque de solicitudes pendientes (1 invitación)
 - [ ] `/calendar` semana 1:
   - [ ] Lun 07:00 Funcional Express → chip "Sin cupos"
@@ -137,7 +159,8 @@ Existen en la DB para dar riqueza de datos. No tienen cuentas Google reales y **
 
 ## Checklist QA — MEMBER EXPIRED (`evergara.ing@gmail.com`)
 
-- [ ] Login con Google → Home con alerta "membresía vencida"
+- [ ] Login con Google → Home con alerta roja "membresía vencida" (`critical`)
+- [ ] Si `NEXT_PUBLIC_GYM_WHATSAPP_NUMBER` o `NEXT_PUBLIC_GYM_CONTACT_EMAIL` definida → botón "Contactar para renovar" en alerta
 - [ ] `/calendar` — ve clases GROUP visibles
 - [ ] Intentar reservar una clase GROUP → error "membresía vencida"
 - [ ] `/solicitudes` → sin solicitudes pendientes

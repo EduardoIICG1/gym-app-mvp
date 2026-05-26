@@ -36,14 +36,16 @@ const ID = {
   // MemberCoach
   mcAnaMarisol:   "seed_mc_ana_marisol",
   mcCarlosFelipe: "seed_mc_carlos_felipe",
-  mcLuciaFelipe:  "seed_mc_lucia_felipe",
-  mcSofiaFelipe:  "seed_mc_sofia_felipe",
+  mcLuciaFelipe:      "seed_mc_lucia_felipe",
+  mcSofiaFelipe:      "seed_mc_sofia_felipe",
+  mcLuciaPlaceholder: "seed_mc_lucia_ph_coach",
 
   // Memberships
   membrAna:    "seed_membr_ana",
   membrCarlos: "seed_membr_carlos",
   membrLucia:  "seed_membr_lucia",
-  membrSofia:  "seed_membr_sofia",  // expired — for alerts demo
+  membrSofia:            "seed_membr_sofia",      // expired — for alerts demo
+  membrLuciaPlaceholder: "seed_membr_lucia_ph",   // no_sessions demo (placeholder, no real login)
 
   // Bookings
   bookAnaGrupal:     "seed_book_ana_grupal",
@@ -141,7 +143,7 @@ async function main() {
   ]);
   // Secondary placeholder users — no real Google accounts, data richness only
   // anaPlaceholder is used in GROUP bookings so laloosky (PT) stays out of GROUP sessions
-  const [, , anaPlaceholder] = await Promise.all([
+  const [, luciaPlaceholder, anaPlaceholder] = await Promise.all([
     prisma.user.upsert({
       where:  { email: "felipesoto@primaryperf.com" },
       update: { name: "Felipe Soto", role: "COACH", isActive: true },
@@ -316,6 +318,12 @@ async function main() {
       update: { memberId: mem4.id, coachId: coach1.id },
       create: { id: ID.mcSofiaFelipe, memberId: mem4.id, coachId: coach1.id, serviceType: "GROUP", isActive: true },
     }),
+    // luciap@primaryperf.com — GROUP placeholder for "sin sesiones" demo (no real login)
+    prisma.memberCoach.upsert({
+      where:  { id: ID.mcLuciaPlaceholder },
+      update: {},
+      create: { id: ID.mcLuciaPlaceholder, memberId: luciaPlaceholder.id, coachId: coach1.id, serviceType: "GROUP", isActive: true },
+    }),
   ]);
   console.log(`   ✓ ${mcRelations.length} member-coach relations\n`);
 
@@ -374,6 +382,19 @@ async function main() {
         grantType: "PURCHASED", grantedById: admin.id,
       },
     }),
+    // luciap@primaryperf.com: GROUP ACTIVE sin sesiones — demonstrates "no_sessions" alert (visible in admin panel)
+    prisma.membership.upsert({
+      where:  { id: ID.membrLuciaPlaceholder },
+      update: { memberId: luciaPlaceholder.id, planName: "Grupal Mensual", status: "ACTIVE", amount: 25000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-06-30"), grantType: "PURCHASED", grantedById: admin.id },
+      create: {
+        id: ID.membrLuciaPlaceholder, memberId: luciaPlaceholder.id,
+        planName: "Grupal Mensual", serviceType: "GROUP",
+        totalSessions: 5, usedSessions: 5,
+        startDate: new Date("2026-05-01"), endDate: new Date("2026-06-30"),
+        status: "ACTIVE", amount: 25000, paymentStatus: "PAID",
+        grantType: "PURCHASED", grantedById: admin.id,
+      },
+    }),
   ]);
   console.log(`   ✓ ${memberships.length} memberships\n`);
 
@@ -382,7 +403,8 @@ async function main() {
   await prisma.membership.deleteMany({ where: { memberId: mem1.id, id: { not: ID.membrAna } } });
   await prisma.membership.deleteMany({ where: { memberId: mem2.id, id: { not: ID.membrCarlos } } });
   await prisma.membership.deleteMany({ where: { memberId: mem3.id, id: { not: ID.membrLucia } } });
-  await prisma.membership.deleteMany({ where: { memberId: mem4.id, id: { not: ID.membrSofia } } });
+  await prisma.membership.deleteMany({ where: { memberId: mem4.id,             id: { not: ID.membrSofia } } });
+  await prisma.membership.deleteMany({ where: { memberId: luciaPlaceholder.id, id: { not: ID.membrLuciaPlaceholder } } });
 
   // ─── Bookings ─────────────────────────────────────────────────────────────
   // Sessions were deleted+recreated above, so their bookings were cascade-deleted.

@@ -55,7 +55,7 @@ interface PendingInvitation {
   };
 }
 
-type MemberAlertSeverity = "critical" | "no_sessions" | "pending";
+type MemberAlertSeverity = "critical" | "no_sessions" | "expiring_soon" | "pending";
 
 interface MembershipAlert {
   serviceType: string;
@@ -176,9 +176,10 @@ const SVC_SHORT: Record<string, string> = {
 };
 
 const ALERT_COLORS: Record<MemberAlertSeverity, { bg: string; accent: string }> = {
-  critical:    { bg: "rgba(239,68,68,0.08)",  accent: "#ef4444" },
-  no_sessions: { bg: "rgba(245,158,11,0.08)", accent: "#f59e0b" },
-  pending:     { bg: "rgba(234,179,8,0.08)",  accent: "#eab308" },
+  critical:      { bg: "rgba(239,68,68,0.08)",  accent: "#ef4444" },
+  no_sessions:   { bg: "rgba(245,158,11,0.08)", accent: "#f59e0b" },
+  expiring_soon: { bg: "rgba(249,115,22,0.08)", accent: "#f97316" },
+  pending:       { bg: "rgba(234,179,8,0.08)",  accent: "#eab308" },
 };
 
 function computeMembershipAlerts(ms: HomeMembership[], today: string): MembershipAlert[] {
@@ -191,6 +192,7 @@ function computeMembershipAlerts(ms: HomeMembership[], today: string): Membershi
     byService[m.serviceType].push(m);
   }
   const alerts: MembershipAlert[] = [];
+  const todayMs = new Date(today).getTime();
   for (const [svc, list] of Object.entries(byService)) {
     const label = SVC_LABEL[svc] ?? svc;
     const isOk = (m: HomeMembership) =>
@@ -198,7 +200,20 @@ function computeMembershipAlerts(ms: HomeMembership[], today: string): Membershi
       m.startDate <= today &&
       (m.endDate === "" || m.endDate >= today) &&
       (m.totalSessions == null || (m.usedSessions ?? 0) < m.totalSessions);
-    if (list.some(isOk)) continue;
+    if (list.some(isOk)) {
+      const soonExpiring = list.find(m =>
+        m.membershipStatus === "active" &&
+        m.endDate !== "" &&
+        m.endDate >= today &&
+        Math.round((new Date(m.endDate).getTime() - todayMs) / 86_400_000) <= 7
+      );
+      if (soonExpiring) {
+        const daysLeft = Math.round((new Date(soonExpiring.endDate).getTime() - todayMs) / 86_400_000);
+        const dayMsg = daysLeft === 0 ? "vence hoy" : daysLeft === 1 ? "vence mañana" : `vence en ${daysLeft} días`;
+        alerts.push({ serviceType: svc, severity: "expiring_soon", message: `Tu membresía de ${label} ${dayMsg}. Renueva para no perder tu lugar.` });
+      }
+      continue;
+    }
     const hasCritical = list.some(m =>
       m.membershipStatus === "expired" ||
       m.membershipStatus === "cancelled" ||
@@ -216,14 +231,14 @@ function computeMembershipAlerts(ms: HomeMembership[], today: string): Membershi
       (m.membershipStatus === "active" && m.startDate > today)
     );
     if (hasCritical) {
-      alerts.push({ serviceType: svc, severity: "critical",    message: `Tu membresía de ${label} está vencida o inactiva. Contacta a administración.` });
+      alerts.push({ serviceType: svc, severity: "critical",      message: `Tu membresía de ${label} está vencida o inactiva. Contacta a administración.` });
     } else if (hasNoSessions) {
-      alerts.push({ serviceType: svc, severity: "no_sessions", message: `No tienes sesiones disponibles en ${label}. Contacta a administración para renovar tu plan.` });
+      alerts.push({ serviceType: svc, severity: "no_sessions",   message: `No tienes sesiones disponibles en ${label}. Contacta a administración para renovar tu plan.` });
     } else if (hasPending) {
-      alerts.push({ serviceType: svc, severity: "pending",     message: `Tu membresía de ${label} aún no está activa.` });
+      alerts.push({ serviceType: svc, severity: "pending",       message: `Tu membresía de ${label} aún no está activa.` });
     }
   }
-  const order: Record<MemberAlertSeverity, number> = { critical: 0, no_sessions: 1, pending: 2 };
+  const order: Record<MemberAlertSeverity, number> = { critical: 0, no_sessions: 1, expiring_soon: 2, pending: 3 };
   return alerts.sort((a, b) => order[a.severity] - order[b.severity]);
 }
 
@@ -1106,6 +1121,23 @@ export default function Home() {
               <div className="space-y-2">
                 {membershipAlerts.map((alert) => {
                   const c = ALERT_COLORS[alert.severity];
+                  const showCTA = alert.severity === "critical" || alert.severity === "no_sessions" || alert.severity === "expiring_soon";
+                  let ctaHref: string | null = null;
+                  if (showCTA) {
+                    const waNumber = process.env.NEXT_PUBLIC_GYM_WHATSAPP_NUMBER;
+                    const contactEmail = process.env.NEXT_PUBLIC_GYM_CONTACT_EMAIL;
+                    const svcName = SVC_LABEL[alert.serviceType] ?? alert.serviceType;
+                    const stateLabel =
+                      alert.severity === "critical"      ? "vencida o inactiva" :
+                      alert.severity === "no_sessions"   ? "sin sesiones disponibles" :
+                                                           "próxima a vencer";
+                    const msg = encodeURIComponent(`Hola, quiero renovar mi membresía de ${svcName}. Mi estado actual: ${stateLabel}. ¿Me pueden ayudar?`);
+                    if (waNumber) {
+                      ctaHref = `https://wa.me/${waNumber}?text=${msg}`;
+                    } else if (contactEmail) {
+                      ctaHref = `mailto:${contactEmail}?subject=${encodeURIComponent(`Renovación membresía ${svcName}`)}&body=${msg}`;
+                    }
+                  }
                   return (
                     <motion.div
                       key={alert.serviceType}
@@ -1118,6 +1150,17 @@ export default function Home() {
                       <p className="text-sm" style={{ color: "var(--text-primary)", lineHeight: "1.55" }}>
                         {alert.message}
                       </p>
+                      {ctaHref && (
+                        <a
+                          href={ctaHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2.5 flex items-center justify-center w-full py-2 rounded-lg text-xs font-semibold"
+                          style={{ background: c.accent + "20", color: c.accent, border: `1px solid ${c.accent}40` }}
+                        >
+                          Contactar para renovar
+                        </a>
+                      )}
                     </motion.div>
                   );
                 })}

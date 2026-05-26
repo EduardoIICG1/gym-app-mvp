@@ -102,11 +102,11 @@ async function main() {
       update: { name: "Admin PP", role: "ADMIN", isActive: true },
       create: { email: "admin@primaryperf.com", name: "Admin PP", role: "ADMIN", isActive: true },
     }),
-    // coach1: Felipe — GROUP + KINESIO
+    // coach1 (real Google): primary.coach.test@gmail.com — GROUP + KINESIO, full demo scenario
     prisma.user.upsert({
-      where:  { email: "felipesoto@primaryperf.com" },
+      where:  { email: "primary.coach.test@gmail.com" },
       update: { name: "Felipe Soto", role: "COACH", isActive: true },
-      create: { email: "felipesoto@primaryperf.com", name: "Felipe Soto", role: "COACH", isActive: true },
+      create: { email: "primary.coach.test@gmail.com", name: "Felipe Soto", role: "COACH", isActive: true },
     }),
     // coach2: Marisol — PERSONAL_TRAINING
     prisma.user.upsert({
@@ -114,11 +114,11 @@ async function main() {
       update: { name: "Marisol Vega", role: "COACH", isActive: true },
       create: { email: "marisolv@primaryperf.com", name: "Marisol Vega", role: "COACH", isActive: true },
     }),
-    // mem1: Ana — PERSONAL_TRAINING member
+    // mem1 (real Google): laloosky@gmail.com — PERSONAL_TRAINING member
     prisma.user.upsert({
-      where:  { email: "ana@primaryperf.com" },
-      update: { name: "Ana García", isActive: true },
-      create: { email: "ana@primaryperf.com", name: "Ana García", role: "MEMBER", isActive: true },
+      where:  { email: "laloosky@gmail.com" },
+      update: { name: "Ana García", role: "MEMBER", isActive: true },
+      create: { email: "laloosky@gmail.com", name: "Ana García", role: "MEMBER", isActive: true },
     }),
     // mem2: Carlos — KINESIOLOGY member
     prisma.user.upsert({
@@ -126,20 +126,44 @@ async function main() {
       update: { name: "Carlos López", isActive: true },
       create: { email: "carlosl@primaryperf.com", name: "Carlos López", role: "MEMBER", isActive: true },
     }),
-    // mem3: Lucía — GROUP member (active, expiring 2026-05-31 → "expiring soon" alert in Home)
+    // mem3 (real Google): performanceprimary.task@gmail.com — GROUP member, all calendar states demo
+    prisma.user.upsert({
+      where:  { email: "performanceprimary.task@gmail.com" },
+      update: { name: "Lucía Pérez", role: "MEMBER", isActive: true },
+      create: { email: "performanceprimary.task@gmail.com", name: "Lucía Pérez", role: "MEMBER", isActive: true },
+    }),
+    // mem4 (real Google): evergara.ing@gmail.com — GROUP EXPIRED member, demonstrates "membresía vencida" alert
+    prisma.user.upsert({
+      where:  { email: "evergara.ing@gmail.com" },
+      update: { name: "Sofía Ramos", role: "MEMBER", isActive: true },
+      create: { email: "evergara.ing@gmail.com", name: "Sofía Ramos", role: "MEMBER", isActive: true },
+    }),
+  ]);
+  // Secondary placeholder users — no real Google accounts, data richness only
+  // anaPlaceholder is used in GROUP bookings so laloosky (PT) stays out of GROUP sessions
+  const [, , anaPlaceholder] = await Promise.all([
+    prisma.user.upsert({
+      where:  { email: "felipesoto@primaryperf.com" },
+      update: { name: "Felipe Soto", role: "COACH", isActive: true },
+      create: { email: "felipesoto@primaryperf.com", name: "Felipe Soto", role: "COACH", isActive: true },
+    }),
     prisma.user.upsert({
       where:  { email: "luciap@primaryperf.com" },
       update: { name: "Lucía Pérez", isActive: true },
       create: { email: "luciap@primaryperf.com", name: "Lucía Pérez", role: "MEMBER", isActive: true },
     }),
-    // mem4: Sofía — GROUP member with EXPIRED membership (demonstrates "membresía vencida" alert)
+    prisma.user.upsert({
+      where:  { email: "ana@primaryperf.com" },
+      update: { name: "Ana García", isActive: true },
+      create: { email: "ana@primaryperf.com", name: "Ana García", role: "MEMBER", isActive: true },
+    }),
     prisma.user.upsert({
       where:  { email: "sofia@primaryperf.com" },
       update: { name: "Sofía Ramos", isActive: true },
       create: { email: "sofia@primaryperf.com", name: "Sofía Ramos", role: "MEMBER", isActive: true },
     }),
   ]);
-  console.log(`   ✓ 7 users (${[admin, coach1, coach2].map(u => u.name).join(", ")}, + 4 members)\n`);
+  console.log(`   ✓ 9 users (5 real) + 4 secondary placeholders\n`);
 
   // ─── Programs ─────────────────────────────────────────────────────────────
   console.log("→ Programs");
@@ -273,7 +297,7 @@ async function main() {
   const mcRelations = await Promise.all([
     prisma.memberCoach.upsert({
       where:  { id: ID.mcAnaMarisol },
-      update: {},
+      update: { memberId: mem1.id, coachId: coach2.id },
       create: { id: ID.mcAnaMarisol, memberId: mem1.id, coachId: coach2.id, serviceType: "PERSONAL_TRAINING", isActive: true },
     }),
     prisma.memberCoach.upsert({
@@ -283,13 +307,13 @@ async function main() {
     }),
     prisma.memberCoach.upsert({
       where:  { id: ID.mcLuciaFelipe },
-      update: {},
+      update: { memberId: mem3.id, coachId: coach1.id },
       create: { id: ID.mcLuciaFelipe, memberId: mem3.id, coachId: coach1.id, serviceType: "GROUP", isActive: true },
     }),
-    // Sofía — GROUP with Felipe
+    // evergara.ing@gmail.com — GROUP EXPIRED with real coach
     prisma.memberCoach.upsert({
       where:  { id: ID.mcSofiaFelipe },
-      update: {},
+      update: { memberId: mem4.id, coachId: coach1.id },
       create: { id: ID.mcSofiaFelipe, memberId: mem4.id, coachId: coach1.id, serviceType: "GROUP", isActive: true },
     }),
   ]);
@@ -298,10 +322,10 @@ async function main() {
   // ─── Memberships ──────────────────────────────────────────────────────────
   console.log("→ Memberships");
   const memberships = await Promise.all([
-    // Ana: PT active — 8 sessions remaining
+    // Real PT MEMBER (laloosky): PT active — 8 sessions remaining
     prisma.membership.upsert({
       where:  { id: ID.membrAna },
-      update: { planName: "Personal 10 sesiones", status: "ACTIVE", amount: 65000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-07-31"), grantType: "PURCHASED", grantedById: admin.id },
+      update: { memberId: mem1.id, planName: "Personal 10 sesiones", status: "ACTIVE", amount: 65000, paymentStatus: "PAID", startDate: new Date("2026-05-01"), endDate: new Date("2026-07-31"), grantType: "PURCHASED", grantedById: admin.id },
       create: {
         id: ID.membrAna, memberId: mem1.id,
         planName: "Personal 10 sesiones", serviceType: "PERSONAL_TRAINING",
@@ -324,10 +348,10 @@ async function main() {
         grantType: "PURCHASED", grantedById: admin.id,
       },
     }),
-    // Lucía: GROUP active — expiring 2026-05-31 → shows "expiring soon" alert in Home
+    // Real MEMBER: GROUP active — expiring 2026-05-31 → shows "expiring soon" alert in Home
     prisma.membership.upsert({
       where:  { id: ID.membrLucia },
-      update: { planName: "Grupal Mensual", status: "ACTIVE", amount: 25000, paymentStatus: "PENDING", startDate: new Date("2026-05-01"), endDate: new Date("2026-05-31"), grantType: "PURCHASED", grantedById: admin.id },
+      update: { memberId: mem3.id, planName: "Grupal Mensual", status: "ACTIVE", amount: 25000, paymentStatus: "PENDING", startDate: new Date("2026-05-01"), endDate: new Date("2026-05-31"), grantType: "PURCHASED", grantedById: admin.id },
       create: {
         id: ID.membrLucia, memberId: mem3.id,
         planName: "Grupal Mensual", serviceType: "GROUP",
@@ -337,10 +361,10 @@ async function main() {
         grantType: "PURCHASED", grantedById: admin.id,
       },
     }),
-    // Sofía: GROUP EXPIRED — demonstrates "membresía vencida" alert on Home + can't book
+    // Real EXPIRED MEMBER (evergara.ing@gmail.com): GROUP EXPIRED — demonstrates "membresía vencida" alert
     prisma.membership.upsert({
       where:  { id: ID.membrSofia },
-      update: { planName: "Grupal Mensual", status: "EXPIRED", amount: 25000, paymentStatus: "PAID", startDate: new Date("2026-04-01"), endDate: new Date("2026-04-30"), grantType: "PURCHASED", grantedById: admin.id },
+      update: { memberId: mem4.id, planName: "Grupal Mensual", status: "EXPIRED", amount: 25000, paymentStatus: "PAID", startDate: new Date("2026-04-01"), endDate: new Date("2026-04-30"), grantType: "PURCHASED", grantedById: admin.id },
       create: {
         id: ID.membrSofia, memberId: mem4.id,
         planName: "Grupal Mensual", serviceType: "GROUP",
@@ -353,30 +377,50 @@ async function main() {
   ]);
   console.log(`   ✓ ${memberships.length} memberships\n`);
 
+  // Clean up extra memberships for real accounts created during manual testing.
+  // Each real account keeps only its seed membership so /profile shows cleanly.
+  await prisma.membership.deleteMany({ where: { memberId: mem1.id, id: { not: ID.membrAna } } });
+  await prisma.membership.deleteMany({ where: { memberId: mem2.id, id: { not: ID.membrCarlos } } });
+  await prisma.membership.deleteMany({ where: { memberId: mem3.id, id: { not: ID.membrLucia } } });
+  await prisma.membership.deleteMany({ where: { memberId: mem4.id, id: { not: ID.membrSofia } } });
+
   // ─── Bookings ─────────────────────────────────────────────────────────────
-  // Sessions were deleted+recreated above, so bookings were cascade-deleted.
+  // Sessions were deleted+recreated above, so their bookings were cascade-deleted.
+  // Also clean up any non-seed bookings for real accounts from previous manual testing.
+  await prisma.booking.deleteMany({ where: { memberId: mem1.id, sessionId: { notIn: allSeedSessionIds } } });
+  await prisma.booking.deleteMany({ where: { memberId: mem3.id, sessionId: { notIn: allSeedSessionIds } } });
+  await prisma.booking.deleteMany({ where: { memberId: mem4.id, sessionId: { notIn: allSeedSessionIds } } });
   // Recreate all bookings fresh.
   console.log("→ Bookings");
   await prisma.booking.createMany({
     data: [
-      // Monday GROUP (sessGMon1, cap=15): Ana + Carlos + Lucía → 3/15 — "Disponible" for most
-      { id: ID.bookAnaGrupal,    sessionId: sess[ID.sessGMon1].id, memberId: mem1.id, status: "CONFIRMED" },
-      { id: ID.bookCarlosGrupal, sessionId: sess[ID.sessGMon1].id, memberId: mem2.id, status: "CONFIRMED" },
-      { id: ID.bookLuciaGrupal,  sessionId: sess[ID.sessGMon1].id, memberId: mem3.id, status: "CONFIRMED" },
-      // PT (sessP1, cap=1): Ana booked → "Sin cupos" for PT
+      // Monday GROUP (sessGMon1, cap=15): anaPlaceholder + Carlos + Lucía → 3/15
+      { id: ID.bookAnaGrupal,    sessionId: sess[ID.sessGMon1].id, memberId: anaPlaceholder.id, status: "CONFIRMED" },
+      { id: ID.bookCarlosGrupal, sessionId: sess[ID.sessGMon1].id, memberId: mem2.id,           status: "CONFIRMED" },
+      { id: ID.bookLuciaGrupal,  sessionId: sess[ID.sessGMon1].id, memberId: mem3.id,           status: "CONFIRMED" },
+      // PT (sessP1, cap=1): laloosky booked → demonstrates PT session
       { id: ID.bookAnaPersonal,  sessionId: sess[ID.sessP1].id,    memberId: mem1.id, status: "CONFIRMED" },
       // KINESIOLOGY (sessK1, cap=1): Carlos booked
       { id: ID.bookCarlosKinesio,sessionId: sess[ID.sessK1].id,    memberId: mem2.id, status: "CONFIRMED" },
-      // GROUP Express (sessGFull, cap=2): Ana + Carlos → 2/2 → "Sin cupos" for GROUP demo
-      { id: ID.bookGFullAna,     sessionId: sess[ID.sessGFull].id, memberId: mem1.id, status: "CONFIRMED" },
-      { id: ID.bookGFullCarlos,  sessionId: sess[ID.sessGFull].id, memberId: mem2.id, status: "CONFIRMED" },
+      // GROUP Express (sessGFull, cap=2): anaPlaceholder + Carlos → 2/2 → "Sin cupos" for GROUP demo
+      { id: ID.bookGFullAna,     sessionId: sess[ID.sessGFull].id, memberId: anaPlaceholder.id, status: "CONFIRMED" },
+      { id: ID.bookGFullCarlos,  sessionId: sess[ID.sessGFull].id, memberId: mem2.id,           status: "CONFIRMED" },
     ],
     skipDuplicates: true,
   });
   console.log("   ✓ 7 bookings\n");
 
   // ─── BookingInvitation ────────────────────────────────────────────────────
-  // Lucía gets PENDING invitation for sessGWed1 (GROUP Wednesday week 0)
+  // Clean up spurious PENDING invitations for real accounts from previous test runs.
+  // Only the seed invitation (ID.invLuciaGrupal) should appear in /solicitudes.
+  // Delete ALL non-seed invitations for real GROUP member — includes ACCEPTED/DECLINED/EXPIRED from test sessions
+  await prisma.bookingInvitation.deleteMany({
+    where: { memberId: mem3.id, id: { not: ID.invLuciaGrupal } },
+  });
+  await prisma.bookingInvitation.deleteMany({ where: { memberId: mem1.id, status: "PENDING" } });
+  await prisma.bookingInvitation.deleteMany({ where: { memberId: mem4.id, status: "PENDING" } });
+
+  // Real member gets PENDING invitation for sessGWed1 (GROUP Wednesday week 1)
   // → calendar shows chip "Invitado" + /solicitudes shows invitation
   console.log("→ BookingInvitations");
   await prisma.bookingInvitation.createMany({
@@ -470,54 +514,14 @@ async function main() {
   ]);
   console.log(`   ✓ ${announcementSeeds.length} announcements\n`);
 
-  // ─── Optional: Google MEMBER for local validation (TEST_MEMBER_EMAIL in .env.local) ──
-  const testMemberEmail = process.env.TEST_MEMBER_EMAIL;
-  if (testMemberEmail) {
-    console.log("→ Test MEMBER (TEST_MEMBER_EMAIL)");
-    const testMember = await prisma.user.upsert({
-      where:  { email: testMemberEmail },
-      update: { name: "Miembro Test", role: "MEMBER", isActive: true },
-      create: { email: testMemberEmail, name: "Miembro Test", role: "MEMBER", isActive: true },
-    });
-    await prisma.membership.upsert({
-      where:  { id: "seed_membr_google_test_member" },
-      update: {
-        memberId:      testMember.id,
-        planName:      "Grupal Mensual Test",
-        serviceType:   "GROUP",
-        totalSessions: null,
-        usedSessions:  0,
-        startDate:     new Date("2026-05-01"),
-        endDate:       new Date("2026-07-31"),
-        status:        "ACTIVE",
-        amount:        0,
-        paymentStatus: "PAID",
-        grantType:     "PURCHASED",
-        grantedById:   admin.id,
-      },
-      create: {
-        id:            "seed_membr_google_test_member",
-        memberId:      testMember.id,
-        planName:      "Grupal Mensual Test",
-        serviceType:   "GROUP",
-        totalSessions: null,
-        usedSessions:  0,
-        startDate:     new Date("2026-05-01"),
-        endDate:       new Date("2026-07-31"),
-        status:        "ACTIVE",
-        amount:        0,
-        paymentStatus: "PAID",
-        grantType:     "PURCHASED",
-        grantedById:   admin.id,
-      },
-    });
-    console.log(`   ✓ Test MEMBER creado: ${testMemberEmail}\n`);
-  }
-
   console.log("✅ Seed completado.");
-  console.log("   Usuarios demo: ana@, carlosl@, luciap@, sofia@primaryperf.com");
-  console.log("   Coaches:       felipesoto@, marisolv@primaryperf.com");
-  console.log("   Admin:         admin@primaryperf.com  |  lalopeluuza01@gmail.com");
+  console.log("   Cuentas con login Google real:");
+  console.log("     ADMIN:  lalopeluuza01@gmail.com");
+  console.log("     COACH:  primary.coach.test@gmail.com   (sesiones GROUP + KINESIO)");
+  console.log("     MEMBER: performanceprimary.task@gmail.com  (GROUP, Reservada/Invitado/Disponible/Sin cupos)");
+  console.log("     MEMBER: laloosky@gmail.com              (PT ACTIVE, sesión PT reservada)");
+  console.log("     MEMBER: evergara.ing@gmail.com          (GROUP EXPIRED, alerta membresía vencida)");
+  console.log("   Placeholders @primaryperf.com: datos de relleno, sin cuenta Google real");
   console.log("   Abre Prisma Studio con: npx prisma studio");
 }
 

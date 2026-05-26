@@ -7,131 +7,173 @@ Checklist para validar la web-app antes de una demo o control interno.
 ```bash
 npx prisma db seed
 # o equivalente:
-cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 npx tsx prisma/seed.ts
+npx tsx --env-file=.env.local prisma/seed.ts
 ```
 
-El seed es idempotente: se puede ejecutar varias veces sin duplicar usuarios, membresías ni anuncios.
-Las sesiones se eliminan y recrean en cada ejecución para mantener fechas futuras.
+El seed es idempotente: re-ejecutarlo limpia residuos de testing, recalcula fechas futuras y restaura todos los estados demo.
 
-## Usuarios demo
+---
 
-| Email | Rol | Contraseña |
-|-------|-----|------------|
-| `lalopeluuza01@gmail.com` | ADMIN (dev) | Google |
-| `admin@primaryperf.com` | ADMIN | Google* |
-| `felipesoto@primaryperf.com` | COACH (GROUP + KINESIO) | Google* |
-| `marisolv@primaryperf.com` | COACH (PT) | Google* |
-| `ana@primaryperf.com` | MEMBER (PT) | Google* |
-| `carlosl@primaryperf.com` | MEMBER (KINESIO) | Google* |
-| `luciap@primaryperf.com` | MEMBER (GROUP, expira pronto) | Google* |
-| `sofia@primaryperf.com` | MEMBER (GROUP, membresía vencida) | Google* |
+## Cuentas reales para QA visual (login Google OAuth)
 
-> *Los emails `@primaryperf.com` deben corresponder a cuentas Google reales para que el login funcione.
-> Sustituir por los emails reales de los participantes antes de hacer demo en vivo.
+| Email | Rol | Escenario | Qué validar |
+|-------|-----|-----------|-------------|
+| `lalopeluuza01@gmail.com` | ADMIN | Admin completo | Panel admin, crear/editar miembros, membresías, clases, anuncios |
+| `primary.coach.test@gmail.com` | COACH | GROUP + KINESIO | Sesiones propias, inscritos, convocar al MEMBER GROUP, bloqueo sobre sesiones PT |
+| `performanceprimary.task@gmail.com` | MEMBER GROUP | Todos los estados calendario | Reservada / Invitado / Disponible / Sin cupos · alerta "expira pronto" · /solicitudes |
+| `laloosky@gmail.com` | MEMBER PT | PT activo | Sesión PT reservada · calendario PT · perfil con membresía PT · sin acceso a GROUP |
+| `evergara.ing@gmail.com` | MEMBER EXPIRED | GROUP vencido | Alerta "membresía vencida" en Home · intento de reserva bloqueado · sin solicitudes |
+
+> Estas 5 cuentas son las únicas con login Google OAuth real. Todas las demás son placeholders.
+
+---
+
+## Placeholders @primaryperf.com (sin login real)
+
+Existen en la DB para dar riqueza de datos. No tienen cuentas Google reales y **no pueden hacer login**.
+
+| Email | Rol | Propósito |
+|-------|-----|-----------|
+| `admin@primaryperf.com` | ADMIN | Placeholder admin secundario |
+| `felipesoto@primaryperf.com` | COACH | Placeholder coach sin sesiones asignadas |
+| `marisolv@primaryperf.com` | COACH | Coach PT de relleno (sin login real) |
+| `ana@primaryperf.com` | MEMBER | Placeholder PT member |
+| `carlosl@primaryperf.com` | MEMBER | KINESIO member — bookings de relleno |
+| `luciap@primaryperf.com` | MEMBER | GROUP member placeholder sin bookings |
+| `sofia@primaryperf.com` | MEMBER | GROUP expired placeholder |
+
+---
 
 ## Datos demo incluidos
 
-### Membresías
-| Miembro | Tipo | Estado | Sesiones | Alerta esperada |
-|---------|------|--------|----------|----------------|
-| Ana García | PERSONAL_TRAINING | ACTIVE | 8/10 restantes | Ninguna |
-| Carlos López | KINESIOLOGY | ACTIVE | 7/8 restantes | Ninguna |
-| Lucía Pérez | GROUP | ACTIVE | 20 disp., expira 31-May | "Membresía expira pronto" |
-| Sofía Ramos | GROUP | EXPIRED | vencida 30-Apr | "Membresía vencida" |
+### Membresías de cuentas reales
+
+| Cuenta real | Tipo | Estado | Sesiones | Alerta |
+|-------------|------|--------|----------|--------|
+| `performanceprimary.task@gmail.com` | GROUP | ACTIVE | 20 disp., expira 31-May | "Membresía expira pronto" |
+| `laloosky@gmail.com` | PERSONAL_TRAINING | ACTIVE | 8/10 restantes | Ninguna |
+| `evergara.ing@gmail.com` | GROUP | EXPIRED | vencida 30-Apr | "Membresía vencida" |
 
 ### Sesiones (relativas a la fecha del seed)
-| ID | Programa | Tipo | Capacidad | Día | Hora |
-|----|----------|------|-----------|-----|------|
+
+| ID lógico | Programa | Tipo | Capacidad | Día | Hora local |
+|-----------|----------|------|-----------|-----|-----------|
 | sessGMon1–4 | Funcional Grupal Mañana | GROUP | 15 | Lunes semanas 1–4 | 08:00 |
 | sessGWed1–4 | Funcional Grupal Tarde | GROUP | 15 | Miércoles semanas 1–4 | 18:00 |
 | sessGFull | Funcional Express | GROUP | **2** | Lunes semana 1 | 07:00 |
 | sessP1–3 | Entrenamiento Personal | PT | 1 | Martes semanas 1–3 | 10:00 |
 | sessK1 | Kinesiología Básica | KINESIO | 1 | Martes semana 1 | 11:00 |
 
-### Estados demo en calendario (como Lucía — GROUP MEMBER)
-| Sesión | Estado esperado | Por qué |
-|--------|----------------|---------|
-| sessGFull (Lun 07:00) | **Sin cupos** | 2/2 reservas (Ana + Carlos) |
-| sessGMon1 (Lun 08:00) | **Reservada** | Lucía tiene booking CONFIRMED |
-| sessGWed1 (Mié 18:00) | **Invitado** | Lucía tiene BookingInvitation PENDING |
+> IDs lógicos son aliases de documentación. IDs reales en DB: `seed_sess_g_mon1`, `seed_sess_g_full`, etc.
+
+### Estados demo en calendario — `performanceprimary.task@gmail.com` (GROUP MEMBER)
+
+| Sesión | Estado | Por qué |
+|--------|--------|---------|
+| sessGFull (Lun 07:00) | **Sin cupos** | 2/2 bookings (ana@primaryperf.com + carlosl) |
+| sessGMon1 (Lun 08:00) | **Reservada** | booking CONFIRMED |
+| sessGWed1 (Mié 18:00) | **Invitado** | BookingInvitation PENDING del COACH real |
 | Resto GROUP sessions | **Disponible** | Sin booking ni invitación |
 
 ### BookingInvitation
-- Lucía → sessGWed1 (Funcional Grupal Tarde, semana 1) — status: PENDING
-- Coach que invitó: Felipe Soto
+
+- `performanceprimary.task@gmail.com` → sessGWed1 (Funcional Grupal Tarde, semana 1) — status: PENDING
+- Coach que invitó: `primary.coach.test@gmail.com`
 - Mensaje: "Te esperamos en el Funcional Grupal del miércoles"
 
 ---
 
-## Checklist QA — ADMIN
+## Checklist QA — ADMIN (`lalopeluuza01@gmail.com`)
 
 - [ ] Login con Google → Home de admin
-- [ ] `/admin/members` — lista todos los usuarios
+- [ ] `/admin/members` — lista todos los usuarios (incluye las 5 cuentas reales)
 - [ ] Crear nuevo MEMBER (email ficticio)
 - [ ] Editar nombre/status de un miembro
 - [ ] Asignar/cambiar rol (MEMBER → COACH)
 - [ ] `/admin/memberships` — lista todas las membresías con estados
-- [ ] Crear membresía GROUP para Sofía (para demostrar renovación)
-- [ ] Renovar membresía de Lucía (antes de vencimiento)
+- [ ] Crear membresía GROUP para `evergara.ing@gmail.com` (demostrar renovación de vencida)
+- [ ] Renovar membresía de `performanceprimary.task@gmail.com` (antes de vencimiento)
 - [ ] `/calendar` — ver todas las clases sin chip "Invitado"
 - [ ] `/classes` — lista de sesiones
-- [ ] Invitar miembro desde detalle de clase (clases PT o KINESIO)
+- [ ] Invitar miembro desde detalle de clase
 - [ ] Crear/editar anuncio desde `/announcements`
 
-## Checklist QA — COACH (Felipe Soto)
+## Checklist QA — COACH (`primary.coach.test@gmail.com`)
 
 - [ ] Login con Google → Home de coach (próximas sesiones, inscritos)
 - [ ] `/calendar` — ve todas las clases
-- [ ] `/classes` — ve sus sesiones asignadas como operables
-- [ ] Entrar a sessGMon1 → ve lista de inscritos (Ana, Carlos, Lucía)
-- [ ] Registrar asistencia: ATTENDED / ABSENT por miembro
-- [ ] Invitar a Lucía o Ana a sessP1 (si es coach de esa sesión)
-- [ ] Verificar que NO puede ver inscritos de sesiones de Marisol
-- [ ] Verificar que NO puede editar membresías de miembros no asignados
+- [ ] `/classes` — ve sus sesiones GROUP Mon/Wed y KINESIO como operables
+- [ ] Entrar a sessGMon1 → ve lista de inscritos (ana@primaryperf.com, carlosl, performanceprimary.task)
+- [ ] Registrar asistencia: ATTENDED / ABSENT
+- [ ] Invitar a `performanceprimary.task@gmail.com` a otra sessGMon disponible
+- [ ] Verificar que NO puede ver inscritos de sesiones PT (marisolv como coach)
 - [ ] `/calendar` — NO aparece chip "Invitado" en ninguna clase
 
-## Checklist QA — MEMBER Lucía Pérez (GROUP, todos los estados demo)
+## Checklist QA — MEMBER GROUP (`performanceprimary.task@gmail.com`)
 
 - [ ] Login con Google → Home con alerta "membresía expira pronto"
 - [ ] Home muestra bloque de solicitudes pendientes (1 invitación)
-- [ ] `/calendar` semana actual:
+- [ ] `/calendar` semana 1:
   - [ ] Lun 07:00 Funcional Express → chip "Sin cupos"
   - [ ] Lun 08:00 Funcional Grupal Mañana → chip "Reservada"
   - [ ] Mié 18:00 Funcional Grupal Tarde → chip "Invitado"
-  - [ ] Otras semanas → "Disponible"
-- [ ] Click en clase "Invitado" → modal muestra aviso ámbar + "Ver solicitud →"
+  - [ ] Resto → chip "Disponible"
+- [ ] Click en clase "Invitado" → modal con aviso ámbar + "Ver solicitud →"
 - [ ] Click en "Ver solicitud →" → navega a `/solicitudes`
-- [ ] `/solicitudes` — invitación listada con botones "Asistiré" / "No asistiré"
-- [ ] Presionar "Asistiré" → booking creado, chip cambia a "Reservada"
-- [ ] Presionar "No asistiré" en otra invitación → desaparece de solicitudes
-- [ ] Reservar una clase GROUP disponible (semana 2+)
+- [ ] `/solicitudes` — invitación listada con "Asistiré" / "No asistiré"
+- [ ] "Asistiré" → booking creado, chip cambia a "Reservada"
+- [ ] Reservar clase GROUP disponible (semana 2+)
 - [ ] Cancelar reserva (antes de 2 horas → sesión devuelta a membresía)
-- [ ] `/profile` — datos del perfil visibles
+- [ ] `/profile` — membresía GROUP con alerta de vencimiento próximo
 
-## Checklist QA — MEMBER Sofía Ramos (GROUP expirada)
+## Checklist QA — MEMBER PT (`laloosky@gmail.com`)
+
+- [ ] Login con Google → Home sin alertas (PT activa, 8 sesiones disponibles)
+- [ ] `/calendar` — ve sesiones PT (Martes) + clases GROUP
+- [ ] sessP1 → chip "Reservada" (booking CONFIRMED)
+- [ ] Reservar sessP2 o sessP3 si hay cupos disponibles
+- [ ] `/profile` → membresía PT activa, sesiones usadas correctas
+- [ ] Intentar reservar una clase GROUP → error si no tiene membresía GROUP
+
+## Checklist QA — MEMBER EXPIRED (`evergara.ing@gmail.com`)
 
 - [ ] Login con Google → Home con alerta "membresía vencida"
-- [ ] `/calendar` — ve clases visibles (GROUP)
-- [ ] Intentar reservar una clase → error "membresía vencida"
-- [ ] No aparecen solicitudes pendientes
-
-## Checklist QA — MEMBER Ana García (PT)
-
-- [ ] Login → Home sin alertas (PT activa, 8 sesiones disponibles)
-- [ ] `/calendar` — ve sesiones PT (Martes) y GROUP (si tiene membresía)
-- [ ] sessP1 → chip "Reservada" (ya tiene booking)
-- [ ] `/profile` → membresía PT activa visible
+- [ ] `/calendar` — ve clases GROUP visibles
+- [ ] Intentar reservar una clase GROUP → error "membresía vencida"
+- [ ] `/solicitudes` → sin solicitudes pendientes
+- [ ] `/profile` → membresía GROUP con estado EXPIRED
 
 ---
 
-## Datos de prueba a NO incluir en demo real
+## Estados visuales calendario (resumen)
 
-- Emails `performanceprimary.task@gmail.com`, `primary.coach.test@gmail.com`
-- Sesión `test_sess_pt_coach` (creada por scripts de validación)
-- Membresía `test_membr_pt`, `test_membr_pt_sol`
-- Cualquier `BookingInvitation` creada por scripts untracked
+| Chip | Quién lo ve | Condición |
+|------|------------|-----------|
+| **Disponible** | performanceprimary.task | GROUP sem 2–4 sin booking |
+| **Reservada** | performanceprimary.task | sessGMon1 CONFIRMED |
+| **Invitado** | performanceprimary.task | sessGWed1 PENDING invitation |
+| **Sin cupos** | performanceprimary.task | sessGFull 2/2 |
+| **Reservada** | laloosky | sessP1 CONFIRMED (PT) |
 
-Antes de demo real, verificar con:
+---
+
+## Limpiezas que hace el seed
+
+El seed limpia automáticamente residuos de sesiones de testing para las cuentas reales:
+
+- Elimina membresías extra (mantiene solo la del seed por cada cuenta real)
+- Elimina bookings en sesiones no-seed para las cuentas reales
+- Elimina invitaciones PENDING espurias (solo permanece la del seed para performanceprimary.task)
+
+---
+
+## Datos de prueba a NO incluir en demo
+
+- Sesión `test_sess_pt_coach` y membresías `test_membr_*` (creadas por scripts de validación)
+- Invitaciones ACCEPTED históricas en sesiones de test (no afectan /solicitudes)
+- Scripts untracked en `prisma/` — no commitear
+
+Verificar antes de demo:
 ```bash
 npx tsx --env-file=.env.local prisma/validate-commit7.ts
 ```
@@ -140,7 +182,8 @@ npx tsx --env-file=.env.local prisma/validate-commit7.ts
 
 ## Advertencias
 
-- Los emails `@primaryperf.com` son **placeholders**. Para una demo en vivo se deben reemplazar por emails Google reales de los participantes (Eduardo puede crear cuentas Google, o actualizar los emails directamente en la DB via admin panel).
-- La DB es compartida con el ambiente local. No ejecutar el seed en producción sin revisar las variables de entorno primero.
-- El seed elimina y recrea todas las sesiones en cada ejecución. Los bookings e invitaciones de sesiones seed también se resetean.
-- Sesiones de test (`test_sess_*`) **no son afectadas** por el seed.
+- Re-ejecutar el seed antes de cada demo para garantizar fechas futuras y DB limpia.
+- El seed elimina y recrea todas las sesiones en cada ejecución.
+- Las sesiones de test (`test_sess_*`) no son afectadas por el seed.
+- La DB es compartida con el ambiente local. No ejecutar el seed en producción sin revisar variables de entorno.
+- Los emails `@primaryperf.com` no tienen cuentas Google reales — no sirven para login. Toda validación visual debe hacerse con las 5 cuentas reales listadas arriba.

@@ -47,6 +47,36 @@ enum PaymentStatus {
   PAID
   PENDING
   OVERDUE
+  WAIVED
+}
+
+enum GrantType {
+  PURCHASED
+  RENEWAL
+  REACTIVATION
+  GIFT
+  COMPENSATION
+  TRIAL
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+enum AnnouncementType {
+  INFO
+  ALERT
+  EVENT
+  MAINTENANCE
+}
+
+enum AnnouncementStatus {
+  PUBLISHED
+  ARCHIVED
 }
 
 // ─── Business Models ─────────────────────────────────────────────────────────
@@ -63,12 +93,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  coachSessions   Session[]     @relation("CoachSessions")
-  coachRelations  MemberCoach[] @relation("CoachRelations")
-  memberRelations MemberCoach[] @relation("MemberRelations")
-  bookings        Booking[]
-  memberships     Membership[]
-  defaultPrograms Program[]     @relation("DefaultCoach")
+  coachSessions         Session[]           @relation("CoachSessions")
+  coachRelations        MemberCoach[]       @relation("CoachRelations")
+  memberRelations       MemberCoach[]       @relation("MemberRelations")
+  bookings              Booking[]
+  memberships           Membership[]
+  defaultPrograms       Program[]           @relation("DefaultCoach")
+  announcements         Announcement[]      @relation("AuthorAnnouncements")
+  grantedMemberships    Membership[]        @relation("MembershipGrantedBy")
+  memberInvitations     BookingInvitation[] @relation("MemberInvitations")
+  sentInvitations       BookingInvitation[] @relation("SentInvitations")
 }
 
 // Many-to-many: Member ↔ Coach with service type
@@ -120,9 +154,10 @@ model Session {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  program  Program   @relation(fields: [programId], references: [id])
-  coach    User      @relation("CoachSessions", fields: [coachId], references: [id])
-  bookings Booking[]
+  program     Program             @relation(fields: [programId], references: [id])
+  coach       User                @relation("CoachSessions", fields: [coachId], references: [id])
+  bookings    Booking[]
+  invitations BookingInvitation[]
 
   @@unique([programId, startsAt])
   @@index([coachId])
@@ -138,12 +173,38 @@ model Booking {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  member  User    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  session    Session            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member     User               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  invitation BookingInvitation?
 
   @@unique([sessionId, memberId])
   @@index([memberId])
   @@index([sessionId])
+}
+
+// Coach/Admin convocatoria — PENDING does not consume capacity.
+// Booking is created only when status transitions to ACCEPTED.
+model BookingInvitation {
+  id          String           @id @default(cuid())
+  sessionId   String
+  memberId    String
+  invitedById String
+  status      InvitationStatus @default(PENDING)
+  bookingId   String?          @unique
+  message     String?
+  expiresAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member    User     @relation("MemberInvitations",  fields: [memberId],    references: [id])
+  invitedBy User     @relation("SentInvitations",    fields: [invitedById], references: [id])
+  booking   Booking? @relation(fields: [bookingId],  references: [id])
+
+  @@unique([sessionId, memberId])
+  @@index([memberId])
+  @@index([sessionId])
+  @@index([status])
 }
 
 // Member subscription plan
@@ -159,11 +220,38 @@ model Membership {
   status        MembershipStatus @default(ACTIVE)
   amount        Int              @default(0)
   paymentStatus PaymentStatus    @default(PAID)
+  grantType     GrantType        @default(PURCHASED)
+  grantedById   String?
+  grantReason   String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @default(now()) @updatedAt
 
-  member User @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member    User  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("MembershipGrantedBy", fields: [grantedById], references: [id])
 
   @@index([memberId])
   @@index([status])
+}
+
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String?
+  content     String
+  type        AnnouncementType   @default(INFO)
+  authorId    String
+  isPinned    Boolean            @default(false)
+  publishedAt DateTime           @default(now())
+  expiresAt   DateTime?
+  linkUrl       String?
+  linkLabel     String?
+  coverImageKey String?
+  status        AnnouncementStatus @default(PUBLISHED)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  author User @relation("AuthorAnnouncements", fields: [authorId], references: [id])
+
+  @@index([status])
+  @@index([authorId])
+  @@index([publishedAt])
 }

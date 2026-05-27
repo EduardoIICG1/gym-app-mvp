@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){if(localStorage.getItem('pp_theme')==='light')document.documentElement.classList.remove('dark');})()`,
+            __html: `(function(){if(localStorage.getItem('pp_theme')==='light')document.documentElement.classList.remove('dark');var fs=localStorage.getItem('pp_font_size');if(fs&&fs!=='normal')document.documentElement.setAttribute('data-font-size',fs);})()`,
           }}
         />
       </head>

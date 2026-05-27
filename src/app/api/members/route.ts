@@ -99,6 +99,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
+    }
+    if (session.user.role === "MEMBER") {
+      return Response.json({ error: "Sin permisos" }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       name, email, roles, role, status = "active",
@@ -116,6 +124,11 @@ export async function POST(request: Request) {
 
     const memberRoles: MemberRole[] = Array.isArray(roles) ? roles : [((role as MemberRole) || "member")];
     const dbRole: Role = ROLE_REVERSE[memberRoles[0]] ?? "MEMBER";
+
+    // COACH: can only create MEMBER — not ADMIN or COACH
+    if (session.user.role === "COACH" && dbRole !== "MEMBER") {
+      return Response.json({ error: "Sin permisos para crear este rol" }, { status: 403 });
+    }
 
     const newUser = await prisma.user.create({
       data: {

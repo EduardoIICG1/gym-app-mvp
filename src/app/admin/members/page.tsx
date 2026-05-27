@@ -406,7 +406,10 @@ export default function MembersPage() {
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Rol</label>
                       <select value={newMemberForm.role}
-                        onChange={(e) => setNewMemberForm((f) => ({ ...f, role: e.target.value as MemberRole, assignedCoachId: "" }))}
+                        onChange={(e) => {
+                          const role = e.target.value as MemberRole;
+                          setNewMemberForm((f) => ({ ...f, role, assignedCoachId: "", contractedServices: role !== "member" ? [] : f.contractedServices }));
+                        }}
                         className={inputCls} style={inputStyle}>
                         <option value="member">Miembro</option>
                         <option value="coach">Coach</option>
@@ -434,23 +437,25 @@ export default function MembersPage() {
                       </select>
                     </div>
                   )}
-                  <div>
-                    <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Servicios contratados (opcional)</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {ALL_SERVICES.map((svc) => {
-                        const isActive = newMemberForm.contractedServices.includes(svc);
-                        return (
-                          <button key={svc} type="button" onClick={() => toggleNewService(svc)}
-                            className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
-                            style={isActive
-                              ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
-                              : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
-                            {SERVICE_LABELS[svc]}
-                          </button>
-                        );
-                      })}
+                  {newMemberForm.role === "member" && (
+                    <div>
+                      <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Servicios a contratar (opcional)</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {ALL_SERVICES.map((svc) => {
+                          const isActive = newMemberForm.contractedServices.includes(svc);
+                          return (
+                            <button key={svc} type="button" onClick={() => toggleNewService(svc)}
+                              className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                              style={isActive
+                                ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
+                                : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                              {SERVICE_LABELS[svc]}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div>
                     <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Observaciones (opcional)</label>
                     <textarea value={newMemberForm.notes} rows={2} placeholder="Notas internas..."
@@ -469,11 +474,13 @@ export default function MembersPage() {
                     style={{ background: "var(--card-border)", color: "var(--text-primary)" }}>
                     {creating ? "Guardando..." : "Guardar"}
                   </button>
-                  <button onClick={() => handleCreateMember(true)} disabled={creating}
-                    className="flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}>
-                    {creating ? "..." : "Guardar + Servicio →"}
-                  </button>
+                  {newMemberForm.role === "member" && (
+                    <button onClick={() => handleCreateMember(true)} disabled={creating}
+                      className="flex-1 py-2 rounded-xl text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90"
+                      style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}>
+                      {creating ? "..." : "Guardar + Servicio →"}
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -674,7 +681,10 @@ export default function MembersPage() {
                   <div>
                     <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Rol</label>
                     <select value={editState.role}
-                      onChange={(e) => setEditState({ ...editState, role: e.target.value as MemberRole })}
+                      onChange={(e) => {
+                        const role = e.target.value as MemberRole;
+                        setEditState({ ...editState, role, contractedServices: role !== "member" ? [] : editState.contractedServices });
+                      }}
                       className={inputCls} style={inputStyle}>
                       <option value="member">Miembro</option>
                       <option value="coach">Coach</option>
@@ -701,23 +711,25 @@ export default function MembersPage() {
                       </select>
                     </div>
                   )}
-                  <div>
-                    <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Servicios contratados</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {ALL_SERVICES.map((svc) => {
-                        const isActive = editState.contractedServices.includes(svc);
-                        return (
-                          <button key={svc} type="button" onClick={() => toggleEditService(svc)}
-                            className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
-                            style={isActive
-                              ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
-                              : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
-                            {SERVICE_LABELS[svc]}
-                          </button>
-                        );
-                      })}
+                  {editState.role === "member" && (
+                    <div>
+                      <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Servicios contratados</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {ALL_SERVICES.map((svc) => {
+                          const isActive = editState.contractedServices.includes(svc);
+                          return (
+                            <button key={svc} type="button" onClick={() => toggleEditService(svc)}
+                              className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                              style={isActive
+                                ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
+                                : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                              {SERVICE_LABELS[svc]}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
                 <div className="flex gap-3 mt-6">
                   <button onClick={() => setEditing(null)}

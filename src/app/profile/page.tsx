@@ -15,6 +15,8 @@ const PLAN_LABELS: Record<string, string> = {
   mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
 };
 
+const CANCEL_WINDOW_MS = 2 * 60 * 60 * 1000;
+
 function formatDate(s: string) { const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; }
 function initials(name: string) { return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase(); }
 
@@ -204,10 +206,37 @@ function ProfileContent() {
                         <MembershipBadge status={ms.membershipStatus} />
                       </div>
                     </div>
-                    <div className="flex gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    <div className="flex gap-4 text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
                       <span>Inicio: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.startDate)}</span></span>
                       <span>Vence: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.endDate)}</span></span>
                     </div>
+                    {ms.totalSessions != null && ms.usedSessions !== undefined && (
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            Sesiones usadas
+                          </span>
+                          <span className="text-xs font-semibold" style={{
+                            color: ms.usedSessions >= ms.totalSessions ? "#ef4444" : "var(--text-primary)",
+                          }}>
+                            {ms.usedSessions} / {ms.totalSessions}
+                            {ms.totalSessions - ms.usedSessions <= 0
+                              ? " — sin sesiones"
+                              : ` — ${ms.totalSessions - ms.usedSessions} restante${ms.totalSessions - ms.usedSessions === 1 ? "" : "s"}`}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width:      `${Math.min((ms.usedSessions / ms.totalSessions) * 100, 100)}%`,
+                              background: ms.usedSessions >= ms.totalSessions ? "#ef4444" : "#4fc3f7",
+                              transition: "width 0.4s ease",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -354,17 +383,27 @@ function ProfileContent() {
               <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Sin reservas próximas</p>
             ) : (
               <div className="space-y-0">
-                {upcoming.slice(0, 5).map((r) => (
-                  <div key={r.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.className}</p>
-                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{r.classDate} · {r.startTime}</p>
+                {upcoming.slice(0, 5).map((r) => {
+                  const sessionStart = new Date(`${r.classDate}T${r.startTime}:00`);
+                  const deadline     = new Date(sessionStart.getTime() - CANCEL_WINDOW_MS);
+                  const isLate       = new Date() >= deadline;
+                  return (
+                    <div key={r.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.className}</p>
+                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{r.classDate} · {r.startTime}</p>
+                        <p className="text-xs mt-0.5" style={{ color: isLate ? "#f59e0b" : "var(--text-muted)" }}>
+                          {isLate
+                            ? "Cancelación tardía"
+                            : `Cancela antes de las ${deadline.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}`}
+                        </p>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>
+                        Reservado
+                      </span>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>
-                      Reservado
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </motion.div>

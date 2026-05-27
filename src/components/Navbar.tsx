@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { useTheme } from "@/lib/useTheme";
+import { useFontSize } from "@/lib/useFontSize";
 import { Sun, Moon, LogOut } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
   const activeUser = useCurrentUser();
   const { theme, toggleTheme } = useTheme();
+  const { fontSize, increase, decrease } = useFontSize();
 
   const initials = activeUser.name
     .split(" ")
@@ -22,7 +24,7 @@ export function Navbar() {
   return (
     <header
       className="sticky top-0 z-40 border-b backdrop-blur-sm"
-      style={{ borderColor: "var(--card-border)", background: "rgba(17,17,20,0.85)" }}
+      style={{ borderColor: "var(--card-border)", background: "var(--navbar-bg)" }}
     >
       <div className="px-4 sm:px-6 h-14 flex items-center justify-between">
         {/* Logo — visible on mobile only (desktop uses sidebar logo) */}
@@ -42,12 +44,34 @@ export function Navbar() {
         <div className="hidden lg:block" />
 
         <div className="flex items-center gap-2">
+          {/* Font size controls */}
+          <button
+            onClick={decrease}
+            disabled={fontSize === "normal"}
+            title="Reducir tamaño de texto"
+            className="flex items-center justify-center w-8 h-8 rounded-lg nav-icon-btn font-bold text-xs"
+            style={{ color: "var(--text-primary)", opacity: fontSize === "normal" ? 0.3 : 1 }}
+            suppressHydrationWarning
+          >
+            A-
+          </button>
+          <button
+            onClick={increase}
+            disabled={fontSize === "xlarge"}
+            title="Aumentar tamaño de texto"
+            className="flex items-center justify-center w-8 h-8 rounded-lg nav-icon-btn font-bold text-sm"
+            style={{ color: "var(--text-primary)", opacity: fontSize === "xlarge" ? 0.3 : 1 }}
+            suppressHydrationWarning
+          >
+            A+
+          </button>
+
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
             title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-white/5"
-            style={{ color: "var(--text-secondary)" }}
+            className="flex items-center justify-center w-8 h-8 rounded-lg nav-icon-btn"
+            style={{ color: "var(--text-primary)" }}
             suppressHydrationWarning
           >
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -56,7 +80,7 @@ export function Navbar() {
           {/* Profile avatar */}
           <Link
             href="/profile"
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg nav-icon-btn"
             style={pathname.startsWith("/profile") ? { background: "rgba(255,255,255,0.06)" } : {}}
           >
             <div
@@ -74,7 +98,7 @@ export function Navbar() {
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
             title="Cerrar sesión"
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:bg-white/5"
+            className="flex items-center justify-center w-8 h-8 rounded-lg nav-icon-btn"
             style={{ color: "var(--text-secondary)" }}
           >
             <LogOut className="w-4 h-4" />

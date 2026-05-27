@@ -7,8 +7,9 @@ export type BookingMode = "regular" | "makeup_only";
 export type AttendanceStatus = "pending_attendance" | "attended" | "absent";
 export type ReservationStatus = "reserved" | "attended" | "absent" | "cancelled";
 export type MembershipStatus = "active" | "expired" | "cancelled" | "pending";
-export type PaymentStatus = "paid" | "pending" | "overdue";
+export type PaymentStatus = "paid" | "pending" | "overdue" | "waived";
 export type MembershipPlan = "mensual" | "trimestral" | "semestral" | "anual";
+export type GrantType = "purchased" | "renewal" | "reactivation" | "gift" | "compensation" | "trial";
 
 export interface GymClass {
   id: string;
@@ -89,9 +90,14 @@ export interface Membership {
   amount: number;
   startDate: string;
   endDate: string;
+  totalSessions?: number | null;
+  usedSessions?: number;
   coachId?: string;
   coachName?: string;
   notes?: string;
+  grantType?: GrantType;
+  grantedById?: string;
+  grantReason?: string;
 }
 
 export interface User {
@@ -155,4 +161,23 @@ export interface Group {
   id: string;
   name: string;
   emoji: string;
+}
+
+export type AnnouncementType = "info" | "alert" | "event" | "maintenance";
+export type AnnouncementStatus = "published" | "archived";
+
+export interface Announcement {
+  id: string;
+  title?: string;
+  content: string;
+  type: AnnouncementType;
+  authorId: string;
+  authorName: string;
+  isPinned: boolean;
+  publishedAt: string;
+  expiresAt?: string;
+  linkUrl?: string;
+  linkLabel?: string;
+  coverImageKey?: string;
+  status: AnnouncementStatus;
 }

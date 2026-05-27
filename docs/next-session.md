@@ -319,17 +319,41 @@ El estado actual del Booking se persiste (`Booking.status`). No existe historial
 
 ---
 
-### Task futura: Reglas de cancelación y cambio de clase por MEMBER
-**Objetivo:** definir e implementar las políticas del gimnasio para cancelación de reservas.
+### Política de cancelación y consumo de sesiones ✅ — Implementado (2026-05-18)
 
-**Pendiente de decisión de producto:**
-- ¿Con cuántas horas de anticipación puede cancelar un MEMBER?
-- ¿Hay penalización por cancelación tardía (afecta créditos de sesiones)?
-- ¿Puede el MEMBER cambiar de sesión (cancelar una y reservar otra del mismo servicio)?
-- ¿Sesión vencida = sin crédito (sesión usada)?
-- Estas reglas deben estar en un reglamento explícito antes de implementar
+**Regla MVP aprobada:**
+- `CANCEL_WINDOW_HOURS = 2`. Cancelación antes de la ventana → sesión devuelta; después → sesión consumida igual.
+- Si `membership.totalSessions === null`: `usedSessions` nunca se toca (membresías ilimitadas).
+- Consumo al reservar, devolución al cancelar (solo dentro de ventana).
 
-**No implementar hasta tener reglamento definido.**
+**Backend (`src/app/api/reservations/route.ts`):**
+- `POST`: booking + incremento de `usedSessions` en `$transaction`. Guard `usedSessions < totalSessions` previene race conditions. `SESSION_CONFLICT` (count=0) → 403.
+- `DELETE`: calcula `isLate` desde `session.startsAt`. Dentro de ventana → decrementa (guard `usedSessions > 0`). Fuera → no decrementa. Response incluye `{ late: boolean }`.
+- `DELETE /api/reservations/[id]` (admin/coach): siempre devuelve sesión sin importar ventana.
+
+**Validación:** script `prisma/validate-sessions.ts` (no commiteado) — 17/17 checks passed.
+
+**UI — aviso de ventana de cancelación:**
+- `src/app/classes/page.tsx`: `computeCancelHint(sessionDate, startTime)` → `{ isLate, deadline }`. Pasado a `ClassCard.cancelHint`. Banner ámbar si cancelación fue tardía.
+- `src/components/ClassCard.tsx`: texto bajo botón de cancelar: "Cancelación libre hasta las HH:mm" / "Cancelación tardía: no recuperarás la sesión".
+- `src/app/calendar/page.tsx`: hint en `ClassModal` bajo el botón de cancelar.
+- `src/app/profile/page.tsx`: en reservas próximas muestra "Cancela antes de las HH:mm" o "Cancelación tardía".
+
+**Commit:** `bdb3b4e feat: enforce cancellation policy and session consumption`
+
+---
+
+### Balance de sesiones visible para MEMBER ✅ — Implementado (2026-05-18)
+
+**Problema:** el sistema consumía y devolvía sesiones correctamente, pero el MEMBER no tenía visibilidad de su balance.
+
+**`src/lib/types.ts`:** `totalSessions?: number | null` y `usedSessions?: number` agregados a la interfaz `Membership`.
+
+**`src/app/profile/page.tsx`:** barra de progreso en cada card de membresía cuando `totalSessions != null`. Muestra "X sesiones usadas / N" + "X restantes" o "sin sesiones". Barra roja cuando agotadas.
+
+**`src/app/classes/page.tsx`:** computa `sessionBalanceMap: Record<serviceType, remainingSessions>` desde las membresías activas con `totalSessions` no nulo. Pasa `sessionBalance` a cada `ClassCard`.
+
+**`src/components/ClassCard.tsx`:** prop `sessionBalance?: number`. Muestra "X sesiones restantes" (o "Sin sesiones disponibles" en rojo) bajo el botón cuando el MEMBER no está inscrito en esa clase.
 
 ---
 
@@ -543,14 +567,455 @@ Opción robusta (tabla separada para historial completo):
 
 ---
 
+### Módulo Comunicados/Announcements ✅ — Implementado (2026-05-17)
+
+#### Modelo
+
+- `prisma/schema.prisma`: enums `AnnouncementType` (INFO | ALERT | EVENT | MAINTENANCE), `AnnouncementStatus` (PUBLISHED | ARCHIVED). Modelo `Announcement` con campos: `id`, `title?`, `content`, `type`, `authorId`, `isPinned`, `publishedAt`, `expiresAt?`, `linkUrl?`, `linkLabel?`, `status`, `createdAt`, `updatedAt`. Relación `User.announcements`.
+
+#### API
+
+- `GET /api/announcements`: auth requerida. MEMBER solo ve PUBLISHED no vencidos. ADMIN/COACH pueden pedir `?status=archived`. Orden: `isPinned DESC, publishedAt DESC`. `Cache-Control: no-store`. Usa `findMany` con `select` explícito (incluye `linkUrl`/`linkLabel`).
+- `POST /api/announcements`: ADMIN/COACH. `authorId` siempre del JWT. `isPinned` ignorado silenciosamente para COACH (guarda `false`). Valida `linkUrl`: debe ser `http://` o `https://`. `linkLabel` fallback a `"Ver enlace"`.
+- `PATCH /api/announcements/[id]`: ADMIN edita cualquier comunicado. COACH solo los propios (`authorId === user.id`). `isPinned` solo aceptado para ADMIN. Archivado: `{ status: "archived" }`.
+
+#### Home (`src/app/page.tsx`)
+
+- Layout responsive desktop: grid `minmax(0,1.5fr)` (main) + `minmax(320px,0.8fr)` (aside). Max-width 1200px.
+- **Carrusel "Novedades destacadas"**: visible para todos los roles. Si 0 pineados → oculto. Si 1 → card sola. Si ≥2 → flechas `‹`/`›` + contador `N/M` + dots clicables. Estado `carouselIdx` con clamp `safeIdx`.
+- **Feed "Comunicados"**: visible para todos los roles. ADMIN/COACH ven formulario de creación (título opcional, textarea, selector de tipo, checkbox "Pinear" solo ADMIN). MEMBER solo lectura.
+- Links: si `linkUrl` existe → botón CTA con color del tipo, `target="_blank"`, `rel="noopener noreferrer"`. Aparece en carrusel y en cards del feed.
+- Archivar: ADMIN puede archivar cualquiera; COACH solo los propios. Actualización local sin refetch.
+
+#### Seed
+
+- 4 announcements con IDs estables (`seed_ann_pinned_1`, `seed_ann_pinned_2`, `seed_ann_alert_1`, `seed_ann_info_1`).
+- `annPinned1`: INFO, isPinned=true, linkUrl="https://www.instagram.com", linkLabel="Síguenos en Instagram" (TODO: actualizar con handle real de Instagram de Primary Performance).
+- `annPinned2`: EVENT, isPinned=true, sin link.
+
+#### Nota técnica: Turbopack cache + Prisma schema
+
+Al agregar campos al modelo `Announcement` con `prisma generate`, el servidor dev con Turbopack puede no invalidar el bundle de `@prisma/client`. Fix documentado: `rm -rf .next` + reiniciar `npm run dev`. El `select` explícito en `findMany` garantiza que los campos nuevos se incluyen en la query SQL.
+
+#### Backlog: edición de comunicados (no implementado)
+
+Necesidad: ADMIN y COACH autores deben poder corregir un comunicado publicado sin necesidad de archivarlo y recrearlo.
+
+**Campos editables:**
+- `title`, `content`, `type`, `linkUrl`, `linkLabel`, `expiresAt`
+- `isPinned`: solo ADMIN
+
+**Reglas por rol:**
+- ADMIN: edita cualquier comunicado (todos los campos).
+- COACH: edita solo sus propios comunicados; no puede cambiar `isPinned`.
+- MEMBER: solo lectura.
+
+**Implementación:** el backend (`PATCH /api/announcements/[id]`) ya soporta edición de todos estos campos con las reglas de permisos correctas. Falta solo el **formulario de edición en el frontend** — una versión pre-poblada del formulario de creación que se activa al hacer clic en "Editar" en las cards del feed (visible solo para ADMIN/COACH autorizados).
+
+**Riesgo:** bajo. El contrato de API ya existe. Solo requiere estado local en el Home o un modal de edición.
+
+#### Preview + "Ver más" + Detalle ✅ — Implementado (2026-05-17)
+
+**Home — preview truncado:**
+- Carrusel: `line-clamp-3` + "Ver más →" si `content.length > 180`. Card con `minHeight: 140px` para estabilizar la altura entre slides.
+- Feed: `line-clamp-4` + "Ver más →" si `content.length > 240`.
+- CTA externo (`linkUrl`) coexiste independientemente del "Ver más": son acciones separadas (externo vs detalle interno).
+- Textos cortos no muestran "Ver más" innecesariamente.
+
+**API — `GET /api/announcements/[id]`:**
+- En `src/app/api/announcements/[id]/route.ts` (junto al PATCH existente).
+- Auth requerida (401 sin sesión). Solo PUBLISHED (ARCHIVED → 404). MEMBER: además filtra `expiresAt < now → 404`.
+- Response: mismo shape que los items del GET list.
+- `Cache-Control: no-store`.
+
+**Ruta `/announcements/[id]`:**
+- `src/app/announcements/[id]/page.tsx` — Client Component.
+- `useParams()` + fetch a `GET /api/announcements/[id]`.
+- Muestra: badge tipo, badge "📌 Destacado" si aplica, título, contenido completo con `whitespace-pre-wrap`, CTA link externo, autor + fecha.
+- Estado de error/404 con link "← Volver al inicio".
+- Botón "← Volver al inicio" siempre visible arriba.
+
+**Seed actualizado:** `annPinned2` (258 chars) y `annAlert1` (334 chars) tienen contenido largo suficiente para validar "Ver más" en carrusel y feed respectivamente.
+
+#### Backlog: imágenes y GIFs (fuera de alcance MVP)
+
+- Requiere: storage (Supabase Storage o CDN), validación de tipo/tamaño, preview en formulario, eliminación de archivos huérfanos, seguridad.
+- No implementar en Fase 6.
+
+---
+
+#### Edición inline de comunicados ✅ — Implementado (2026-05-18)
+
+- `src/app/page.tsx`: edición inline directamente en cada card del feed.
+- Al hacer clic en "Editar" (visible solo para ADMIN/COACH autorizados), la card se transforma en formulario pre-poblado.
+- Campos editables: `title`, `content`, `type`, `linkUrl`, `linkLabel`, `expiresAt`; `isPinned` solo ADMIN.
+- Botones: "Guardar" (llama PATCH, actualiza array local + re-sort, cierra form) / "Cancelar" (descarta sin tocar servidor).
+- Validación frontend: `content` no vacío; `linkUrl` vacío o con `http(s)://`.
+- Error inline en rojo si PATCH falla.
+- El carrusel se actualiza automáticamente si cambia `isPinned`.
+- COACH no ve checkbox `isPinned`. Backend ya ignoraba `isPinned` para COACH silenciosamente.
+- MEMBER no ve botón "Editar".
+
+**Permisos:**
+- ADMIN: edita cualquier comunicado.
+- COACH: edita solo sus propios comunicados (validado en backend por `authorId`).
+- MEMBER: solo lectura.
+
+**Nota de diagnóstico "Sin permisos":** si aparece al editar, el JWT real del usuario no es ADMIN. El DevPanel solo cambia el rol visual; el backend siempre lee el JWT real. Verificar con `/api/auth/session-test`.
+
+---
+
+#### Modal "Crear comunicado" ✅ — Implementado (2026-05-18)
+
+- `src/app/page.tsx`: reemplazado el formulario de creación siempre visible por patrón tipo Facebook/LinkedIn.
+- **Trigger compacto:** botón `[+] ¿Qué quieres comunicar?` — visible solo ADMIN/COACH.
+- **Modal:** overlay negro 65%, card centrada `max-w-lg`, fondo `--card`.
+- Campos: `title` (opcional), `content` (obligatorio, `autoFocus`), selector de tipo, `linkUrl`, `linkLabel` (condicional si hay URL), `expiresAt`, checkbox `isPinned` (solo ADMIN).
+- Cierre: botón `×`, botón "Cancelar", clic en overlay, tecla Escape.
+- "Publicar" deshabilitado si `content` está vacío.
+- Error inline si POST falla (antes era fallo silencioso).
+- Al publicar: cierra modal, actualiza feed y carrusel sin reload.
+- `linkUrl` y `expiresAt` no existían en el formulario anterior; ahora disponibles en creación.
+
+---
+
+#### Accesibilidad A-/A+ y mejora de contraste ✅ — Implementado (2026-05-18)
+
+**Controles de tamaño de letra:**
+- `src/lib/useFontSize.ts`: hook nuevo, mismo patrón que `useTheme`. 3 niveles: `normal` (16px), `large` (18px), `xlarge` (20px).
+- `src/components/Navbar.tsx`: botones A- y A+ junto al toggle light/dark. Usan `var(--text-primary)` para visibilidad en ambos modos. Disabled con opacity 30% en los extremos.
+- `src/app/globals.css`: `html[data-font-size="large"] { font-size: 18px }` / `html[data-font-size="xlarge"] { font-size: 20px }`. Escala todos los `rem`/`em` de Tailwind automáticamente.
+- `src/app/layout.tsx`: script anti-flash extendido para restaurar `data-font-size` de localStorage sin parpadeo.
+- Preferencia persistida en `localStorage` (`pp_font_size`).
+
+**Mejora de contraste dark/light:**
+- `--text-secondary` dark: `#71717a` → `#d4d4d8` (zinc-300, contraste ~13:1 sobre `#0a0a0f`).
+- `--text-secondary` light: `#5a5a72` → `#374151` (slate-700, contraste ~9:1 sobre `#f0f0f4`).
+- `--text-muted` nuevo: dark `#a1a1aa`, light `#6b7280` — para metadata/timestamps.
+- Metadata del feed (fechas, autores) migrada de `color: var(--text-secondary) + opacity: 0.5` a `color: var(--text-muted)` — elimina la penalización de contraste por doble oscurecimiento.
+
+**Navbar adaptativa:**
+- `--navbar-bg` nuevo: dark `rgba(17,17,20,0.92)`, light `rgba(240,240,244,0.92)`.
+- Reemplaza el fondo hardcodeado oscuro → Navbar ahora adapta a ambos modos.
+- `--hover-overlay`: dark `rgba(255,255,255,0.06)`, light `rgba(0,0,0,0.06)`.
+- Clase `.nav-icon-btn` en `globals.css` para hover adaptativo.
+
+---
+
+#### Archivar comunicados — confirm + error visible ✅ — Implementado (2026-05-18)
+
+- `src/app/page.tsx`: `handleArchive` tenía fallo silencioso (no mostraba error si PATCH fallaba).
+- Ahora incluye `confirm("¿Archivar este comunicado?")` antes de ejecutar.
+- Error capturado y mostrado en banner rojo sobre la lista de comunicados.
+- Captura también errores de red.
+- Si el comunicado estaba pineado, desaparece del carrusel automáticamente al archivar.
+
+---
+
+#### Backlog: portadas visuales para comunicados (no implementado)
+
+**Objetivo:** dar identidad visual a cada comunicado mediante una portada de color/gradiente seleccionable.
+
+**Modelo:** agregar `coverImageKey String?` al modelo `Announcement` en Prisma.
+
+**Claves controladas:** `training`, `mobility`, `community`, `nutrition`, `event`, `maintenance`.
+
+**Implementación prevista:** CSS gradients por clave (sin archivos de imagen reales en primera iteración). Cuando haya imágenes reales: `public/announcement-covers/{key}.jpg`.
+
+**Fallback por tipo:** INFO → `community`, ALERT → `maintenance`, EVENT → `event`, MAINTENANCE → `maintenance`.
+
+**Superficies afectadas:**
+- Carrusel: fondo degradado + overlay oscuro + texto siempre encima.
+- Feed: acento sutil (franja de color izquierda) — sin imagen de fondo para mantenerlo limpio.
+- Detalle `/announcements/[id]`: banner de portada ~180px con overlay y título encima.
+- Modal de creación y form de edición: selector compacto de chips de color.
+
+**Requisitos antes de implementar:**
+- `prisma db push` (nullable, sin migración de datos).
+- `prisma generate` + `rm -rf .next` (Turbopack cache).
+- Build limpio confirmado antes de avanzar a UI.
+
+---
+
+#### Portadas visuales para comunicados ✅ — Implementado (2026-05-18)
+
+**Modelo:**
+- `coverImageKey String?` agregado al modelo `Announcement` en `prisma/schema.prisma`.
+- `prisma db push` exitoso. `prisma generate` ejecutado. `.next` limpiado.
+- Valores controlados (no upload libre): `training`, `mobility`, `community`, `nutrition`, `event`, `maintenance`.
+- Nullable → registros existentes sin portada conservan diseño anterior sin regresión.
+
+**API:**
+- `GET /api/announcements` y `GET /api/announcements/[id]`: devuelven `coverImageKey` en el response.
+- `POST /api/announcements`: acepta `coverImageKey`, validado contra `ALLOWED_COVERS = Set(...)`, guarda `null` si inválido.
+- `PATCH /api/announcements/[id]`: acepta `coverImageKey` — reemplaza o limpia (null).
+
+**Constantes (fase 1 — CSS gradients):**
+- `COVER_GRADIENTS`: mapa de 6 claves → gradiente CSS `linear-gradient(135deg, ...)`.
+- `COVER_ACCENT`: mapa de 6 claves → color de acento para borderes del feed.
+- `COVER_LABELS`: nombres en español para el selector.
+- `DEFAULT_COVER`: fallback por `type`: INFO→community, ALERT→maintenance, EVENT→event, MAINTENANCE→maintenance.
+- `effectiveCover(ann)`: devuelve `coverImageKey` si existe, sino el fallback por tipo.
+
+**UI — `CoverSelector` (componente definido en `page.tsx`):**
+- Chips con preview de color (square 12px) + label. Click en chip seleccionado → deselecciona (limpia portada).
+- Aparece en: modal de creación y form de edición inline.
+
+**Carrusel (`src/app/page.tsx`):**
+- Fondo `linear-gradient` derivado de `effectiveCover(currentPinned)`.
+- Overlay `rgba(0,0,0,0.48)` garantiza legibilidad del texto sobre cualquier gradiente.
+- Texto blanco forzado (#ffffff / rgba(255,255,255,X)) — independiente del tema.
+- `minHeight` aumentado de 140px a 160px para más impacto visual.
+- Badge tipo y CTA link con estilos blancos semitransparentes.
+
+**Feed (`src/app/page.tsx`):**
+- `borderColor` de la card usa `COVER_ACCENT[coverImageKey]` al 55% si hay `coverImageKey` explícito.
+- Sin `coverImageKey`: comportamiento anterior (pinned → type color, no pinned → card-border).
+- No hay imagen de fondo en el feed para no sobrecargarlo.
+
+**Detalle `/announcements/[id]` (`src/app/announcements/[id]/page.tsx`):**
+- Banner de portada ~140px al tope del card con `linear-gradient`, overlay, y título + badge tipo encima.
+- Contenido (texto, CTA, footer) en un `<div>` separado debajo del banner.
+- Footer: `color: var(--text-muted)`, sin `opacity` extra (mejora de contraste también aplicada aquí).
+
+**Seed:**
+- `annPinned1` (INFO, "Bienvenidos"): `coverImageKey: "community"`.
+- `annPinned2` (EVENT, "Taller de movilidad"): `coverImageKey: "mobility"`.
+
+#### Backlog: portadas visuales — fase 2 y más (no implementar todavía)
+
+- Reemplazar gradientes CSS por imágenes reales locales en `public/announcement-covers/{key}.jpg`.
+- Upload de imágenes propias por el usuario (requiere Supabase Storage o CDN equivalente).
+- Validación de peso, tipo MIME, dimensiones mínimas.
+- Compresión y resize del lado del servidor.
+- Crop y preview antes de publicar.
+- GIFs animados (requiere decisión de rendimiento/storage separada).
+- Likes y comentarios persistentes (requiere nuevo modelo en Prisma: `Reaction`, `Comment`).
+
+---
+
+### Flujo de Renovación de Membresías ✅ — Implementado (2026-05-19)
+
+**Commits:**
+- `33ee64f` fix: secure membership mutations and persist total sessions
+- `41b94db` feat: add membership renewal endpoint
+- `b075e07` feat: add membership renewal modal
+
+**Implementado:**
+
+- `POST /api/memberships` y `PUT /api/memberships/[id]`: auth añadida (401/403). COACH verificado contra `MemberCoach` por `memberId + coachId + serviceType + isActive`. `totalSessions` ahora se persiste en creación y edición.
+- `POST /api/memberships/[id]/renew` (archivo nuevo): endpoint de renovación server-side. Copia campos desde la membresía origen, calcula fechas automáticamente, valida solapamiento, crea membresía nueva con `usedSessions = 0` y `status = ACTIVE`.
+- `/admin/memberships`: modal "Renovar" con datos pre-poblados desde la membresía origen. Botón "↻ Renovar" visible solo en la membresía más reciente por `memberId + serviceType` (calculado con `isMoreRecent` — `endDate = ""` = sin fecha = siempre más reciente). COACH no ve campos `amount`/`paymentStatus`. Campo "Sesiones usadas" (read-only) añadido al modal de edición.
+
+**Reglas de negocio:**
+- Renovar crea una **membresía nueva**; la origen queda intacta como historial.
+- `usedSessions` siempre se resetea a 0.
+- `serviceType` es inmutable desde la origen.
+- COACH no puede editar `amount` ni `paymentStatus` (siempre `PENDING`).
+- MEMBER no puede crear, editar ni renovar membresías (403).
+- Lógica de fechas: `endDate` futuro → `newStart = endDate + 1 día`; vencida o sin fecha → `newStart = hoy`; `newEnd` preserva duración origen (fallback: +30 días).
+- Guard de solapamiento: 409 si existe otra membresía ACTIVE del mismo `memberId + serviceType` en el período solicitado (excluye la fuente para evitar autoconflicto en membresías sin fecha fin).
+
+**Pendientes controlados:**
+- Validar COACH real con JWT COACH (`TEST_COACH_EMAIL` con reasignación de sesión seed — requiere cuenta Google con rol COACH).
+- Validar ciclo MEMBER post-renovación: alerta Home desaparece automáticamente al tener membresía activa. Pendiente de validación manual con `setup-member-test.ts`.
+- KPI "Sin sesiones" / "Requieren atención" en dashboard admin — deliberadamente excluido del bloque.
+- Botón Renovar desde `/profile` (vista ADMIN del perfil del alumno) — backlog.
+
+---
+
+---
+
+### Validación ciclo MEMBER post-renovación ✅ — Validado (2026-05-20)
+
+**Escenario validado (Scenario B):**
+- MEMBER con GROUP vencida + PT ACTIVE 5/5 agotada.
+- Alertas Home correctas (roja GROUP, ámbar PT) antes de renovar.
+- ADMIN renova GROUP desde hoy → alerta GROUP desaparece; reserva grupal habilitada.
+- ADMIN renova PT antigua (5/5) con modo "Activar desde hoy" → nueva PT ACTIVE 0/10 desde hoy; alerta PT desaparece; clases PT visibles en Calendario.
+- Membresías anteriores intactas (5/5 y GROUP vencida preservadas como historial).
+- Reserva PT no se pudo probar por clase sin cupos (no por bloqueo de membresía — comportamiento correcto).
+
+**Observación operativa documentada:**
+La renovación con endDate futuro (ej. PT activa hasta dic 2026) creaba el siguiente ciclo para 2027 — correcto para renovación anticipada pero no para reactivación inmediata cuando el alumno paga hoy. Esto generó el bloque "Activar desde hoy" implementado a continuación.
+
+---
+
+### Robustez de membresías — Bloque A ✅ — Implementado (2026-05-20)
+
+**Commit:** `3200012` fix: prevent zero-session memberships
+
+**Problema resuelto:** el sistema aceptaba `totalSessions = 0`, creando membresías con pack que bloqueaban al MEMBER desde el primer momento (0 sesiones disponibles) sin mensaje de error.
+
+**Regla de producto:**
+- Campo vacío → `null` → acceso ilimitado.
+- Número > 0 → pack válido.
+- `0` → inválido; rechazado con mensaje claro.
+
+**Cambios:**
+- Frontend (3 modales en `/admin/memberships`): validación antes del fetch. Modal Renovar usa `renewError`; modales Añadir y Editar usan toast.
+- Backend (3 endpoints): `POST /api/memberships`, `PUT /api/memberships/[id]`, `POST /api/memberships/[id]/renew` rechazan `totalSessions <= 0` con HTTP 400.
+- `POST /api/reservations`: `findMany` de membresías ahora incluye `orderBy: { createdAt: "desc" }`. Garantiza que si hay dos membresías ACTIVE solapadas, el sistema evalúa primero la más reciente válida.
+
+---
+
+### Toggle "Siguiente ciclo / Activar desde hoy" — Bloque B ✅ — Implementado (2026-05-20)
+
+**Commit:** `451876a` feat: add renew mode selector
+
+**Gap resuelto:**
+Cuando un MEMBER paga o regulariza hoy, el gym necesita activar el acceso de inmediato. La renovación anticipada (siguiente ciclo) es correcta para renovaciones planificadas, pero no sirve cuando el alumno necesita reservar esta tarde.
+
+**Cambios en `/admin/memberships`:**
+
+- Selector de dos opciones en el modal Renovar, entre el panel de referencia y los campos editables:
+  - **Siguiente ciclo:** `newStart = endDate + 1 día` si endDate es futuro. Para renovaciones planificadas.
+  - **Activar desde hoy:** `newStart = hoy` siempre. Para reactivar acceso inmediato.
+- Defaults inteligentes:
+  - Membresía vencida, cancelada o pendiente → default: **Activar desde hoy**.
+  - ACTIVE con sesiones agotadas → default: **Activar desde hoy**.
+  - ACTIVE con sesiones disponibles → default: **Siguiente ciclo**.
+- Aviso de solapamiento (ámbar, no bloqueante): visible cuando se elige "Activar desde hoy" y la membresía origen aún está ACTIVE por fecha. Informa sin impedir la operación.
+- Al cambiar de modo, las fechas se recalculan automáticamente; el admin puede editarlas después.
+
+**Reglas de rol:**
+- ADMIN y COACH pueden usar ambos modos.
+- COACH sigue sin poder modificar `amount` ni `paymentStatus`.
+- El toggle es solo UI — el endpoint recibe `startDate` igual que antes; no hubo cambio de backend.
+
+**Validación:**
+- PT agotada (5/5) → modal abre con "Activar desde hoy" pre-seleccionado → aviso de solapamiento visible → renovación exitosa → MEMBER desbloqueado inmediatamente.
+
+**Pendientes controlados:**
+- Probar reserva PT cuando exista clase con cupos disponibles.
+- Validar COACH real con JWT COACH (no DevPanel).
+- Decidir si el COACH debe poder usar "Activar desde hoy" en producción sin límites financieros (hoy puede, no ve monto ni estado de pago).
+- Documentar guía rápida ADMIN/COACH: cuándo usar cada modo.
+
+---
+
+---
+
+### Validación COACH real — Parcialmente validada (2026-05-21)
+
+**Setup realizado:**
+- Cuenta COACH: `primary.coach.test@gmail.com` (`id: cmpfy5if...`), role=COACH, isActive=true
+- MemberCoach PT activa: coach ↔ `performanceprimary.task@gmail.com`, serviceType=PERSONAL_TRAINING
+- Sesión PT de prueba: `test_sess_pt_coach`, 2026-05-26 14:00–15:00, asignada al coach
+
+**Validado:**
+- Home COACH carga correctamente; "Próximas clases" muestra la sesión PT asignada
+- Calendario: sesión propia abre ManageModal; sesiones ajenas abren ClassModal (read-only)
+- `/admin/classes` y `/admin/members` cargan para COACH — gap documentado (ve toda la base)
+- `/admin/memberships` **no aparece en la navegación** para COACH — gap crítico identificado
+
+**Gaps documentados:**
+- COACH ve todos los miembros en `/admin/members`, no solo los suyos
+- COACH ve todas las clases en `/admin/classes`, incluyendo las de otros coaches
+- COACH no tiene acceso al módulo de membresías desde la navegación → no puede renovar/reactivar sin acceso directo por URL
+- No se validó asistencia por ausencia de bookings en la sesión de prueba
+
+**Pendientes para completar validación COACH:**
+- Dar acceso a membresías en navegación COACH (filtrado por sus alumnos)
+- Validar renovación de membresía PT desde COACH real (endpoint ya preparado)
+- Filtrar `/admin/members` para mostrar solo alumnos del coach
+- Crear booking en `test_sess_pt_coach` para validar flujo de asistencia
+
+---
+
+### Modelo de origen de membresía — BLOQUE 1 ✅ — Implementado (2026-05-21)
+
+**Commits:**
+- `7fb7a21` feat: add membership grant type to schema
+- `763fe03` feat: propagate membership grant type through api
+- `f37eac7` feat: add grant type ui to memberships
+- `b77da61` chore: add grant type to seed memberships
+
+**Qué se implementó:**
+
+**Schema:** enum `GrantType` (PURCHASED | RENEWAL | REACTIVATION | GIFT | COMPENSATION | TRIAL), campo `WAIVED` en `PaymentStatus`, campos `grantType @default(PURCHASED)`, `grantedById?` y `grantReason?` en `Membership`. Relación `grantedBy` hacia `User`.
+
+**API:** los tres endpoints de membresía (POST, PUT, POST renew) aceptan `grantType` y `grantReason`. `grantedById` siempre del JWT (nunca del cliente). Tipos no comerciales fuerzan `amount = 0` y `paymentStatus = WAIVED`. COACH puede crear GIFT para sus alumnos; COMPENSATION y TRIAL requieren ADMIN.
+
+**UI (`/admin/memberships`):** selector "Tipo de acceso" en modal Agregar; campo "Motivo" para tipos no comerciales; amount y paymentStatus read-only para GIFT/COMPENSATION/TRIAL; modal Editar muestra tipo de acceso y motivo como read-only; badge en cards para tipos distintos a PURCHASED; KPI Ingresos excluye tipos no comerciales.
+
+**Seed:** membresías base actualizadas con `grantType: "PURCHASED"` y `grantedById: admin.id`.
+
+**Reglas de negocio:**
+- PURCHASED / RENEWAL / REACTIVATION son accesos comerciales; cuentan en ingresos si `paymentStatus = PAID`
+- GIFT / COMPENSATION / TRIAL son accesos no comerciales; `amount = 0`, `paymentStatus = WAIVED`, no suman a ingresos
+- Elegibilidad para reservar **no cambia por grantType** — si la membresía está ACTIVE, vigente y con sesiones disponibles, el MEMBER puede reservar sin importar cómo se originó
+- `grantedById` y `grantReason` permiten trazabilidad de quién otorgó el acceso y por qué motivo
+
+**Por qué importa:**
+Refleja la realidad del gym boutique donde no todo acceso viene de una compra directa. Coaches y dueña pueden otorgar beneficios por permanencia, compensar clases perdidas o dar trials, sin contaminar los reportes financieros ni imponer una operación rígida.
+
+**Validación realizada:**
+- Regalía creada correctamente; badge morado visible en card; motivo visible; amount = $0; paymentStatus = Exonerado
+- Modal Editar de Regalía muestra amount read-only y "Exonerado" en lugar del select; backend fuerza WAIVED en PUT
+- Compensación y Trial no se validaron por solapamiento con membresía activa existente (no es bug de grantType)
+
+**Pendientes controlados:**
+- Validar Compensación y Trial con fechas/servicios sin solapamiento
+- Filtrar vistas COACH para mostrar solo sus alumnos (gap de membresías y miembros)
+- Decidir si COACH puede crear GIFT desde UI sin restricción adicional en producción
+
+---
+
 ## Próximo paso
 
 Backlog abierto. Opciones priorizadas:
-1. Definir política de consumo de `usedSessions` (al reservar vs al asistir)
-2. Validar COACH real: crear TEST_COACH_EMAIL con reasignación de sesión seed
-3. Módulo Comunicados/Announcements (feed real)
-4. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
-5. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+1. ~~Definir política de consumo de `usedSessions`~~ ✅ Implementado
+2. ~~Alerta membresía vencida/sin sesiones en Home MEMBER~~ ✅ Implementado
+3. ~~Flujo de renovación de membresías~~ ✅ Implementado
+4. ~~Validar ciclo MEMBER post-renovación~~ ✅ Validado (2026-05-20)
+5. ~~Modelo de origen de membresía (grantType)~~ ✅ Implementado (2026-05-21)
+6. **MVP de invitaciones/agendamiento** — COACH invita alumnos elegibles a una clase; MEMBER acepta/rechaza; al aceptar se crea Booking CONFIRMED
+7. Completar validación COACH real: filtrar membresías/miembros por coach, dar acceso a navbar, validar asistencia
+8. KPI "Sin sesiones" / "Requieren atención" en dashboard admin
+9. AttendanceLog / BookingStatusHistory (necesario para gamificación y métricas)
+10. Coach coverage / sustitución de coach (requiere decisión de modelo de datos primero)
+11. Portadas visuales fase 2: imágenes locales reales en /public/announcement-covers
+12. Preparar entorno demo/preview en Vercel (ver sección abajo)
+
+---
+
+## Tarea pendiente: Preparar entorno demo/preview en Vercel
+
+**Contexto:** El deploy en Vercel carga visualmente (build OK tras agregar `prisma generate`), pero no muestra datos. Home dice "No hay comunicados publicados", sin clases ni reservas, Calendar/Profile no cargan datos. Logout no cierra correctamente en el dominio preview.
+
+**Objetivo:** No es necesario dejar producción perfecta ahora. El objetivo inmediato es tener una versión visual estable para usar como referencia de diseño (Claude Design, Figma, Stitch, etc.).
+
+**Pendientes concretos:**
+
+1. **Validar DATABASE_URL/DIRECT_URL de Vercel**
+   - Confirmar que apuntan a la misma instancia Supabase que local (o a una separada para preview).
+   - Si apuntan a la misma DB que local, los datos ya existen y el problema puede ser de conexión, pooler config, o variables mal copiadas.
+   - Si apuntan a una DB separada, la DB está vacía y requiere seed.
+
+2. **Ejecutar seed/demo data en la DB usada por Vercel**
+   - Si la DB de Vercel es distinta, correr `npx tsx prisma/seed.ts` apuntando a esa DB (con DIRECT_URL correcto).
+   - Evaluar si conviene un script de "seed preview" con datos mínimos representativos, sin borrar datos productivos si comparten DB.
+   - Nunca correr seed destructivo sobre datos reales.
+
+3. **Revisar AUTH_URL para preview vs production**
+   - `AUTH_URL` debe coincidir con el dominio de Vercel preview (ej. `https://gym-app-mvp-git-feat-fase6.vercel.app` o el dominio asignado).
+   - Google OAuth: los Authorized redirect URIs en Google Cloud Console deben incluir el dominio preview exacto: `https://[dominio-vercel]/api/auth/callback/google`.
+   - Si AUTH_URL no coincide, NextAuth rechaza los callbacks y el login falla.
+
+4. **Revisar logout en dominio preview**
+   - `signOut({ callbackUrl: "/" })` redirige a `/` tras logout.
+   - En preview, verificar que `callbackUrl` no quede atrapado en un loop de redirección por middleware.
+   - Si el logout parece "refrescar" sin cerrar sesión, puede ser cookie domain mismatch o que el callback URL no está autorizado en Google Console.
+
+5. **Validar Calendar/Profile con datos reales**
+   - Depende de la resolución de los puntos 1 y 2 (DB con datos).
+   - También depende de que el usuario autenticado en Vercel exista en la DB con `isActive: true` (el auth actual requiere usuario pre-registrado).
+
+6. **Definir si Vercel preview usa DB demo o DB productiva**
+   - **Opción A — Misma DB (Supabase):** más simple, datos reales, riesgo si se comparte con usuarios reales.
+   - **Opción B — DB separada para preview/staging:** más seguro, pero requiere provisionar otra instancia en Supabase y re-seed.
+   - Recomendación para ahora: usar la misma DB de Supabase que local si aún no hay usuarios reales en producción.
 
 ## Advertencias antes de producción
 

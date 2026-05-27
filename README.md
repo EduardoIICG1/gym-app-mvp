@@ -1,256 +1,194 @@
-# Gym App MVP - Primary Performance
+# Gym App MVP — Primary Performance
 
-**Sistema web de gestión de clases grupales y reservas para gimnasios.**
+Web-app MVP para gestión operativa de gimnasio, con flujos completos para administración, coaches y miembros.
 
 [![GitHub](https://img.shields.io/badge/GitHub-gym--app--mvp-blue)](https://github.com/EduardoIICG1/gym-app-mvp)
 ![Next.js](https://img.shields.io/badge/Next.js-16.2.3-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC)
+![Prisma](https://img.shields.io/badge/Prisma-7.8-2D3748)
+![Auth.js](https://img.shields.io/badge/Auth.js-v5-green)
 
 ---
 
-## 📋 Descripción
+## Estado actual
 
-MVP de un sistema digital para resolver problemas operativos en gimnasios de alto rendimiento, específicamente Primary Performance.
-
-**Problema:** Agendamiento manual en WhatsApp, sin visibilidad de cupos, errores frecuentes.
-
-**Solución:** Plataforma web que centraliza:
-- Visualización de clases disponibles
-- Reservas en tiempo real
-- Control de ocupación
-- Registro de asistencia
+- **Checkpoint:** `demo-v0.1`
+- **Branch principal:** `master` — Fase 6 integrada
+- **Preparado para:** demo local, control interno y prueba friends & family controlada
+- **No es:** producción pública sin supervisión
 
 ---
 
-## 🎯 Objetivos MVP (Fase 1)
+## Qué resuelve
 
-✅ **COMPLETADO:**
-- Visualizar catálogo de clases
-- API de clases funcionando
-- Interfaz responsiva
-- Navigation con Navbar
+El MVP cubre los flujos operativos principales de un gimnasio boutique:
 
-⏳ **PRÓXIMAS FASES:**
-- Autenticación de usuarios
-- Base de datos (PostgreSQL + Prisma)
-- Flujo de reservas
-- Toma de asistencia
+- Gestión de miembros (crear, editar, asignar roles)
+- Gestión de membresías (crear, renovar, reactivar, controlar sesiones)
+- Calendario de clases con estados en tiempo real
+- Reservas por servicio con consumo de sesiones
+- Invitaciones de coach a miembros
+- Inbox de solicitudes para miembros
+- Registro de asistencia (ATTENDED / ABSENT)
+- Alertas de membresía: vencida, sin sesiones, por vencer
+- CTA de contacto para renovación vía WhatsApp o mailto
+- Visualización segura de compañeros inscritos (solo nombres, sin emails)
 
 ---
 
-## 🚀 Quick Start
+## Roles
+
+| Rol | Capacidades principales |
+|-----|-------------------------|
+| **ADMIN** | Crear/editar miembros y coaches, gestionar membresías, ver todo el calendario, convocar alumnos, crear anuncios |
+| **COACH** | Ver y gestionar sus clases, ver inscritos, convocar alumnos. No puede crear roles elevados |
+| **MEMBER** | Ver clases disponibles, reservar, aceptar/rechazar invitaciones, cancelar inscripción, ver alertas |
+
+---
+
+## Stack
+
+| Capa | Tecnología |
+|------|-----------|
+| Framework | Next.js 16.2.3 (App Router, Turbopack) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| ORM | Prisma v7.8 + adapter-pg |
+| Database | PostgreSQL (Supabase) |
+| Auth | Auth.js v5 (NextAuth beta) + Google OAuth |
+| Animaciones | Motion (Framer Motion v12) |
+| Hosting objetivo | Vercel |
+
+---
+
+## Setup local
 
 ### Requisitos
+
 - Node.js 18+
-- npm o yarn
-- Git
+- Acceso a una instancia PostgreSQL (Supabase u otro)
+- Credenciales Google OAuth configuradas
 
 ### Instalación
 
 ```bash
-# Clonar repo
+# 1. Clonar
 git clone https://github.com/EduardoIICG1/gym-app-mvp.git
 cd gym-app-mvp
 
-# Instalar dependencias
+# 2. Instalar dependencias
 npm install
 
-# Ejecutar servidor de desarrollo
+# 3. Configurar variables de entorno
+cp .env.example .env.local
+# Completar .env.local con los valores reales
+
+# 4. Generar cliente Prisma
+npx prisma generate
+
+# 5. Sincronizar schema con la DB (solo primera vez o tras cambios de schema)
+npx prisma db push
+
+# 6. Cargar datos demo (solo para desarrollo/demo — NO en producción)
+npx tsx --env-file=.env.local prisma/seed.ts
+
+# 7. Verificar build
+npm run build
+
+# 8. Iniciar servidor de desarrollo
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
-
-### Build para producción
-
-```bash
-npm run build
-npm run start
-```
+> El seed es idempotente — re-ejecutarlo restaura los estados demo y recalcula fechas futuras.
+> **No correr el seed en producción** sin una decisión explícita — borra y recrea sesiones.
 
 ---
 
-## 📁 Estructura del Proyecto
+## Variables de entorno
 
-```
-src/
-├── app/
-│   ├── api/
-│   │   └── classes/route.ts          # GET /api/classes
-│   ├── classes/
-│   │   └── page.tsx                  # Página de clases
-│   ├── layout.tsx                    # Layout raíz + Navbar
-│   ├── page.tsx                      # Home page
-│   └── globals.css
-├── components/
-│   ├── ClassCard.tsx                 # Tarjeta de clase
-│   └── Navbar.tsx                    # Barra de navegación
-└── lib/
-    └── mock-data.ts                  # 10 clases de ejemplo
-```
+Copiar `.env.example` como `.env.local` y completar los valores:
 
----
+### Obligatorias
 
-## 🎨 Características Actuales
+| Variable | Descripción |
+|----------|-------------|
+| `DATABASE_URL` | URL del connection pooler (Supabase: puerto 6543) |
+| `DIRECT_URL` | URL de conexión directa para Prisma CLI (puerto 5432) |
+| `AUTH_SECRET` | Secreto JWT para Auth.js — generar con `openssl rand -base64 32` |
+| `AUTH_GOOGLE_ID` | Client ID de Google OAuth |
+| `AUTH_GOOGLE_SECRET` | Client Secret de Google OAuth |
+| `AUTH_URL` | URL pública del entorno — `https://tu-app.vercel.app` en producción |
 
-### 1. Home Page (`/`)
-- Hero section con call-to-action
-- 3 feature cards (Booking, Coaches, Transform)
-- Stats section
+### Opcionales
 
-### 2. Classes Page (`/classes`)
-- Grid responsivo de 10 clases
-- Tarjetas con:
-  - Nombre, coach, día, hora
-  - Capacidad (barra de progreso)
-  - Estado dinámico (Available / Almost Full / Full)
-- Color-coding automático:
-  - 🟢 Verde: < 70% ocupado
-  - 🟠 Naranja: 70-99% ocupado
-  - 🔴 Rojo: 100% ocupado
-
-### 3. API (`/api/classes`)
-```json
-{
-  "id": "1",
-  "name": "Funcional 6am",
-  "coach": "Juan Pérez",
-  "dayOfWeek": 0,
-  "startTime": "06:00",
-  "endTime": "07:00",
-  "capacity": 20,
-  "reserved": 15,
-  "serviceType": "group"
-}
-```
+| Variable | Efecto si no está definida |
+|----------|---------------------------|
+| `NEXT_PUBLIC_GYM_WHATSAPP_NUMBER` | CTA de renovación no aparece |
+| `NEXT_PUBLIC_GYM_CONTACT_EMAIL` | CTA no aparece (fallback si no hay WhatsApp) |
 
 ---
 
-## 🛠 Stack Técnico
+## Deploy en Vercel
 
-| Capa | Tecnología |
-|------|-----------|
-| Framework | Next.js 16.2.3 |
-| Language | TypeScript |
-| Styling | Tailwind CSS |
-| State | React Hooks (useState, useEffect) |
-| API | Route Handlers |
-| Database | *(Próxima fase)* |
-| Auth | *(Próxima fase)* |
+### Checklist antes de conectar
 
----
+1. Configurar todas las variables obligatorias en Vercel Dashboard
+2. `AUTH_URL` debe ser la URL de producción — **no localhost**
+3. Agregar `https://{vercel-domain}/api/auth/callback/google` como redirect URI autorizado en [Google Cloud Console](https://console.cloud.google.com/)
+4. Confirmar que el schema de la DB de producción está sincronizado (`npx prisma db push`)
+5. Las cuentas de usuario deben existir en la DB antes de que puedan hacer login
 
-## 📊 Datos Mock
-
-10 clases de ejemplo con variedad de ocupación:
-
-| Clase | Coach | Día | Hora | Capacidad | Estado |
-|-------|-------|-----|------|-----------|--------|
-| Funcional 6am | Juan Pérez | Mon | 06:00-07:00 | 15/20 | Almost Full |
-| Yoga Flow | Carlos López | Tue | 18:00-19:00 | 25/25 | Full |
-| Pilates 9am | Laura Martínez | Wed | 09:00-10:00 | 10/20 | Available |
-| HIIT 5pm | Juan Pérez | Wed | 17:00-18:00 | 18/18 | Full |
-| ... | ... | ... | ... | ... | ... |
-
-*Ver `src/lib/mock-data.ts` para lista completa.*
-
----
-
-## 🔜 Roadmap (Fases Siguientes)
-
-### Fase 2: Autenticación & DB
-- [ ] NextAuth.js con Google OAuth
-- [ ] PostgreSQL + Prisma ORM
-- [ ] Roles (admin, coach, alumno)
-- [ ] Perfil de usuario
-
-### Fase 3: Reservas
-- [ ] Crear reserva (alumno)
-- [ ] Cancelar reserva
-- [ ] Validar cupos en tiempo real
-- [ ] Historial de reservas
-
-### Fase 4: Asistencia
-- [ ] Check-in de clase (coach)
-- [ ] Registro de ausencias
-- [ ] Reportes de asistencia
-
-### Fase 5+: Escala SaaS
-- [ ] Multi-tenant
-- [ ] Customización por gimnasio
-- [ ] Módulos activables
-- [ ] Analytics
-
----
-
-## 📚 Documentación
-
-- **[CONTEXTO_GYM.md](./CONTEXTO_GYM.md)** — Contexto completo del negocio, problemas y decisiones arquitectónicas
-- **[API Routes](./docs/api.md)** *(próximamente)*
-- **[Database Schema](./docs/schema.md)** *(próximamente)*
-
----
-
-## 🧪 Testing
-
-```bash
-# Lint
-npm run lint
-
-# Build check
-npm run build
-```
-
-*(Unit tests y E2E tests en próximas fases)*
-
----
-
-## 📝 Commits Principales
+### Configuración de build en Vercel
 
 ```
-f0a8345 docs: add complete project context and phase 1 implementation status
-128707f chore: reorganize src structure and fix tsconfig paths
-0a18df2 feat: add classes page and update layout with navbar
-ee287c1 feat: add ClassCard and Navbar components
-af03c0f feat: add GET /api/classes endpoint
-efb0790 chore: add mock classes data
-0a52b6d chore: create Next.js app with Tailwind
+Build Command:   npm run build   # incluye prisma generate automáticamente
+Output:          .next
+Root Directory:  .
 ```
 
----
-
-## 👤 Autor
-
-Desarrollado como MVP para **Primary Performance** (Gimnasio)  
-Implementación técnica: AI-assisted development
+> No agregar el seed como Build Command ni Post-build Hook.
 
 ---
 
-## 📄 Licencia
+## Documentación
 
-*(Por definir - contactar con team)*
-
----
-
-## 🤝 Contribuir
-
-Este es un repositorio privado en fase MVP. Para cambios:
-
-1. Crear feature branch: `git checkout -b feature/nombre`
-2. Commit cambios: `git commit -m "feat: descripción"`
-3. Push: `git push origin feature/nombre`
-4. Crear Pull Request
+| Documento | Contenido |
+|-----------|-----------|
+| [docs/demo-readiness.md](docs/demo-readiness.md) | Cuentas de prueba, estados demo, checklists QA por rol |
+| [docs/friends-family-readiness.md](docs/friends-family-readiness.md) | Guía de preparación para prueba controlada con usuarios externos |
+| [docs/next-session.md](docs/next-session.md) | Notas técnicas y decisiones de arquitectura de sesiones anteriores |
 
 ---
 
-## 📧 Contacto
+## Fuera de alcance actual
 
-Para preguntas sobre el proyecto:
-- Contactar al equipo de Primary Performance
-- Review en: https://github.com/EduardoIICG1/gym-app-mvp
+- Pagos reales (tarjeta, transferencia, POS)
+- Subida de comprobantes de pago
+- WhatsApp API real (solo link prellenado)
+- Notificaciones automáticas (email, push)
+- Multi-tenant productivo (múltiples gimnasios)
+- Módulo Health / Kinesiología con flujo dedicado
+- Panel financiero con filtros de ingresos
+- Producción pública sin monitoreo manual
 
 ---
 
-**Estado actual:** MVP Fase 1 ✅ Completado  
-**Última actualización:** 2026-04-14
+## Nota de portfolio
+
+Este proyecto demuestra un ciclo completo de desarrollo de producto:
+
+- Modelado de datos (schema Prisma, relaciones, constraints)
+- APIs REST con validación de roles y acceso (ADMIN / COACH / MEMBER)
+- UI por rol con estados condicionales y flujos de negocio
+- Autenticación con Google OAuth y JWT (Auth.js v5)
+- Reglas de negocio: consumo de sesiones, membresías, política de cancelación
+- Seed idempotente con escenarios demo reproducibles
+- QA visual por rol antes de cada commit
+- Documentación operativa y de deployment
+- CI-ready: build limpio con TypeScript estricto
+
+Construido iterativamente con Claude Code como herramienta principal de desarrollo.
+
+---
+
+**Última actualización:** 2026-05-27 — Checkpoint `demo-v0.1`

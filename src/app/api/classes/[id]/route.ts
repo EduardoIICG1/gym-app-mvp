@@ -127,6 +127,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authSession = await auth();
+    if (!authSession?.user?.id) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
+    }
+    const role = authSession.user.role;
+    if (role === "MEMBER") {
+      return Response.json({ error: "Sin permisos" }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await request.json();
 
@@ -135,6 +144,10 @@ export async function PUT(
       include: { program: true },
     });
     if (!existing) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
+
+    if (role === "COACH" && existing.coachId !== authSession.user.id) {
+      return Response.json({ error: "Sin permisos" }, { status: 403 });
+    }
 
     const prog = existing.program;
     const isBlocked = body.eventType === "blocked_time";
@@ -171,7 +184,12 @@ export async function PUT(
       const coachUser = await prisma.user.findFirst({
         where: { name: body.coach, role: { in: ["COACH", "ADMIN"] } },
       });
-      if (coachUser) coachId = coachUser.id;
+      if (coachUser) {
+        if (role === "COACH" && coachUser.id !== authSession.user.id) {
+          return Response.json({ error: "Sin permisos" }, { status: 403 });
+        }
+        coachId = coachUser.id;
+      }
     }
 
     // Recompute startsAt/endsAt only if time changed
@@ -251,9 +269,22 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authSession = await auth();
+    if (!authSession?.user?.id) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
+    }
+    const role = authSession.user.role;
+    if (role === "MEMBER") {
+      return Response.json({ error: "Sin permisos" }, { status: 403 });
+    }
+
     const { id } = await params;
     const existing = await prisma.session.findUnique({ where: { id } });
     if (!existing) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
+
+    if (role === "COACH" && existing.coachId !== authSession.user.id) {
+      return Response.json({ error: "Sin permisos" }, { status: 403 });
+    }
 
     // Cancel all active bookings for this session
     await prisma.booking.updateMany({

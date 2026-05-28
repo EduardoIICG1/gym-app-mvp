@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { GymClass, ServiceType, DayOfWeek } from "@/lib/types";
 import type { ServiceType as DbServiceType } from "@prisma/client";
@@ -121,6 +122,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const authSession = await auth();
+    if (!authSession?.user?.id) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
+    }
+    const role = authSession.user.role;
+    if (role === "MEMBER") {
+      return Response.json({ error: "Sin permisos" }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       name, serviceType, dayOfWeek, startTime, endTime,
@@ -139,9 +149,18 @@ export async function POST(request: Request) {
     const durationMin = Math.max(1, (eh * 60 + em) - (sh * 60 + sm));
 
     // Resolve coach by name
-    const coachUser = coach
+    let coachUser = coach
       ? await prisma.user.findFirst({ where: { name: coach, role: { in: ["COACH", "ADMIN"] } } })
       : null;
+
+    if (role === "COACH") {
+      if (coachUser && coachUser.id !== authSession.user.id) {
+        return Response.json({ error: "Sin permisos" }, { status: 403 });
+      }
+      if (!coachUser) {
+        coachUser = await prisma.user.findUnique({ where: { id: authSession.user.id } });
+      }
+    }
 
     const program = await prisma.program.create({
       data: {

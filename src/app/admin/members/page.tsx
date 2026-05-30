@@ -26,7 +26,7 @@ const PLAN_DAYS: Record<MembershipPlan, number> = {
 const ALL_SERVICES: ServiceType[] = ["group", "personal_training", "kinesiology"];
 
 const ROLE_COLOR: Record<MemberRole, string> = {
-  admin: "#4fc3f7", coach: "#22c55e", member: "#71717a",
+  admin: "#4fc3f7", coach: "#22c55e", member: "#71717a", kinesiologist: "#10b981",
 };
 
 function initials(name: string) {

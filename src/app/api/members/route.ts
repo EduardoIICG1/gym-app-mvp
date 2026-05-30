@@ -7,6 +7,7 @@ const ROLE_MAP: Record<Role, MemberRole> = {
   ADMIN: "admin",
   COACH: "coach",
   MEMBER: "member",
+  KINESIOLOGIST: "kinesiologist",
 };
 
 const SVC_MAP: Partial<Record<DbServiceType, ServiceType>> = {

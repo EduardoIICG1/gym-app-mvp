@@ -12,6 +12,7 @@ enum Role {
   ADMIN
   COACH
   MEMBER
+  KINESIOLOGIST
 }
 
 enum ServiceType {
@@ -79,6 +80,17 @@ enum AnnouncementStatus {
   ARCHIVED
 }
 
+enum HealthSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum RestrictionSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
 // ─── Business Models ─────────────────────────────────────────────────────────
 
 model User {
@@ -103,6 +115,14 @@ model User {
   grantedMemberships    Membership[]        @relation("MembershipGrantedBy")
   memberInvitations     BookingInvitation[] @relation("MemberInvitations")
   sentInvitations       BookingInvitation[] @relation("SentInvitations")
+
+  // Health module relations
+  healthRecord           HealthRecord?        @relation("PatientRecord")
+  createdHealthRecords   HealthRecord[]       @relation("RecordCreatedBy")
+  kinesiologistSessions  HealthSession[]      @relation("KinesiologistSessions")
+  patientHealthSessions  HealthSession[]      @relation("PatientHealthSessions")
+  patientRestrictions    HealthRestriction[]  @relation("PatientRestrictions")
+  createdRestrictions    HealthRestriction[]  @relation("RestrictionCreatedBy")
 }
 
 // Many-to-many: Member ↔ Coach with service type
@@ -154,10 +174,11 @@ model Session {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  program     Program             @relation(fields: [programId], references: [id])
-  coach       User                @relation("CoachSessions", fields: [coachId], references: [id])
-  bookings    Booking[]
-  invitations BookingInvitation[]
+  program       Program             @relation(fields: [programId], references: [id])
+  coach         User                @relation("CoachSessions", fields: [coachId], references: [id])
+  bookings      Booking[]
+  invitations   BookingInvitation[]
+  healthSession HealthSession?      @relation("HealthSessionLink")
 
   @@unique([programId, startsAt])
   @@index([coachId])
@@ -254,4 +275,107 @@ model Announcement {
   @@index([status])
   @@index([authorId])
   @@index([publishedAt])
+}
+
+// ─── Health Module ────────────────────────────────────────────────────────────
+
+// Master patient clinical file — one per kinesiology patient
+model HealthRecord {
+  id          String @id @default(cuid())
+  patientId   String @unique
+  createdById String
+
+  // Anamnesis
+  birthDate         DateTime?
+  biologicalSex     String?
+  occupation        String?
+  reasonForConsult  String?
+  medicalBackground String?
+  surgeries         String?
+  currentMedication String?
+  allergies         String?
+  painLevel         Int?
+
+  // Clinical assessment
+  initialAssessment String?
+  diagnosis         String?
+  treatmentGoals    String?
+  internalNotes     String? // KINESIOLOGIST and ADMIN only
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient      User               @relation("PatientRecord",   fields: [patientId],   references: [id])
+  createdBy    User               @relation("RecordCreatedBy", fields: [createdById], references: [id])
+  sessions     HealthSession[]
+  restrictions HealthRestriction[]
+
+  @@index([patientId])
+  @@index([createdById])
+}
+
+// Clinical notes per appointment — SOAP format with auto-save
+model HealthSession {
+  id              String              @id @default(cuid())
+  healthRecordId  String
+  sessionId       String?  @unique    // optional 1-to-1 link to existing scheduling Session
+  kinesiologistId String
+  patientId       String              // denormalized for query performance
+
+  sessionDate     DateTime
+
+  // SOAP notes
+  subjective      String?
+  objective       String?
+  assessment      String?
+  plan            String?
+
+  exercises       String?
+  observations    String?
+  privateNotes    String? // KINESIOLOGIST and ADMIN only
+  patientNotes    String? // visible to the patient
+
+  status          HealthSessionStatus @default(OPEN)
+  // Prepared for Phase 2 re-open support:
+  // closedAt     DateTime?
+  // reopenedAt   DateTime?
+  // reopenedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  healthRecord  HealthRecord @relation(fields: [healthRecordId], references: [id], onDelete: Cascade)
+  linkedSession Session?     @relation("HealthSessionLink",     fields: [sessionId],      references: [id])
+  kinesiologist User         @relation("KinesiologistSessions", fields: [kinesiologistId], references: [id])
+  patient       User         @relation("PatientHealthSessions", fields: [patientId],       references: [id])
+
+  @@index([healthRecordId])
+  @@index([kinesiologistId])
+  @@index([patientId])
+  @@index([sessionDate])
+}
+
+// Coach-visible restriction tags — operational alerts, not clinical data
+model HealthRestriction {
+  id             String              @id @default(cuid())
+  healthRecordId String
+  patientId      String              // denormalized for query performance
+  createdById    String
+
+  label          String
+  severity       RestrictionSeverity @default(INFO)
+  isActive       Boolean             @default(true)
+  startDate      DateTime            @default(now())
+  endDate        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  healthRecord HealthRecord @relation(fields: [healthRecordId], references: [id], onDelete: Cascade)
+  patient      User         @relation("PatientRestrictions",  fields: [patientId],   references: [id])
+  createdBy    User         @relation("RestrictionCreatedBy", fields: [createdById], references: [id])
+
+  @@index([healthRecordId])
+  @@index([patientId])
+  @@index([isActive])
 }

@@ -108,7 +108,7 @@ export interface User {
   roles: MemberRole[];                           // all roles this user holds
 }
 
-export type MemberRole = "admin" | "coach" | "member";
+export type MemberRole = "admin" | "coach" | "member" | "kinesiologist";
 export type MemberStatus = "active" | "inactive";
 
 export interface Member {

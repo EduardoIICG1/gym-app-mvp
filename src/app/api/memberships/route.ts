@@ -124,14 +124,14 @@ export async function GET(request: Request) {
   const plan = searchParams.get("plan");
   const studentId = searchParams.get("studentId");
 
-  const isAdminOrCoach = session.user.role === "ADMIN" || session.user.role === "COACH";
+  const isAdminOrCoach = session.user.role === "ADMIN" || session.user.role === "COACH" || session.user.role === "KINESIOLOGIST";
 
   const filter: Parameters<typeof fetchMemberships>[0] = {};
   if (status && status in STATUS_REVERSE) filter.status = STATUS_REVERSE[status];
   if (plan) filter.planContains = plan;
 
   if (isAdminOrCoach) {
-    // Admin/coach: apply studentId filter if provided
+    // Admin/coach/kinesiologist: apply studentId filter if provided
     if (studentId) filter.memberId = studentId;
   } else {
     // MEMBER: always force filter to own memberships only — ignore any studentId param
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
   if (!session?.user?.id) {
     return Response.json({ error: "No autenticado" }, { status: 401 });
   }
-  if (session.user.role !== "ADMIN" && session.user.role !== "COACH") {
+  if (session.user.role !== "ADMIN" && session.user.role !== "COACH" && session.user.role !== "KINESIOLOGIST") {
     return Response.json({ error: "Sin permisos" }, { status: 403 });
   }
 
@@ -172,15 +172,15 @@ export async function POST(request: Request) {
 
     const dbSvcType: DbServiceType = SVC_REVERSE[serviceType] ?? "GROUP";
 
-    // COACH: must have an active MemberCoach relation for this member+service
-    if (session.user.role === "COACH") {
+    // COACH / KINESIOLOGIST: must have an active MemberCoach relation for this member+service
+    if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
       const relation = await prisma.memberCoach.findFirst({
         where: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType, isActive: true },
       });
       if (!relation) {
         return Response.json({ error: "No tienes permiso para agregar servicios a este miembro" }, { status: 403 });
       }
-      // COACH can only create GIFT for own members; COMPENSATION and TRIAL require ADMIN
+      // COACH/KINESIOLOGIST can only create GIFT for own members; COMPENSATION and TRIAL require ADMIN
       if (grantTypeRaw === "compensation" || grantTypeRaw === "trial") {
         return Response.json({ error: "Solo ADMIN puede crear compensaciones o trials" }, { status: 403 });
       }

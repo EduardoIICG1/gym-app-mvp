@@ -6,26 +6,28 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Home, Calendar, BookOpen, Users, CreditCard, User,
-  ChevronLeft, ChevronRight, Inbox,
+  ChevronLeft, ChevronRight, Inbox, Stethoscope,
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { ROLE_LABELS } from "@/lib/labels";
 
 const NAV_ITEMS = [
-  { path: "/",                  label: "Inicio",       icon: Home,       roles: ["admin", "coach", "member", "owner"] },
-  { path: "/calendar",          label: "Calendario",   icon: Calendar,   roles: ["admin", "coach", "member", "owner"] },
-  { path: "/solicitudes",       label: "Solicitudes",  icon: Inbox,      roles: ["member"] },
-  { path: "/admin/classes",     label: "Clases",       icon: BookOpen,   roles: ["admin", "coach"] },
-  { path: "/admin/members",     label: "Miembros",     icon: Users,      roles: ["admin", "coach"] },
-  { path: "/admin/memberships", label: "Membresías",   icon: CreditCard, roles: ["admin"] },
-  { path: "/profile",           label: "Mi Perfil",    icon: User,       roles: ["admin", "coach", "member", "owner"] },
+  { path: "/",                  label: "Inicio",       icon: Home,         roles: ["admin", "coach", "member", "owner", "kinesiologist"] },
+  { path: "/calendar",          label: "Calendario",   icon: Calendar,     roles: ["admin", "coach", "member", "owner", "kinesiologist"] },
+  { path: "/solicitudes",       label: "Solicitudes",  icon: Inbox,        roles: ["member"] },
+  { path: "/health",            label: "Kinesiología", icon: Stethoscope,  roles: ["admin", "kinesiologist"] },
+  { path: "/admin/classes",     label: "Clases",       icon: BookOpen,     roles: ["admin", "coach"] },
+  { path: "/admin/members",     label: "Miembros",     icon: Users,        roles: ["admin", "coach", "kinesiologist"] },
+  { path: "/admin/memberships", label: "Membresías",   icon: CreditCard,   roles: ["admin"] },
+  { path: "/profile",           label: "Mi Perfil",    icon: User,         roles: ["admin", "coach", "member", "owner", "kinesiologist"] },
 ];
 
 const ROLE_COLOR: Record<string, string> = {
-  admin:  "#4fc3f7",
-  coach:  "#22c55e",
-  member: "#71717a",
-  owner:  "#a78bfa",
+  admin:         "#4fc3f7",
+  coach:         "#22c55e",
+  member:        "#71717a",
+  kinesiologist: "#10b981",
+  owner:         "#a78bfa",
 };
 
 export function Sidebar() {

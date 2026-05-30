@@ -5,13 +5,14 @@ import { useState, useEffect } from "react";
 import type { User, MemberRole } from "./types";
 
 const STORAGE_KEY = "pp_dev_role";
-export type EditableRole = "admin" | "coach" | "member";
+export type EditableRole = "admin" | "coach" | "member" | "kinesiologist";
 
 // Map DB Role enum values to frontend lowercase role strings
 const DB_ROLE_MAP: Record<string, EditableRole> = {
   ADMIN: "admin",
   COACH: "coach",
   MEMBER: "member",
+  KINESIOLOGIST: "kinesiologist",
 };
 
 export function useCurrentUser(): User & {
@@ -38,7 +39,7 @@ export function useCurrentUser(): User & {
   useEffect(() => {
     if (!isDev) return;
     const stored = localStorage.getItem(STORAGE_KEY) as EditableRole | null;
-    if (stored && ["admin", "coach", "member"].includes(stored)) {
+    if (stored && ["admin", "coach", "member", "kinesiologist"].includes(stored)) {
       setRoleOverride(stored);
     }
     const handler = (e: Event) => {

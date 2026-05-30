@@ -61,7 +61,7 @@ export async function GET(request: Request) {
   const classId = searchParams.get("classId");
 
   const isAdmin  = session.user.role === "ADMIN";
-  const isCoach  = session.user.role === "COACH";
+  const isCoach  = session.user.role === "COACH" || session.user.role === "KINESIOLOGIST";
   const isMember = session.user.role === "MEMBER";
 
   const filter: { memberId?: string; sessionId?: string } = {};

@@ -5,6 +5,8 @@ import {
   MEMBERSHIP_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   ROLE_LABELS,
+  HEALTH_SESSION_STATUS_LABELS,
+  RESTRICTION_SEVERITY_LABELS,
 } from "@/lib/labels";
 
 // ── Service type → color + label ────────────────────────────────────────────
@@ -91,10 +93,11 @@ export function PaymentBadge({ status }: { status: PaymentStatus | string }) {
 
 // ── Role badge ──────────────────────────────────────────────────────────────
 const ROLE_CFG: Record<string, { bg: string; text: string }> = {
-  admin:  { bg: "#4fc3f720", text: "#4fc3f7" },
-  coach:  { bg: "#22c55e20", text: "#22c55e" },
-  member: { bg: "#71717a20", text: "#71717a" },
-  owner:  { bg: "#a78bfa20", text: "#a78bfa" },
+  admin:         { bg: "#4fc3f720", text: "#4fc3f7" },
+  coach:         { bg: "#22c55e20", text: "#22c55e" },
+  member:        { bg: "#71717a20", text: "#71717a" },
+  kinesiologist: { bg: "#10b98120", text: "#10b981" },
+  owner:         { bg: "#a78bfa20", text: "#a78bfa" },
 };
 
 export function RoleBadge({ role }: { role: MemberRole | string }) {
@@ -105,6 +108,43 @@ export function RoleBadge({ role }: { role: MemberRole | string }) {
       style={{ backgroundColor: cfg.bg, color: cfg.text }}
     >
       {ROLE_LABELS[role] ?? role}
+    </span>
+  );
+}
+
+// ── Health session status badge ─────────────────────────────────────────────
+const HEALTH_SESSION_CFG: Record<string, { bg: string; text: string }> = {
+  open:   { bg: "#f59e0b20", text: "#f59e0b" },
+  closed: { bg: "#71717a20", text: "#71717a" },
+};
+
+export function HealthSessionStatusBadge({ status }: { status: string }) {
+  const cfg = HEALTH_SESSION_CFG[status] ?? { bg: "#71717a20", text: "#71717a" };
+  return (
+    <span
+      className="px-2 py-0.5 rounded text-xs font-semibold"
+      style={{ backgroundColor: cfg.bg, color: cfg.text }}
+    >
+      {HEALTH_SESSION_STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+// ── Restriction severity badge ──────────────────────────────────────────────
+const RESTRICTION_CFG: Record<string, { bg: string; text: string }> = {
+  info:     { bg: "#4fc3f720", text: "#4fc3f7" },
+  warning:  { bg: "#f59e0b20", text: "#f59e0b" },
+  critical: { bg: "#ef444420", text: "#ef4444" },
+};
+
+export function RestrictionBadge({ severity }: { severity: string }) {
+  const cfg = RESTRICTION_CFG[severity] ?? { bg: "#71717a20", text: "#71717a" };
+  return (
+    <span
+      className="px-2 py-0.5 rounded text-xs font-semibold"
+      style={{ backgroundColor: cfg.bg, color: cfg.text }}
+    >
+      {RESTRICTION_SEVERITY_LABELS[severity] ?? severity}
     </span>
   );
 }

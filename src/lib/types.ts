@@ -104,7 +104,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "owner" | "admin" | "coach" | "member"; // primary/active role (session)
+  role: "owner" | "admin" | "coach" | "member" | "kinesiologist"; // primary/active role (session)
   roles: MemberRole[];                           // all roles this user holds
 }
 

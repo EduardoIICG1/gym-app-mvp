@@ -23,9 +23,10 @@ const SVC_REVERSE: Record<string, DbServiceType> = {
 };
 
 const ROLE_REVERSE: Record<string, Role> = {
-  admin: "ADMIN",
-  coach: "COACH",
-  member: "MEMBER",
+  admin:         "ADMIN",
+  coach:         "COACH",
+  member:        "MEMBER",
+  kinesiologist: "KINESIOLOGIST",
 };
 
 async function fetchAllUsers() {
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const search = searchParams.get("search")?.toLowerCase();
 
-  const isAdminOrCoach = session.user.role === "ADMIN" || session.user.role === "COACH";
+  const isAdminOrCoach = session.user.role === "ADMIN" || session.user.role === "COACH" || session.user.role === "KINESIOLOGIST";
 
   // MEMBER: can only see their own record (prevents listing all users/emails)
   const users = isAdminOrCoach
@@ -126,8 +127,8 @@ export async function POST(request: Request) {
     const memberRoles: MemberRole[] = Array.isArray(roles) ? roles : [((role as MemberRole) || "member")];
     const dbRole: Role = ROLE_REVERSE[memberRoles[0]] ?? "MEMBER";
 
-    // COACH: can only create MEMBER — not ADMIN or COACH
-    if (session.user.role === "COACH" && dbRole !== "MEMBER") {
+    // COACH / KINESIOLOGIST: can only create MEMBER — not ADMIN, COACH, or KINESIOLOGIST
+    if ((session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") && dbRole !== "MEMBER") {
       return Response.json({ error: "Sin permisos para crear este rol" }, { status: 403 });
     }
 

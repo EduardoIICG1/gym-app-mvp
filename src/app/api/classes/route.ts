@@ -144,16 +144,22 @@ export async function POST(request: Request) {
     const isBlocked = eventType === "blocked_time";
     const dbSvcType: DbServiceType = isBlocked ? "OTHER" : (SVC_REVERSE[serviceType] ?? "GROUP");
 
+    // KINESIOLOGIST: only allowed to create KINESIOLOGY sessions or blocked_time
+    if (role === "KINESIOLOGIST" && !isBlocked && dbSvcType !== "KINESIOLOGY") {
+      return Response.json({ error: "Solo puedes crear sesiones de kinesiología" }, { status: 403 });
+    }
+
     const [sh, sm] = String(startTime).split(":").map(Number);
     const [eh, em] = String(endTime).split(":").map(Number);
     const durationMin = Math.max(1, (eh * 60 + em) - (sh * 60 + sm));
 
-    // Resolve coach by name
+    // Resolve coach by name (includes KINESIOLOGIST so they can find themselves)
     let coachUser = coach
-      ? await prisma.user.findFirst({ where: { name: coach, role: { in: ["COACH", "ADMIN"] } } })
+      ? await prisma.user.findFirst({ where: { name: coach, role: { in: ["COACH", "ADMIN", "KINESIOLOGIST"] } } })
       : null;
 
-    if (role === "COACH") {
+    // COACH and KINESIOLOGIST can only self-assign
+    if (role === "COACH" || role === "KINESIOLOGIST") {
       if (coachUser && coachUser.id !== authSession.user.id) {
         return Response.json({ error: "Sin permisos" }, { status: 403 });
       }

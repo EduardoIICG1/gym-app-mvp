@@ -72,20 +72,45 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const search = searchParams.get("search")?.toLowerCase();
 
-  const isAdminOrCoach = session.user.role === "ADMIN" || session.user.role === "COACH" || session.user.role === "KINESIOLOGIST";
+  const role = session.user.role;
 
-  // MEMBER: can only see their own record (prevents listing all users/emails)
-  const users = isAdminOrCoach
-    ? await fetchAllUsers()
-    : await prisma.user.findMany({
-        where: { id: session.user.id },
-        include: {
-          memberRelations: {
-            where: { isActive: true },
-            include: { coach: { select: { id: true, name: true } } },
-          },
+  let users: Awaited<ReturnType<typeof fetchAllUsers>>;
+
+  if (role === "ADMIN") {
+    users = await fetchAllUsers();
+  } else if (role === "COACH" || role === "KINESIOLOGIST") {
+    // Scope to members linked via MemberCoach
+    const relations = await prisma.memberCoach.findMany({
+      where: {
+        coachId: session.user.id,
+        isActive: true,
+        ...(role === "KINESIOLOGIST" ? { serviceType: "KINESIOLOGY" } : {}),
+      },
+      select: { memberId: true },
+    });
+    const memberIds = relations.map((r) => r.memberId);
+    users = memberIds.length === 0 ? [] : await prisma.user.findMany({
+      where: { id: { in: memberIds } },
+      orderBy: { name: "asc" },
+      include: {
+        memberRelations: {
+          where: { isActive: true },
+          include: { coach: { select: { id: true, name: true } } },
         },
-      });
+      },
+    });
+  } else {
+    // MEMBER: own record only
+    users = await prisma.user.findMany({
+      where: { id: session.user.id },
+      include: {
+        memberRelations: {
+          where: { isActive: true },
+          include: { coach: { select: { id: true, name: true } } },
+        },
+      },
+    });
+  }
 
   let result = users.map(toMember);
 

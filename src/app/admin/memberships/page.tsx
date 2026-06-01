@@ -926,7 +926,7 @@ export default function MembershipsPage() {
                       <span style={{ color: "var(--text-primary)" }}>{renewSource.usedSessions ?? 0} / {renewSource.totalSessions} usadas</span>
                     </div>
                   )}
-                  {activeUser.role === "coach" && (
+                  {(activeUser.role === "coach" || activeUser.role === "kinesiologist") && (
                     <div className="flex justify-between">
                       <span style={{ color: "var(--text-secondary)" }}>Monto de referencia</span>
                       <span style={{ color: "var(--text-primary)" }}>${renewSource.amount.toLocaleString()}</span>

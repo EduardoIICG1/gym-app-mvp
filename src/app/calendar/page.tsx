@@ -272,6 +272,7 @@ function ManageModal({
   const [enrolled, setEnrolled] = useState<Reservation[]>([]);
   const [enrolledLoading, setEnrolledLoading] = useState(false);
   const [attendanceUpdating, setAttendanceUpdating] = useState<string | null>(null);
+  const [restrictionsMap, setRestrictionsMap] = useState<Record<string, { label: string; severity: string }[]>>({});
 
   const bookingStatus = getClassBookingStatus(cls, dateStr, true);
   const statusCfg = STATUS_CONFIG[bookingStatus];
@@ -281,8 +282,25 @@ function ManageModal({
     setEnrolledLoading(true);
     const res = await fetch(`/api/reservations?classId=${cls.id}`);
     const all: Reservation[] = await res.json();
-    setEnrolled(all.filter(r => r.classDate === dateStr && r.status !== "cancelled"));
+    const filtered = all.filter(r => r.classDate === dateStr && r.status !== "cancelled");
+    setEnrolled(filtered);
     setEnrolledLoading(false);
+    // Batch-fetch active restrictions for all enrolled students
+    const ids = filtered.map(r => r.studentId).filter(Boolean);
+    if (ids.length > 0) {
+      try {
+        const rRes = await fetch(`/api/health/restrictions?patientIds=${ids.join(",")}&isActive=true`);
+        if (rRes.ok) {
+          const rData: { patientId: string; label: string; severity: string }[] = await rRes.json();
+          const map: Record<string, { label: string; severity: string }[]> = {};
+          for (const r of rData) {
+            if (!map[r.patientId]) map[r.patientId] = [];
+            map[r.patientId].push({ label: r.label, severity: r.severity });
+          }
+          setRestrictionsMap(map);
+        }
+      } catch { /* restrictions are optional UI — fail silently */ }
+    }
   };
 
   const handleSave = async () => {
@@ -401,6 +419,28 @@ function ManageModal({
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{r.studentName}</p>
                         <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{r.studentEmail}</p>
+                        {(restrictionsMap[r.studentId]?.length ?? 0) > 0 && (
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {restrictionsMap[r.studentId].slice(0, 2).map((rx, ri) => (
+                              <span
+                                key={ri}
+                                className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                style={rx.severity === "critical"
+                                  ? { background: "#ef444420", color: "#ef4444" }
+                                  : rx.severity === "warning"
+                                  ? { background: "#f59e0b20", color: "#f59e0b" }
+                                  : { background: "#4fc3f720", color: "#4fc3f7" }}
+                              >
+                                {rx.label}
+                              </span>
+                            ))}
+                            {restrictionsMap[r.studentId].length > 2 && (
+                              <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>
+                                +{restrictionsMap[r.studentId].length - 2}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0" style={statusStyle}>
                         {statusLabel}
@@ -769,7 +809,7 @@ function BookingStatusChip({ status }: { status: ClassBookingStatus }) {
 export default function CalendarPage() {
   const currentUser = useCurrentUser();
   const CURRENT_USER_ID = currentUser.id;
-  const IS_ADMIN_OR_COACH = currentUser.hasRole("admin") || currentUser.hasRole("coach");
+  const IS_ADMIN_OR_COACH = currentUser.hasRole("admin") || currentUser.hasRole("coach") || currentUser.hasRole("kinesiologist");
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [classes, setClasses] = useState<GymClass[]>([]);

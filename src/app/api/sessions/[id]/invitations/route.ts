@@ -45,6 +45,13 @@ export async function POST(
     ) {
       return Response.json({ error: "No eres el coach de esta sesión" }, { status: 403 });
     }
+    // KINESIOLOGIST can only invite to KINESIOLOGY sessions
+    if (
+      authSession.user.role === "KINESIOLOGIST" &&
+      gymSession.program.serviceType !== "KINESIOLOGY"
+    ) {
+      return Response.json({ error: "Solo puedes convocar a sesiones de kinesiología" }, { status: 403 });
+    }
 
     const body = await request.json();
     const memberIds: string[] = Array.isArray(body.memberIds) ? body.memberIds : [];
@@ -191,7 +198,7 @@ export async function GET(
 
     const gymSession = await prisma.session.findUnique({
       where: { id: sessionId },
-      select: { id: true, coachId: true },
+      select: { id: true, coachId: true, program: { select: { serviceType: true } } },
     });
     if (!gymSession) {
       return Response.json({ error: "Sesión no encontrada" }, { status: 404 });
@@ -201,6 +208,12 @@ export async function GET(
       gymSession.coachId !== authSession.user.id
     ) {
       return Response.json({ error: "No eres el coach de esta sesión" }, { status: 403 });
+    }
+    if (
+      authSession.user.role === "KINESIOLOGIST" &&
+      gymSession.program.serviceType !== "KINESIOLOGY"
+    ) {
+      return Response.json({ error: "Solo puedes ver invitaciones de sesiones de kinesiología" }, { status: 403 });
     }
 
     const invitations = await prisma.bookingInvitation.findMany({

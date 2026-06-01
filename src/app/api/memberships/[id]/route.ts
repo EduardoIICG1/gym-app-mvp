@@ -59,7 +59,7 @@ export async function PUT(
   if (!session?.user?.id) {
     return Response.json({ error: "No autenticado" }, { status: 401 });
   }
-  if (session.user.role !== "ADMIN" && session.user.role !== "COACH") {
+  if (session.user.role !== "ADMIN" && session.user.role !== "COACH" && session.user.role !== "KINESIOLOGIST") {
     return Response.json({ error: "Sin permisos" }, { status: 403 });
   }
 
@@ -72,8 +72,8 @@ export async function PUT(
       return Response.json({ error: "Membresía no encontrada" }, { status: 404 });
     }
 
-    // COACH: must have an active MemberCoach relation for this member+service
-    if (session.user.role === "COACH") {
+    // COACH / KINESIOLOGIST: must have an active MemberCoach relation for this member+service
+    if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
       const relation = await prisma.memberCoach.findFirst({
         where: { memberId: existing.memberId, coachId: session.user.id, serviceType: existing.serviceType, isActive: true },
       });

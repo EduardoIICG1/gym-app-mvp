@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useCurrentUser, type EditableRole } from "@/lib/useCurrentUser";
 
-const ROLES: EditableRole[] = ["admin", "coach", "member"];
+const ROLES: EditableRole[] = ["admin", "coach", "member", "kinesiologist"];
 
 const ROLE_LABELS: Record<EditableRole, string> = {
-  admin: "Admin",
-  coach: "Coach",
-  member: "Miembro",
+  admin:         "Admin",
+  coach:         "Coach",
+  member:        "Miembro",
+  kinesiologist: "Kine",
 };
 
 export function DevPanel() {

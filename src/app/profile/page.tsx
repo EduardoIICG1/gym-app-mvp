@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
+import Link from "next/link";
 import { Member, Membership, Reservation, GymClass, ServiceType } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { computeMembershipCycle } from "@/lib/cycleHelpers";
@@ -33,6 +34,8 @@ function ProfileContent() {
   const [allClasses, setAllClasses] = useState<GymClass[]>([]);
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [healthSessions, setHealthSessions] = useState<{ id: string; sessionDate: string; status: string; patientNotes: string | null }[]>([]);
+  const [healthRestrictions, setHealthRestrictions] = useState<{ id: string; label: string; severity: string; isActive: boolean }[]>([]);
 
   const fetchData = useCallback(async () => {
     if (!viewUserId) return; // wait for real session before fetching
@@ -45,10 +48,22 @@ function ProfileContent() {
     ]);
     const allMembers: Member[] = await membersRes.json();
     setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
-    setMemberships(await memshipsRes.json());
+    const msData: Membership[] = await memshipsRes.json();
+    setMemberships(msData);
     setReservations(await resvRes.json());
     setAllClasses(await classesRes.json());
     setLoading(false);
+
+    // If user has kinesiology, load their health data
+    const hasKine = msData.some((ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active");
+    if (hasKine) {
+      const [sessRes, restRes] = await Promise.all([
+        fetch(`/api/health/sessions?patientId=${viewUserId}`),
+        fetch(`/api/health/restrictions?patientId=${viewUserId}&isActive=true`),
+      ]);
+      if (sessRes.ok) setHealthSessions(await sessRes.json());
+      if (restRes.ok) setHealthRestrictions(await restRes.json());
+    }
   }, [viewUserId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -438,6 +453,145 @@ function ProfileContent() {
               </div>
             </motion.div>
           )}
+
+          {/* Kinesiología section — patient journey view */}
+          {(healthSessions.length > 0 || healthRestrictions.length > 0) && (() => {
+            const kineMembership = memberships.find(
+              (ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active"
+            );
+            const sessionsWithNotes = healthSessions.filter((s) => s.patientNotes);
+            const closedCount = healthSessions.filter((s) => s.status === "closed").length;
+            const totalSessions = kineMembership?.totalSessions ?? null;
+            const usedSessions = kineMembership?.usedSessions ?? closedCount;
+            const pct = totalSessions ? Math.min((usedSessions / totalSessions) * 100, 100) : 0;
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+                className="rounded-xl border overflow-hidden"
+                style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              >
+                {/* Header */}
+                <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid var(--card-border)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                      Mi plan de kinesiología
+                    </p>
+                    {!isOwnProfile && (
+                      <Link
+                        href={`/health/patients/${viewUserId}`}
+                        className="text-xs font-semibold hover:underline"
+                        style={{ color: "#10b981" }}
+                      >
+                        Ver ficha clínica →
+                      </Link>
+                    )}
+                  </div>
+
+                  {/* Pack progress */}
+                  {kineMembership && (
+                    <div className="mb-3">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                          {kineMembership.plan ?? "Pack kinesiología"}
+                        </span>
+                        <span className="text-sm font-bold" style={{
+                          color: totalSessions && usedSessions >= totalSessions ? "#ef4444" : "#10b981"
+                        }}>
+                          {totalSessions != null
+                            ? `${usedSessions} / ${totalSessions} sesiones`
+                            : `${closedCount} sesión${closedCount !== 1 ? "es" : ""} realizadas`}
+                        </span>
+                      </div>
+                      {totalSessions != null && (
+                        <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${pct}%`,
+                              background: pct >= 100 ? "#ef4444" : pct >= 80 ? "#f59e0b" : "#10b981",
+                            }}
+                          />
+                        </div>
+                      )}
+                      {totalSessions != null && totalSessions - usedSessions > 0 && (
+                        <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                          {totalSessions - usedSessions} sesión{totalSessions - usedSessions !== 1 ? "es" : ""} restante{totalSessions - usedSessions !== 1 ? "s" : ""}
+                          {kineMembership.endDate ? ` · Vence ${formatDate(kineMembership.endDate)}` : ""}
+                        </p>
+                      )}
+                      {totalSessions != null && usedSessions >= totalSessions && (
+                        <p className="text-xs mt-1 font-semibold" style={{ color: "#ef4444" }}>
+                          Pack agotado — habla con tu kinesiólogo para renovar
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Active restrictions */}
+                  {healthRestrictions.length > 0 && (
+                    <div>
+                      <p className="text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>Indicaciones activas</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {healthRestrictions.map((r) => (
+                          <span
+                            key={r.id}
+                            className="text-xs px-2 py-0.5 rounded-lg font-medium"
+                            style={r.severity === "critical"
+                              ? { background: "#ef444420", color: "#ef4444" }
+                              : r.severity === "warning"
+                              ? { background: "#f59e0b20", color: "#f59e0b" }
+                              : { background: "#4fc3f720", color: "#4fc3f7" }}
+                          >
+                            {r.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Session history — patient notes */}
+                <div className="px-5 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>
+                    Indicaciones del kinesiólogo
+                  </p>
+                  {sessionsWithNotes.length === 0 ? (
+                    <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                      Aún no hay indicaciones registradas.
+                    </p>
+                  ) : (
+                    <div className="space-y-0">
+                      {sessionsWithNotes.slice(0, 5).map((s, i) => (
+                        <div
+                          key={s.id}
+                          className="py-3 flex gap-4"
+                          style={{ borderBottom: i < sessionsWithNotes.slice(0, 5).length - 1 ? "1px solid var(--card-border)" : "none" }}
+                        >
+                          <div className="shrink-0 text-right min-w-[72px]">
+                            <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                              {new Date(s.sessionDate).toLocaleDateString("es-CL", { day: "2-digit", month: "short" })}
+                            </p>
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                              style={s.status === "closed"
+                                ? { background: "#71717a20", color: "#71717a" }
+                                : { background: "#f59e0b20", color: "#f59e0b" }}
+                            >
+                              {s.status === "closed" ? "Finalizada" : "En curso"}
+                            </span>
+                          </div>
+                          <div className="flex-1 pl-4" style={{ borderLeft: "2px solid #10b98130" }}>
+                            <p className="text-sm" style={{ color: "var(--text-primary)" }}>{s.patientNotes}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })()}
         </div>
       </div>
     </div>

@@ -32,11 +32,23 @@ export const GRANT_TYPE_LABELS: Record<string, string> = {
 };
 
 export const ROLE_LABELS: Record<string, string> = {
-  admin:   "Administrador",
-  coach:   "Coach",
-  member:  "Miembro",
-  owner:   "Propietario",
-  student: "Miembro",
+  admin:          "Administrador",
+  coach:          "Coach",
+  member:         "Miembro",
+  kinesiologist:  "Kinesiólogo",
+  owner:          "Propietario",
+  student:        "Miembro",
+};
+
+export const HEALTH_SESSION_STATUS_LABELS: Record<string, string> = {
+  open:   "Abierta",
+  closed: "Cerrada",
+};
+
+export const RESTRICTION_SEVERITY_LABELS: Record<string, string> = {
+  info:     "Informativa",
+  warning:  "Alerta",
+  critical: "Crítica",
 };
 
 export const BOOKING_MODE_LABELS: Record<string, string> = {

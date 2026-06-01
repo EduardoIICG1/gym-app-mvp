@@ -75,16 +75,11 @@ export async function PATCH(
     if (!rel) return Response.json({ error: "Sin permisos" }, { status: 403 });
   }
 
-  // CLOSED sessions are read-only (ADMIN can re-open in Phase 2)
-  if (existing.status === "CLOSED" && role !== "ADMIN") {
-    return Response.json({ error: "La sesión ya está cerrada" }, { status: 400 });
-  }
-
   const body = await request.json();
   const { subjective, objective, assessment, plan, exercises,
     observations, privateNotes, patientNotes, status } = body;
 
-  // Closing is irreversible in MVP
+  // Status can only advance OPEN → CLOSED; re-opening is Phase 2
   const newStatus = status === "closed" ? "CLOSED" : existing.status;
 
   const updated = await prisma.healthSession.update({

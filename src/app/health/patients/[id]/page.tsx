@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown, ChevronUp,
-  Lock, FileText, AlertTriangle, Clock, CreditCard,
+  Lock, FileText, CreditCard, Calendar,
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { RestrictionBadge, HealthSessionStatusBadge } from "@/components/Badge";
@@ -353,16 +353,38 @@ export default function PatientFilePage() {
       {/* ── Tab: Sesiones ── */}
       {tab === "sesiones" && (
         <div className="space-y-3">
+          {/* Quick actions */}
+          {isKine && (
+            <div className="flex flex-wrap gap-2 mb-1">
+              {record && (
+                <Link
+                  href={`/health/sessions/new?patientId=${patientId}&recordId=${record.id}`}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{ background: "#10b981", color: "white" }}
+                >
+                  <Plus className="w-4 h-4" /> Nueva sesión
+                </Link>
+              )}
+              <Link
+                href={`/profile?userId=${patientId}`}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+              >
+                <CreditCard className="w-4 h-4" /> Renovar pack
+              </Link>
+              <Link
+                href="/calendar"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+              >
+                <Calendar className="w-4 h-4" /> Ir al calendario
+              </Link>
+            </div>
+          )}
+
           {sessions.length === 0 ? (
             <div className="rounded-2xl p-8 text-center" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Sin sesiones registradas.</p>
-              {isKine && record && (
-                <Link href={`/health/sessions/new?patientId=${patientId}&recordId=${record.id}`}
-                  className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
-                  style={{ background: "#10b981", color: "white" }}>
-                  <Plus className="w-4 h-4" /> Registrar primera sesión
-                </Link>
-              )}
             </div>
           ) : (
             sessions.map((s) => (
@@ -382,7 +404,7 @@ export default function PatientFilePage() {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    {isKine && s.status === "open" && (
+                    {isKine && (
                       <Link href={`/health/sessions/${s.id}`}
                         className="px-3 py-1 rounded-lg text-xs font-semibold"
                         style={{ background: "#f59e0b20", color: "#f59e0b" }}

@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, CalendarPlus } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
+import { buildGCalURL } from "@/lib/gcal";
 
 interface PendingInvitation {
   id: string;
@@ -16,6 +17,7 @@ interface PendingInvitation {
     serviceType: string;
     sessionDate: string;
     startTime: string;
+    endTime: string;
     coachName: string;
     capacity: number;
     spotsLeft: number | null;
@@ -112,6 +114,7 @@ export default function SolicitudesPage() {
   const [invitationsLoading, setInvitationsLoading] = useState(true);
   const [respondingId,      setRespondingId]       = useState<string | null>(null);
   const [inviteErrors,      setInviteErrors]       = useState<Record<string, string>>({});
+  const [justAccepted,      setJustAccepted]       = useState<Record<string, PendingInvitation>>({});
 
   const [membershipAlerts,   setMembershipAlerts]   = useState<MembershipAlert[]>([]);
   const [membershipsLoading, setMembershipsLoading] = useState(true);
@@ -140,11 +143,11 @@ export default function SolicitudesPage() {
       .finally(() => setMembershipsLoading(false));
   }, [activeUser.id, activeUser.isLoading, activeUser.role]);
 
-  const handleRespond = async (invId: string, status: "accepted" | "declined") => {
-    setRespondingId(invId);
-    setInviteErrors(prev => { const n = { ...prev }; delete n[invId]; return n; });
+  const handleRespond = async (inv: PendingInvitation, status: "accepted" | "declined") => {
+    setRespondingId(inv.id);
+    setInviteErrors(prev => { const n = { ...prev }; delete n[inv.id]; return n; });
     try {
-      const r = await fetch(`/api/invitations/${invId}`, {
+      const r = await fetch(`/api/invitations/${inv.id}`, {
         method:  "PATCH",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ status }),
@@ -152,10 +155,13 @@ export default function SolicitudesPage() {
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
         const msg = (d as { error?: string }).error ?? "Error al responder. Intenta nuevamente.";
-        setInviteErrors(prev => ({ ...prev, [invId]: msg }));
+        setInviteErrors(prev => ({ ...prev, [inv.id]: msg }));
         return;
       }
-      setInvitations(prev => prev.filter(i => i.id !== invId));
+      if (status === "accepted") {
+        setJustAccepted(prev => ({ ...prev, [inv.id]: inv }));
+      }
+      setInvitations(prev => prev.filter(i => i.id !== inv.id));
     } finally {
       setRespondingId(null);
     }
@@ -221,6 +227,64 @@ export default function SolicitudesPage() {
                   <p className="text-sm" style={{ color: "var(--text-primary)", lineHeight: "1.55" }}>
                     {alert.message}
                   </p>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Accepted invitations — GCal prompt */}
+        {Object.values(justAccepted).length > 0 && (
+          <div className="space-y-3 mb-5">
+            {Object.values(justAccepted).map(inv => {
+              const isPersonalized = inv.session.serviceType === "personal_training" || inv.session.serviceType === "kinesiology";
+              const gcalUrl = buildGCalURL({
+                title: `${inv.session.programName} — Primary Performance`,
+                sessionDate: inv.session.sessionDate,
+                startTime: inv.session.startTime,
+                endTime: inv.session.endTime,
+                description: `Instructor: ${inv.session.coachName}`,
+              });
+              return (
+                <motion.div
+                  key={inv.id}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-2xl border p-4"
+                  style={{ background: "var(--card)", borderColor: "#22c55e40" }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: "#22c55e20" }}>
+                      <Check className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
+                    </div>
+                    <p className="text-sm font-semibold" style={{ color: "#22c55e" }}>¡Confirmado!</p>
+                    <button
+                      onClick={() => setJustAccepted(prev => { const n = { ...prev }; delete n[inv.id]; return n; })}
+                      className="ml-auto p-1 rounded hover:bg-white/5"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      <span className="text-xs">✕</span>
+                    </button>
+                  </div>
+                  <p className="text-sm font-medium mb-0.5" style={{ color: "var(--text-primary)" }}>
+                    {inv.session.programName}
+                  </p>
+                  <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+                    {inv.session.sessionDate} · {inv.session.startTime}–{inv.session.endTime} · {inv.session.coachName}
+                  </p>
+                  <a
+                    href={gcalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                    style={isPersonalized
+                      ? { background: "#4285F4", color: "white" }
+                      : { background: "var(--background)", color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                  >
+                    <CalendarPlus className="w-4 h-4" />
+                    Agregar a Google Calendar
+                  </a>
                 </motion.div>
               );
             })}
@@ -304,7 +368,7 @@ export default function SolicitudesPage() {
                           )}
                           <div className="flex gap-2 mt-3">
                             <button
-                              onClick={() => handleRespond(inv.id, "accepted")}
+                              onClick={() => handleRespond(inv, "accepted")}
                               disabled={busy}
                               className="flex-1 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40"
                               style={{ background: "#4fc3f7", color: "#000" }}
@@ -312,7 +376,7 @@ export default function SolicitudesPage() {
                               {busy ? "..." : "Asistiré"}
                             </button>
                             <button
-                              onClick={() => handleRespond(inv.id, "declined")}
+                              onClick={() => handleRespond(inv, "declined")}
                               disabled={busy}
                               className="flex-1 py-2 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40"
                               style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}

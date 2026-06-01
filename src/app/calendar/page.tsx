@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronLeft, ChevronRight, Users, X, Pencil, ClipboardList } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, X, Pencil, ClipboardList, Check, CalendarPlus } from "lucide-react";
+import { buildGCalURL } from "@/lib/gcal";
 import type { GymClass, Reservation, ServiceType, EventType, Member, AttendanceStatus } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { ServiceBadge, OccupancyBadge } from "@/components/Badge";
@@ -75,12 +76,12 @@ interface CalendarPendingInvitation {
 // ── Member Class Modal ──────────────────────────────────────────────────────
 function ClassModal({
   cls, dateStr, reserved, canBook, bookingStatus, loading, membershipBlocked,
-  hasPendingInvitation,
+  hasPendingInvitation, confirmed,
   onClose, onReserve, onCancel,
 }: {
   cls: GymClass; dateStr: string; reserved: boolean; canBook: boolean;
   bookingStatus: ClassBookingStatus; loading: boolean; membershipBlocked?: boolean;
-  hasPendingInvitation?: boolean;
+  hasPendingInvitation?: boolean; confirmed?: boolean;
   onClose: () => void; onReserve: () => void; onCancel: () => void;
 }) {
   const pct = cls.maxCapacity > 0 ? Math.min((cls.reservedCount / cls.maxCapacity) * 100, 100) : 0;
@@ -104,6 +105,49 @@ function ClassModal({
         onClick={e => e.stopPropagation()}
       >
         <div className="h-1" style={{ background: cls.bookingMode === "makeup_only" ? "linear-gradient(to right, #a78bfa, #ec4899)" : "linear-gradient(to right, #4fc3f7, #22c55e)" }} />
+
+        {/* ── Confirmed state ── */}
+        {confirmed ? (() => {
+          const isPersonalized = cls.serviceType === "personal_training" || cls.serviceType === "kinesiology";
+          const gcalUrl = buildGCalURL({
+            title: `${cls.name} — Primary Performance`,
+            sessionDate: dateStr,
+            startTime: cls.startTime,
+            endTime: cls.endTime,
+            description: `Instructor: ${cls.coach}`,
+          });
+          return (
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+                style={{ background: "#22c55e20" }}>
+                <Check className="w-6 h-6" style={{ color: "#22c55e" }} />
+              </div>
+              <p className="font-bold text-base mb-1" style={{ color: "var(--text-primary)" }}>
+                ¡Reserva confirmada!
+              </p>
+              <p className="text-sm mb-5" style={{ color: "var(--text-secondary)" }}>
+                {cls.name} · {dateStr} · {cls.startTime}–{cls.endTime}
+              </p>
+              <a
+                href={gcalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold mb-2 transition-opacity hover:opacity-80"
+                style={isPersonalized
+                  ? { background: "#4285F4", color: "white" }
+                  : { background: "var(--background)", color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+              >
+                <CalendarPlus className="w-4 h-4" />
+                Agregar a Google Calendar
+              </a>
+              <button onClick={onClose}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                Listo
+              </button>
+            </div>
+          );
+        })() : (
 
         <div className="p-6">
           <div className="flex items-start justify-between mb-1">
@@ -235,6 +279,7 @@ function ClassModal({
             </motion.button>
           )}
         </div>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -820,7 +865,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [pendingInvitations, setPendingInvitations] = useState<CalendarPendingInvitation[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
-  const [modal, setModal] = useState<{ cls: GymClass; dateStr: string } | null>(null);
+  const [modal, setModal] = useState<{ cls: GymClass; dateStr: string; confirmed?: boolean } | null>(null);
   const [manageModal, setManageModal] = useState<{ cls: GymClass; dateStr: string } | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [coachFilter, setCoachFilter] = useState("all");
@@ -926,8 +971,7 @@ export default function CalendarPage() {
     if (res.ok) {
       setReservations(prev => [...prev, data]);
       setClasses(prev => prev.map(c => c.id === classId ? { ...c, reservedCount: c.reservedCount + 1 } : c));
-      setToast({ msg: "¡Clase reservada!", ok: true });
-      setModal(null);
+      setModal(prev => prev ? { ...prev, confirmed: true } : null);
     } else {
       setToast({ msg: data.error || "Error al reservar", ok: false });
     }
@@ -1249,6 +1293,7 @@ export default function CalendarPage() {
               loading={actionLoading}
               membershipBlocked={validServiceTypes !== null && !validServiceTypes.has(modal.cls.serviceType)}
               hasPendingInvitation={!IS_ADMIN_OR_COACH && pendingInvitedSessions.has(modal.cls.id)}
+              confirmed={modal.confirmed}
               onClose={() => setModal(null)}
               onReserve={() => handleReserve(modal.cls.id, modal.dateStr)}
               onCancel={() => handleCancel(modal.cls.id, modal.dateStr)}

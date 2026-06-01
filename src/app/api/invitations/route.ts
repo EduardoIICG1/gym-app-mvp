@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       include: {
         session: {
           include: {
-            program: { select: { name: true, serviceType: true, maxCapacity: true } },
+            program: { select: { name: true, serviceType: true, maxCapacity: true, durationMin: true, startTime: true } },
             coach: { select: { id: true, name: true } },
             _count: {
               select: {
@@ -54,6 +54,14 @@ export async function GET(request: Request) {
       const capacity = s.program.maxCapacity ?? 0;
       const occupied = s._count.bookings;
 
+      // Prefer program.startTime to avoid UTC offset issues (same pattern as /api/classes)
+      const startTime = s.program.startTime
+        ?? `${String(s.startsAt.getHours()).padStart(2, "0")}:${String(s.startsAt.getMinutes()).padStart(2, "0")}`;
+      const durationMin = s.program.durationMin ?? 60;
+      const [sh, sm] = startTime.split(":").map(Number);
+      const total = sh * 60 + sm + durationMin;
+      const endTime = `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+
       return {
         id: inv.id,
         status: inv.status.toLowerCase(),
@@ -66,7 +74,8 @@ export async function GET(request: Request) {
           serviceType: SVC_MAP[s.program.serviceType] ?? "group",
           startsAt: s.startsAt.toISOString(),
           sessionDate: s.startsAt.toISOString().slice(0, 10),
-          startTime: s.startsAt.toISOString().slice(11, 16),
+          startTime,
+          endTime,
           coachName: s.coach.name ?? "",
           capacity,
           spotsLeft: capacity > 0 ? Math.max(0, capacity - occupied) : null,

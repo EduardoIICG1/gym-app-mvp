@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Users, Clock, FileText, Plus, Search, AlertTriangle } from "lucide-react";
+import { Users, Clock, FileText, Search, AlertTriangle, Calendar, CreditCard, ChevronRight } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { RestrictionBadge, HealthSessionStatusBadge } from "@/components/Badge";
 
@@ -84,6 +84,54 @@ export default function HealthPage() {
           <Users className="w-4 h-4" />
           Ver pacientes
         </Link>
+      </div>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        {[
+          {
+            label: "Próximas horas",
+            desc: todayPatients.length > 0
+              ? `${todayPatients.length} paciente${todayPatients.length !== 1 ? "s" : ""} hoy`
+              : "Ver agenda de hoy",
+            icon: Clock,
+            color: "#4fc3f7",
+            href: "/calendar",
+          },
+          {
+            label: "Revisar calendario",
+            desc: "Clases y sesiones programadas",
+            icon: Calendar,
+            color: "#10b981",
+            href: "/calendar",
+          },
+          {
+            label: "Revisar membresías",
+            desc: "Gestionar packs y pagos de pacientes",
+            icon: CreditCard,
+            color: "#a78bfa",
+            href: "/admin/members",
+          },
+        ].map((action) => (
+          <Link
+            key={action.label}
+            href={action.href}
+            className="flex items-center gap-3 p-4 rounded-xl hover:bg-white/5 transition-colors"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
+          >
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: `${action.color}20` }}
+            >
+              <action.icon className="w-4 h-4" style={{ color: action.color }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{action.label}</p>
+              <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{action.desc}</p>
+            </div>
+            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--text-secondary)" }} />
+          </Link>
+        ))}
       </div>
 
       {/* KPI row */}

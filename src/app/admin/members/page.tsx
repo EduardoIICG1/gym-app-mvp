@@ -343,6 +343,13 @@ export default function MembersPage() {
                         style={{ color: "var(--text-secondary)" }}>
                         Perfil
                       </Link>
+                      {m.contractedServices.includes("kinesiology") && (
+                        <Link href={`/health/patients/${m.id}`}
+                          className="text-xs px-2 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+                          style={{ color: "#10b981" }}>
+                          Ficha
+                        </Link>
+                      )}
                       <button
                         onClick={() => openAddService(m)}
                         className="text-xs px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80 font-medium"

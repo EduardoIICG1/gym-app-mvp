@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
+import Link from "next/link";
 import { Member, Membership, Reservation, GymClass, ServiceType } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { computeMembershipCycle } from "@/lib/cycleHelpers";
@@ -33,6 +34,8 @@ function ProfileContent() {
   const [allClasses, setAllClasses] = useState<GymClass[]>([]);
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [healthSessions, setHealthSessions] = useState<{ id: string; sessionDate: string; status: string; patientNotes: string | null }[]>([]);
+  const [healthRestrictions, setHealthRestrictions] = useState<{ id: string; label: string; severity: string; isActive: boolean }[]>([]);
 
   const fetchData = useCallback(async () => {
     if (!viewUserId) return; // wait for real session before fetching
@@ -45,10 +48,22 @@ function ProfileContent() {
     ]);
     const allMembers: Member[] = await membersRes.json();
     setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
-    setMemberships(await memshipsRes.json());
+    const msData: Membership[] = await memshipsRes.json();
+    setMemberships(msData);
     setReservations(await resvRes.json());
     setAllClasses(await classesRes.json());
     setLoading(false);
+
+    // If user has kinesiology, load their health data
+    const hasKine = msData.some((ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active");
+    if (hasKine) {
+      const [sessRes, restRes] = await Promise.all([
+        fetch(`/api/health/sessions?patientId=${viewUserId}`),
+        fetch(`/api/health/restrictions?patientId=${viewUserId}&isActive=true`),
+      ]);
+      if (sessRes.ok) setHealthSessions(await sessRes.json());
+      if (restRes.ok) setHealthRestrictions(await restRes.json());
+    }
   }, [viewUserId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -436,6 +451,81 @@ function ProfileContent() {
                   </div>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {/* Kinesiología section — only when patient has active kinesiology */}
+          {(healthSessions.length > 0 || healthRestrictions.length > 0) && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+              className="rounded-xl p-5 border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                  Kinesiología
+                </p>
+              </div>
+
+              {/* Active restrictions */}
+              {healthRestrictions.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>Restricciones activas</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {healthRestrictions.map((r) => (
+                      <span
+                        key={r.id}
+                        className="text-xs px-2 py-0.5 rounded-lg font-medium"
+                        style={r.severity === "critical"
+                          ? { background: "#ef444420", color: "#ef4444" }
+                          : r.severity === "warning"
+                          ? { background: "#f59e0b20", color: "#f59e0b" }
+                          : { background: "#4fc3f720", color: "#4fc3f7" }}
+                      >
+                        {r.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent sessions with patient notes */}
+              {healthSessions.filter(s => s.patientNotes).slice(0, 3).map((s) => (
+                <div
+                  key={s.id}
+                  className="py-3"
+                  style={{ borderTop: "1px solid var(--card-border)" }}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                      {new Date(s.sessionDate).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" })}
+                    </p>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                      style={s.status === "closed"
+                        ? { background: "#71717a20", color: "#71717a" }
+                        : { background: "#f59e0b20", color: "#f59e0b" }}
+                    >
+                      {s.status === "closed" ? "Cerrada" : "Abierta"}
+                    </span>
+                  </div>
+                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.patientNotes}</p>
+                </div>
+              ))}
+
+              {isOwnProfile && healthSessions.length === 0 && (
+                <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Sin sesiones registradas aún.</p>
+              )}
+
+              {!isOwnProfile && (
+                <Link
+                  href={`/health/patients/${viewUserId}`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold mt-2 hover:underline"
+                  style={{ color: "#10b981" }}
+                >
+                  Ver ficha clínica completa →
+                </Link>
+              )}
             </motion.div>
           )}
         </div>

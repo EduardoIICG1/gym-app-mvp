@@ -64,6 +64,17 @@ const ID = {
   annPinned2: "seed_ann_pinned_2",
   annAlert1:  "seed_ann_alert_1",
   annInfo1:   "seed_ann_info_1",
+
+  // Health module
+  mcKineCarlos:   "seed_mc_kine_carlos",
+  mcKineLucia:    "seed_mc_kine_lucia",
+  membrLuciaKine: "seed_membr_lucia_kine",
+  hrCarlos:       "seed_hr_carlos",
+  hrLucia:        "seed_hr_lucia",
+  hsCar1: "seed_hs_car_1", hsCar2: "seed_hs_car_2", hsCar3: "seed_hs_car_3",
+  hsLuc1: "seed_hs_luc_1", hsLuc2: "seed_hs_luc_2", hsLuc3: "seed_hs_luc_3",
+  resCar1: "seed_res_car_1", resCar2: "seed_res_car_2",
+  resLuc1: "seed_res_luc_1", resLuc2: "seed_res_luc_2",
 };
 
 // Returns the next occurrence of jsDay (1=Mon, 2=Tue, 3=Wed...) at given hour/min.
@@ -536,6 +547,166 @@ async function main() {
   ]);
   console.log(`   ✓ ${announcementSeeds.length} announcements\n`);
 
+  // ─── Health Module ────────────────────────────────────────────────────────
+  console.log("→ Health module (kinesiologist + records + sessions + restrictions)");
+
+  const kine = await prisma.user.upsert({
+    where:  { email: "kine@primaryperf.com" },
+    update: { name: "Valentina Reyes", role: "KINESIOLOGIST", isActive: true },
+    create: { email: "kine@primaryperf.com", name: "Valentina Reyes", role: "KINESIOLOGIST", isActive: true },
+  });
+
+  await prisma.memberCoach.upsert({
+    where:  { id: ID.mcKineCarlos },
+    update: { isActive: true },
+    create: { id: ID.mcKineCarlos, memberId: mem2.id, coachId: kine.id, serviceType: "KINESIOLOGY", isActive: true },
+  });
+  await prisma.memberCoach.upsert({
+    where:  { id: ID.mcKineLucia },
+    update: { isActive: true },
+    create: { id: ID.mcKineLucia, memberId: mem3.id, coachId: kine.id, serviceType: "KINESIOLOGY", isActive: true },
+  });
+
+  await prisma.membership.upsert({
+    where:  { id: ID.membrLuciaKine },
+    update: {},
+    create: {
+      id: ID.membrLuciaKine, memberId: mem3.id,
+      planName: "Kinesiología 6 sesiones", serviceType: "KINESIOLOGY",
+      totalSessions: 6, usedSessions: 2,
+      startDate: new Date("2026-05-15"), endDate: new Date("2026-07-15"),
+      status: "ACTIVE", amount: 36000, paymentStatus: "PAID",
+      grantType: "PURCHASED", grantedById: admin.id,
+    },
+  });
+
+  const [hrCarlos, hrLucia] = await Promise.all([
+    prisma.healthRecord.upsert({
+      where:  { patientId: mem2.id },
+      update: {},
+      create: {
+        id: ID.hrCarlos,
+        patientId: mem2.id, createdById: kine.id,
+        birthDate: new Date("1990-03-15"), biologicalSex: "Masculino", occupation: "Ingeniero",
+        reasonForConsult: "Dolor lumbar crónico con irradiación a pierna derecha",
+        medicalBackground: "Hernia discal L4-L5 diagnosticada 2024",
+        surgeries: "Ninguna", currentMedication: "Ibuprofeno 400mg SOS",
+        allergies: "Sin alergias conocidas", painLevel: 6,
+        initialAssessment: "Paciente refiere dolor lumbar 6/10 de 6 meses de evolución. Limitación de movilidad en flexión anterior.",
+        diagnosis: "Síndrome facetario L4-L5 con componente muscular",
+        treatmentGoals: "Reducir dolor a 2/10 en 8 semanas.",
+        internalNotes: "Paciente motivado. Revisar ergonomía laboral.",
+      },
+    }),
+    prisma.healthRecord.upsert({
+      where:  { patientId: mem3.id },
+      update: {},
+      create: {
+        id: ID.hrLucia,
+        patientId: mem3.id, createdById: kine.id,
+        birthDate: new Date("1995-08-22"), biologicalSex: "Femenino", occupation: "Profesora",
+        reasonForConsult: "Tendinitis de hombro derecho post-actividad deportiva",
+        medicalBackground: "Sin antecedentes relevantes",
+        surgeries: "Ninguna", currentMedication: "Ninguno",
+        allergies: "Alergia a AINES", painLevel: 4,
+        initialAssessment: "Dolor 4/10 en hombro derecho al elevar el brazo. Arco doloroso entre 60-120°.",
+        diagnosis: "Tendinitis del manguito rotador — supraespinoso derecho",
+        treatmentGoals: "Recuperar movilidad completa del hombro. Retorno al deporte en 6 semanas.",
+        internalNotes: "Coordinar con coach Felipe para adaptar clases grupales.",
+      },
+    }),
+  ]);
+
+  const nowMs = Date.now();
+  await Promise.all([
+    prisma.healthSession.upsert({
+      where:  { id: ID.hsCar1 },
+      update: {},
+      create: {
+        id: ID.hsCar1, healthRecordId: hrCarlos.id, patientId: mem2.id, kinesiologistId: kine.id,
+        sessionDate: new Date(nowMs - 14 * 86400_000),
+        subjective: "Refiere dolor 7/10 al inclinarse.", objective: "Limitación flexión lumbar 50%.",
+        assessment: "Inicio de tratamiento.", plan: "Termoterapia + masoterapia.",
+        exercises: "Gato-camello 3x10. Puente glúteo 3x15.",
+        patientNotes: "Realiza los ejercicios 2 veces al día. El calor local antes ayuda.", status: "CLOSED",
+      },
+    }),
+    prisma.healthSession.upsert({
+      where:  { id: ID.hsCar2 },
+      update: {},
+      create: {
+        id: ID.hsCar2, healthRecordId: hrCarlos.id, patientId: mem2.id, kinesiologistId: kine.id,
+        sessionDate: new Date(nowMs - 7 * 86400_000),
+        subjective: "Mejoría notable. Dolor 4/10.", objective: "Flexión lumbar 70%.",
+        assessment: "Buena evolución.", plan: "Agregar fortalecimiento de core.",
+        exercises: "Dead bug 3x10. Plancha lateral 3x20seg.",
+        patientNotes: "Excelente avance. Agrega el dead bug a tu rutina.", status: "CLOSED",
+      },
+    }),
+    prisma.healthSession.upsert({
+      where:  { id: ID.hsCar3 },
+      update: {},
+      create: {
+        id: ID.hsCar3, healthRecordId: hrCarlos.id, patientId: mem2.id, kinesiologistId: kine.id,
+        sessionDate: new Date(nowMs), subjective: "Dolor 3/10 hoy. Realizó ejercicios todos los días.", status: "OPEN",
+      },
+    }),
+    prisma.healthSession.upsert({
+      where:  { id: ID.hsLuc1 },
+      update: {},
+      create: {
+        id: ID.hsLuc1, healthRecordId: hrLucia.id, patientId: mem3.id, kinesiologistId: kine.id,
+        sessionDate: new Date(nowMs - 10 * 86400_000),
+        subjective: "Dolor 5/10 al levantar el brazo.", objective: "Arco doloroso 60-120°. Fuerza 4/5.",
+        assessment: "Inflamación activa.", plan: "Crioterapia + control motor.",
+        exercises: "Péndulo de Codman 5min. Rotación externa con banda 3x15.",
+        patientNotes: "Aplica hielo 15 minutos post-sesión. Evita levantar peso sobre la cabeza.", status: "CLOSED",
+      },
+    }),
+    prisma.healthSession.upsert({
+      where:  { id: ID.hsLuc2 },
+      update: {},
+      create: {
+        id: ID.hsLuc2, healthRecordId: hrLucia.id, patientId: mem3.id, kinesiologistId: kine.id,
+        sessionDate: new Date(nowMs - 4 * 86400_000),
+        subjective: "Mejora. Dolor 3/10. Ya eleva el brazo a 140°.", objective: "Arco doloroso reducido.",
+        assessment: "Evolución favorable.", plan: "Fortalecimiento progresivo.",
+        exercises: "Press frontal con banda liviana 3x12.",
+        patientNotes: "Puedes retomar clases de grupo sin ejercicios con carga sobre la cabeza.", status: "CLOSED",
+      },
+    }),
+    prisma.healthSession.upsert({
+      where:  { id: ID.hsLuc3 },
+      update: {},
+      create: {
+        id: ID.hsLuc3, healthRecordId: hrLucia.id, patientId: mem3.id, kinesiologistId: kine.id,
+        sessionDate: new Date(nowMs),
+        subjective: "En la última clase grupal notó molestia leve al hacer burpees.", status: "OPEN",
+      },
+    }),
+    prisma.healthRestriction.upsert({
+      where:  { id: ID.resCar1 },
+      update: {},
+      create: { id: ID.resCar1, healthRecordId: hrCarlos.id, patientId: mem2.id, createdById: kine.id, label: "Evitar impacto lumbar", severity: "WARNING", isActive: true, startDate: new Date("2026-05-15") },
+    }),
+    prisma.healthRestriction.upsert({
+      where:  { id: ID.resCar2 },
+      update: {},
+      create: { id: ID.resCar2, healthRecordId: hrCarlos.id, patientId: mem2.id, createdById: kine.id, label: "Precaución en flexión de tronco", severity: "INFO", isActive: true, startDate: new Date("2026-05-15") },
+    }),
+    prisma.healthRestriction.upsert({
+      where:  { id: ID.resLuc1 },
+      update: {},
+      create: { id: ID.resLuc1, healthRecordId: hrLucia.id, patientId: mem3.id, createdById: kine.id, label: "Sin carga sobre la cabeza", severity: "WARNING", isActive: true, startDate: new Date("2026-05-20") },
+    }),
+    prisma.healthRestriction.upsert({
+      where:  { id: ID.resLuc2 },
+      update: {},
+      create: { id: ID.resLuc2, healthRecordId: hrLucia.id, patientId: mem3.id, createdById: kine.id, label: "Alergia a AINES", severity: "CRITICAL", isActive: true, startDate: new Date("2026-05-15") },
+    }),
+  ]);
+  console.log("   ✓ 1 kinesiologist + 2 health records + 6 sessions + 4 restrictions\n");
+
   console.log("✅ Seed completado.");
   console.log("   Cuentas con login Google real:");
   console.log("     ADMIN:  lalopeluuza01@gmail.com");
@@ -544,6 +715,7 @@ async function main() {
   console.log("     MEMBER: laloosky@gmail.com              (PT ACTIVE, sesión PT reservada)");
   console.log("     MEMBER: evergara.ing@gmail.com          (GROUP EXPIRED, alerta membresía vencida)");
   console.log("   Placeholders @primaryperf.com: datos de relleno, sin cuenta Google real");
+  console.log("     KINESIOLOGIST: kine@primaryperf.com    (Valentina Reyes — 2 pacientes, fichas + sesiones)");
   console.log("   Abre Prisma Studio con: npx prisma studio");
 }
 

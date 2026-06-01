@@ -110,7 +110,7 @@ export default function HealthPage() {
             desc: "Gestionar packs y pagos de pacientes",
             icon: CreditCard,
             color: "#a78bfa",
-            href: "/admin/members",
+            href: "/admin/memberships",
           },
         ].map((action) => (
           <Link

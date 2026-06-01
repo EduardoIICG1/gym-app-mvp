@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import {
   ArrowLeft, Plus, Edit2, Check, X, ChevronDown, ChevronUp,
-  Lock, FileText, CreditCard, Calendar,
+  Lock, FileText, CreditCard, Calendar, Bell,
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { RestrictionBadge, HealthSessionStatusBadge } from "@/components/Badge";
@@ -131,6 +131,14 @@ export default function PatientFilePage() {
   const [addingRestriction, setAddingRestriction] = useState(false);
   const [creatingRecord, setCreatingRecord] = useState(false);
 
+  // Convocar modal
+  const [showConvocar, setShowConvocar] = useState(false);
+  const [convocarSessions, setConvocarSessions] = useState<Array<{id: string; name: string; sessionDate: string; startTime: string; endTime: string; coach: string}>>([]);
+  const [selectedConvocarId, setSelectedConvocarId] = useState<string | null>(null);
+  const [loadingConvocarSessions, setLoadingConvocarSessions] = useState(false);
+  const [submittingConvocar, setSubmittingConvocar] = useState(false);
+  const [convocarResult, setConvocarResult] = useState<{ok: boolean; message: string} | null>(null);
+
   const isKine = user.role === "kinesiologist" || user.role === "admin";
 
   const load = useCallback(async () => {
@@ -204,6 +212,42 @@ export default function PatientFilePage() {
       body: JSON.stringify({ isActive: !current }),
     });
     setRestrictions((prev) => prev.map((r) => r.id === id ? { ...r, isActive: !current } : r));
+  };
+
+  const openConvocar = async () => {
+    setShowConvocar(true);
+    setConvocarResult(null);
+    setSelectedConvocarId(null);
+    setLoadingConvocarSessions(true);
+    try {
+      const data = await fetch("/api/classes").then((r) => r.json());
+      const upcoming = Array.isArray(data)
+        ? data.filter((c: { serviceType: string }) => c.serviceType === "kinesiology")
+        : [];
+      setConvocarSessions(upcoming.slice(0, 10));
+    } finally {
+      setLoadingConvocarSessions(false);
+    }
+  };
+
+  const submitConvocar = async () => {
+    if (!selectedConvocarId) return;
+    setSubmittingConvocar(true);
+    try {
+      const res = await fetch(`/api/sessions/${selectedConvocarId}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberIds: [patientId] }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setConvocarResult({ ok: true, message: "Invitación enviada correctamente." });
+      } else {
+        setConvocarResult({ ok: false, message: data.error ?? "Error al enviar la invitación." });
+      }
+    } finally {
+      setSubmittingConvocar(false);
+    }
   };
 
   const activeRestrictions = restrictions.filter((r) => r.isActive);
@@ -379,6 +423,13 @@ export default function PatientFilePage() {
               >
                 <Calendar className="w-4 h-4" /> Ir al calendario
               </Link>
+              <button
+                onClick={openConvocar}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+                style={{ background: "#4fc3f720", border: "1px solid #4fc3f730", color: "#4fc3f7" }}
+              >
+                <Bell className="w-4 h-4" /> Convocar a sesión
+              </button>
             </div>
           )}
 
@@ -561,6 +612,110 @@ export default function PatientFilePage() {
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             Adjunta exámenes, órdenes médicas y certificados. Disponible en la próxima fase.
           </p>
+        </div>
+      )}
+
+      {/* ── Convocar modal ── */}
+      {showConvocar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={() => setShowConvocar(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md rounded-2xl p-5"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-base" style={{ color: "var(--text-primary)" }}>
+                Convocar a sesión
+              </h2>
+              <button onClick={() => setShowConvocar(false)} className="p-1 rounded hover:bg-white/5">
+                <X className="w-4 h-4" style={{ color: "var(--text-secondary)" }} />
+              </button>
+            </div>
+
+            {convocarResult ? (
+              <div className="space-y-3">
+                <div
+                  className="p-4 rounded-xl text-sm font-medium text-center"
+                  style={{
+                    background: convocarResult.ok ? "#10b98120" : "#ef444420",
+                    color: convocarResult.ok ? "#10b981" : "#ef4444",
+                    border: `1px solid ${convocarResult.ok ? "#10b98130" : "#ef444430"}`,
+                  }}
+                >
+                  {convocarResult.message}
+                </div>
+                <button
+                  onClick={() => setShowConvocar(false)}
+                  className="w-full py-2 rounded-xl text-sm font-semibold"
+                  style={{ background: "var(--background)", color: "var(--text-secondary)" }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+                  Selecciona una sesión próxima de kinesiología para invitar a {patientInfo?.name ?? "este paciente"}.
+                </p>
+
+                {loadingConvocarSessions ? (
+                  <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>Cargando sesiones...</p>
+                ) : convocarSessions.length === 0 ? (
+                  <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>
+                    No hay sesiones de kinesiología próximas programadas.
+                  </p>
+                ) : (
+                  <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+                    {convocarSessions.map((s) => {
+                      const selected = selectedConvocarId === s.id;
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => setSelectedConvocarId(s.id)}
+                          className="w-full text-left p-3 rounded-xl transition-colors"
+                          style={{
+                            background: selected ? "#4fc3f720" : "var(--background)",
+                            border: `1px solid ${selected ? "#4fc3f7" : "var(--card-border)"}`,
+                          }}
+                        >
+                          <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{s.name}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                            {new Date(s.sessionDate).toLocaleDateString("es-CL", { weekday: "short", day: "2-digit", month: "short" })}
+                            {" · "}{s.startTime}–{s.endTime}
+                            {s.coach ? ` · ${s.coach}` : ""}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => setShowConvocar(false)}
+                    className="flex-1 py-2 rounded-xl text-sm font-semibold"
+                    style={{ background: "var(--background)", color: "var(--text-secondary)" }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={submitConvocar}
+                    disabled={!selectedConvocarId || submittingConvocar}
+                    className="flex-1 py-2 rounded-xl text-sm font-semibold disabled:opacity-40"
+                    style={{ background: "#4fc3f7", color: "white" }}
+                  >
+                    {submittingConvocar ? "Enviando..." : "Convocar"}
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
         </div>
       )}
     </div>

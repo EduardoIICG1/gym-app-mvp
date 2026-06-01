@@ -809,7 +809,7 @@ function BookingStatusChip({ status }: { status: ClassBookingStatus }) {
 export default function CalendarPage() {
   const currentUser = useCurrentUser();
   const CURRENT_USER_ID = currentUser.id;
-  const IS_ADMIN_OR_COACH = currentUser.hasRole("admin") || currentUser.hasRole("coach");
+  const IS_ADMIN_OR_COACH = currentUser.hasRole("admin") || currentUser.hasRole("coach") || currentUser.hasRole("kinesiologist");
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [classes, setClasses] = useState<GymClass[]>([]);

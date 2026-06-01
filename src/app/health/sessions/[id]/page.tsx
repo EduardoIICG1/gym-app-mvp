@@ -132,7 +132,7 @@ export default function HealthSessionPage() {
 
   const doSave = useCallback(
     async (patch: Partial<Record<SectionKey, string>>) => {
-      if (!session || session.status === "closed") return;
+      if (!session) return;
       setSaveState("saving");
       try {
         const res = await fetch(`/api/health/sessions/${session.id}`, {
@@ -155,7 +155,7 @@ export default function HealthSessionPage() {
 
   const handleFieldChange = useCallback(
     (key: SectionKey, value: string) => {
-      if (session?.status === "closed") return;
+      if (!session) return;
       setFields((prev) => ({ ...prev, [key]: value }));
       pendingRef.current[key] = value;
 
@@ -216,7 +216,7 @@ export default function HealthSessionPage() {
   }
   if (!session) return null;
 
-  const isReadOnly = session.status === "closed";
+  const isReadOnly = false;
 
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto">

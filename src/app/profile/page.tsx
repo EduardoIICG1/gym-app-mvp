@@ -117,9 +117,11 @@ function ProfileContent() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // Guard: always treat state as arrays regardless of how state was set
-  const safeReservations = Array.isArray(reservations) ? reservations : [];
-  const safeMemberships  = Array.isArray(memberships)  ? memberships  : [];
-  const safeClasses      = Array.isArray(allClasses)   ? allClasses   : [];
+  const safeReservations      = Array.isArray(reservations)      ? reservations      : [];
+  const safeMemberships        = Array.isArray(memberships)       ? memberships       : [];
+  const safeClasses            = Array.isArray(allClasses)        ? allClasses        : [];
+  const safeHealthSessions     = Array.isArray(healthSessions)    ? healthSessions    : [];
+  const safeHealthRestrictions = Array.isArray(healthRestrictions) ? healthRestrictions : [];
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const upcoming = safeReservations.filter((r) => r.status === "reserved" && new Date(r.classDate) >= today).sort((a, b) => a.classDate.localeCompare(b.classDate));
@@ -227,7 +229,7 @@ function ProfileContent() {
             <div className="space-y-3">
               {[
                 { label: "Membresías activas", value: activeMemberships.length, accent: "#22c55e" },
-                { label: "Total reservas", value: reservations.length, accent: "#4fc3f7" },
+                { label: "Total reservas", value: safeReservations.length, accent: "#4fc3f7" },
                 { label: "Próximas clases", value: upcoming.length, accent: "#f97316" },
               ].map(({ label, value, accent }) => (
                 <div key={label} className="flex justify-between items-center">
@@ -318,7 +320,7 @@ function ProfileContent() {
 
           {/* Membership cycles */}
           {safeMemberships.length > 0 && (() => {
-            const cycles = memberships.flatMap((ms) => {
+            const cycles = safeMemberships.flatMap((ms) => {
               try {
                 return [computeMembershipCycle(ms, safeReservations, safeClasses)];
               } catch {
@@ -519,12 +521,12 @@ function ProfileContent() {
           )}
 
           {/* Kinesiología section — patient journey view */}
-          {(healthSessions.length > 0 || healthRestrictions.length > 0) && (() => {
+          {(safeHealthSessions.length > 0 || safeHealthRestrictions.length > 0) && (() => {
             const kineMembership = safeMemberships.find(
               (ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active"
             );
-            const sessionsWithNotes = healthSessions.filter((s) => s.patientNotes);
-            const closedCount = healthSessions.filter((s) => s.status === "closed").length;
+            const sessionsWithNotes = safeHealthSessions.filter((s) => s.patientNotes);
+            const closedCount = safeHealthSessions.filter((s) => s.status === "closed").length;
             const totalSessions = kineMembership?.totalSessions ?? null;
             const usedSessions = kineMembership?.usedSessions ?? closedCount;
             const pct = totalSessions ? Math.min((usedSessions / totalSessions) * 100, 100) : 0;
@@ -593,11 +595,11 @@ function ProfileContent() {
                   )}
 
                   {/* Active restrictions */}
-                  {healthRestrictions.length > 0 && (
+                  {safeHealthRestrictions.length > 0 && (
                     <div>
                       <p className="text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>Indicaciones activas</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {healthRestrictions.map((r) => (
+                        {safeHealthRestrictions.map((r) => (
                           <span
                             key={r.id}
                             className="text-xs px-2 py-0.5 rounded-lg font-medium"
@@ -634,7 +636,7 @@ function ProfileContent() {
                         >
                           <div className="shrink-0 text-right min-w-[72px]">
                             <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-                              {new Date(s.sessionDate).toLocaleDateString("es-CL", { day: "2-digit", month: "short" })}
+                              {s.sessionDate ? new Date(s.sessionDate).toLocaleDateString("es-CL", { day: "2-digit", month: "short" }) : "Sin fecha"}
                             </p>
                             <span
                               className="text-[10px] px-1.5 py-0.5 rounded font-semibold"

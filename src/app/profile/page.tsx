@@ -33,15 +33,101 @@ function formatAmount(amount?: number | null): string {
   return `$${amount.toLocaleString("es-CL")}`;
 }
 
-// ─── Inner component ───────────────────────────────────────────────────────
-function ProfileContent() {
-  const activeUser = useCurrentUser();
-  const searchParams = useSearchParams();
-  console.warn("[profile] mount rev=2ca0732 role=", activeUser.role, "id=", activeUser.id ? "(set)" : "(empty)");
-  const viewUserId = searchParams.get("userId") ?? activeUser.id;
-  const isOwnProfile = viewUserId === activeUser.id;
-  const isStaffOwnProfile = isOwnProfile && ["admin", "coach", "kinesiologist"].includes(activeUser.role);
+// ─── Staff own profile — no fetch, no motion, no member-oriented data ──────
+type ActiveUser = ReturnType<typeof useCurrentUser>;
 
+function StaffOwnProfile({ activeUser }: { activeUser: ActiveUser }) {
+  const staffName  = activeUser.name  || "Usuario";
+  const staffEmail = activeUser.email || "";
+  const staffRole  = activeUser.role;
+
+  const staffLinks: { label: string; href: string; roles: string[] }[] = [
+    { label: "Calendario",   href: "/calendar",          roles: ["admin", "coach", "kinesiologist"] },
+    { label: "Miembros",     href: "/admin/members",     roles: ["admin", "coach", "kinesiologist"] },
+    { label: "Membresías",   href: "/admin/memberships", roles: ["admin", "coach"] },
+    { label: "Kinesiología", href: "/health",            roles: ["admin", "kinesiologist"] },
+    { label: "Pacientes",    href: "/health/patients",   roles: ["kinesiologist"] },
+    { label: "Clases",       href: "/admin/classes",     roles: ["admin", "coach"] },
+  ].filter((l) => l.roles.includes(staffRole));
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-start gap-5 mb-8">
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shrink-0"
+          style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+        >
+          {safeInitials(staffName)}
+        </div>
+        <div>
+          <h1
+            className="text-2xl font-bold"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
+          >
+            {staffName}
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{staffEmail}</p>
+          <div className="mt-2">
+            <RoleBadge role={staffRole} />
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="rounded-xl p-5 border mb-4"
+        style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+      >
+        <p
+          className="text-xs font-semibold uppercase tracking-wider mb-2"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Perfil operativo
+        </p>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          Este perfil corresponde a una cuenta de staff. Las métricas de membresías, reservas y
+          ciclos se muestran en los perfiles de miembros y alumnos.
+        </p>
+      </div>
+
+      {staffLinks.length > 0 && (
+        <div
+          className="rounded-xl p-5 border"
+          style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+        >
+          <p
+            className="text-xs font-semibold uppercase tracking-wider mb-3"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Accesos rápidos
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {staffLinks.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="text-sm px-3 py-1.5 rounded-lg font-medium transition-colors hover:opacity-80"
+                style={{ background: "#4fc3f720", color: "#4fc3f7" }}
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Member-oriented profile — all member/membership/reservation logic ─────
+function MemberProfileContent({
+  viewUserId,
+  activeUser,
+  isOwnProfile,
+}: {
+  viewUserId: string;
+  activeUser: ActiveUser;
+  isOwnProfile: boolean;
+}) {
   const [member, setMember] = useState<Member | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -56,24 +142,6 @@ function ProfileContent() {
     if (!viewUserId) return;
     setLoading(true);
     setFetchError(false);
-    console.warn("[profile] fetchData start", { viewUserId, isOwnProfile, isStaffOwnProfile });
-
-    // Staff viewing own profile: only fetch basic member record — skip member-oriented data
-    if (isStaffOwnProfile) {
-      try {
-        const res = await fetch("/api/members");
-        const raw = res.ok ? await res.json() : [];
-        const all: Member[] = Array.isArray(raw) ? raw : [];
-        setMember(all.find((m) => m.id === viewUserId) ?? null);
-        console.warn("[profile] staff fetchData complete");
-      } catch (err) {
-        console.error("[profile] staff fetchData error", err);
-        setFetchError(true);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
 
     try {
       const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
@@ -82,32 +150,20 @@ function ProfileContent() {
         fetch(`/api/reservations?userId=${viewUserId}`),
         fetch("/api/classes"),
       ]);
-      console.warn("[profile] fetch status", {
-        members:    membersRes.status,
-        memberships: memshipsRes.status,
-        reservations: resvRes.status,
-        classes:    classesRes.status,
-      });
 
       const allMembersRaw = membersRes.ok ? await membersRes.json() : [];
       const allMembers: Member[] = Array.isArray(allMembersRaw) ? allMembersRaw : [];
-      console.warn("[profile] members", { count: allMembers.length, isArray: Array.isArray(allMembersRaw) });
       setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
 
       const msRaw = memshipsRes.ok ? await memshipsRes.json() : [];
       const msData: Membership[] = Array.isArray(msRaw) ? msRaw : [];
-      console.warn("[profile] memberships", { count: msData.length, isArray: Array.isArray(msRaw), status: memshipsRes.status });
       setMemberships(msData);
 
       const resvRaw = resvRes.ok ? await resvRes.json() : [];
-      const resvData = Array.isArray(resvRaw) ? resvRaw : [];
-      console.warn("[profile] reservations", { count: resvData.length, isArray: Array.isArray(resvRaw) });
-      setReservations(resvData);
+      setReservations(Array.isArray(resvRaw) ? resvRaw : []);
 
       const classesRaw = classesRes.ok ? await classesRes.json() : [];
-      const classesData = Array.isArray(classesRaw) ? classesRaw : [];
-      console.warn("[profile] classes", { count: classesData.length, isArray: Array.isArray(classesRaw) });
-      setAllClasses(classesData);
+      setAllClasses(Array.isArray(classesRaw) ? classesRaw : []);
 
       const hasKine = msData.some((ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active");
       if (hasKine) {
@@ -124,22 +180,20 @@ function ProfileContent() {
           if (Array.isArray(restRaw)) setHealthRestrictions(restRaw);
         }
       }
-      console.warn("[profile] fetchData complete");
     } catch (err) {
       console.error("[profile] fetchData error", err);
       setFetchError(true);
     } finally {
       setLoading(false);
     }
-  }, [viewUserId, isStaffOwnProfile]);
+  }, [viewUserId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Guard: always treat state as arrays regardless of how state was set
-  const safeReservations      = Array.isArray(reservations)      ? reservations      : [];
-  const safeMemberships        = Array.isArray(memberships)       ? memberships       : [];
-  const safeClasses            = Array.isArray(allClasses)        ? allClasses        : [];
-  const safeHealthSessions     = Array.isArray(healthSessions)    ? healthSessions    : [];
+  const safeReservations      = Array.isArray(reservations)       ? reservations       : [];
+  const safeMemberships        = Array.isArray(memberships)        ? memberships        : [];
+  const safeClasses            = Array.isArray(allClasses)         ? allClasses         : [];
+  const safeHealthSessions     = Array.isArray(healthSessions)     ? healthSessions     : [];
   const safeHealthRestrictions = Array.isArray(healthRestrictions) ? healthRestrictions : [];
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -152,77 +206,17 @@ function ProfileContent() {
     return <div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>Cargando perfil...</div>;
   }
 
-  // Staff own profile — simple, safe render (no member-oriented data)
-  if (isStaffOwnProfile) {
-    const staffName  = member?.name  ?? activeUser.name  ?? "Usuario";
-    const staffEmail = member?.email ?? activeUser.email ?? "";
-    const staffRole  = member?.roles?.[0] ?? activeUser.role;
-
-    const staffLinks: { label: string; href: string; roles: string[] }[] = [
-      { label: "Calendario",   href: "/calendar",          roles: ["admin", "coach", "kinesiologist"] },
-      { label: "Miembros",     href: "/admin/members",     roles: ["admin", "coach", "kinesiologist"] },
-      { label: "Membresías",   href: "/admin/memberships", roles: ["admin", "coach"] },
-      { label: "Kinesiología", href: "/health",            roles: ["admin", "kinesiologist"] },
-      { label: "Pacientes",    href: "/health/patients",   roles: ["kinesiologist"] },
-      { label: "Clases",       href: "/admin/classes",     roles: ["admin", "coach"] },
-    ].filter(l => l.roles.includes(activeUser.role));
-
-    return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-start gap-5 mb-8">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shrink-0"
-            style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
-          >
-            {safeInitials(staffName)}
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-              {staffName}
-            </h1>
-            <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{staffEmail}</p>
-            <div className="mt-2"><RoleBadge role={staffRole} /></div>
-          </div>
-        </div>
-
-        <div className="rounded-xl p-5 border mb-4" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>
-            Perfil operativo
-          </p>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Este perfil corresponde a una cuenta de staff. Las métricas de membresías, reservas y ciclos se muestran en los perfiles de miembros y alumnos.
-          </p>
-        </div>
-
-        {staffLinks.length > 0 && (
-          <div className="rounded-xl p-5 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>Accesos rápidos</p>
-            <div className="flex flex-wrap gap-2">
-              {staffLinks.map(l => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="text-sm px-3 py-1.5 rounded-lg font-medium transition-colors hover:opacity-80"
-                  style={{ background: "#4fc3f720", color: "#4fc3f7" }}
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const displayName = member?.name ?? (isOwnProfile ? activeUser.name : "Usuario");
+  const displayName  = member?.name  ?? (isOwnProfile ? activeUser.name  : "Usuario");
   const displayEmail = member?.email ?? (isOwnProfile ? activeUser.email : "");
-  const displayRole = member?.roles?.[0] ?? activeUser.role;
+  const displayRole  = member?.roles?.[0] ?? activeUser.role;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {fetchError && (
-        <div className="mb-4 rounded-lg px-4 py-3 text-sm" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b30" }}>
+        <div
+          className="mb-4 rounded-lg px-4 py-3 text-sm"
+          style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b30" }}
+        >
           Algunos datos del perfil no pudieron cargarse. Intenta recargar la página.
         </div>
       )}
@@ -239,7 +233,10 @@ function ProfileContent() {
           {safeInitials(displayName)}
         </div>
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+          <h1
+            className="text-2xl font-bold"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
+          >
             {displayName}
           </h1>
           <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{displayEmail}</p>
@@ -311,8 +308,8 @@ function ProfileContent() {
             <div className="space-y-3">
               {[
                 { label: "Membresías activas", value: activeMemberships.length, accent: "#22c55e" },
-                { label: "Total reservas", value: safeReservations.length, accent: "#4fc3f7" },
-                { label: "Próximas clases", value: upcoming.length, accent: "#f97316" },
+                { label: "Total reservas",      value: safeReservations.length, accent: "#4fc3f7" },
+                { label: "Próximas clases",     value: upcoming.length,         accent: "#f97316" },
               ].map(({ label, value, accent }) => (
                 <div key={label} className="flex justify-between items-center">
                   <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{label}</span>
@@ -352,11 +349,6 @@ function ProfileContent() {
                           <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{PLAN_LABELS[ms.plan] ?? ms.plan}</p>
                         </div>
                         <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{formatAmount(ms.amount)}</p>
-                        {ms.coachName && (
-                          <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
-                            Prof: <span style={{ color: "var(--text-primary)" }}>{ms.coachName}</span>
-                          </p>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <PaymentBadge status={ms.paymentStatus} />
@@ -370,12 +362,11 @@ function ProfileContent() {
                     {ms.totalSessions != null && ms.usedSessions !== undefined && (
                       <div>
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                            Sesiones usadas
-                          </span>
-                          <span className="text-xs font-semibold" style={{
-                            color: ms.usedSessions >= ms.totalSessions ? "#ef4444" : "var(--text-primary)",
-                          }}>
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>Sesiones usadas</span>
+                          <span
+                            className="text-xs font-semibold"
+                            style={{ color: ms.usedSessions >= ms.totalSessions ? "#ef4444" : "var(--text-primary)" }}
+                          >
                             {ms.usedSessions} / {ms.totalSessions}
                             {ms.totalSessions - ms.usedSessions <= 0
                               ? " — sin sesiones"
@@ -409,6 +400,7 @@ function ProfileContent() {
                 return [];
               }
             });
+            if (cycles.length === 0) return null;
             return (
               <motion.div
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
@@ -424,7 +416,6 @@ function ProfileContent() {
                     const isExpanded = expandedCycles.has(cycle.cycleId);
                     return (
                       <div key={cycle.cycleId}>
-                        {/* Header */}
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{cycle.membershipName}</p>
                           <span
@@ -438,8 +429,6 @@ function ProfileContent() {
                             {cycle.status === "active" ? "Activo" : cycle.status === "expired" ? "Vencido" : "Completado"}
                           </span>
                         </div>
-
-                        {/* Credits bar */}
                         <div className="flex items-center gap-2 mb-3">
                           <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
                             <div
@@ -451,13 +440,11 @@ function ProfileContent() {
                             {cycle.usedCredits}/{cycle.totalCredits}
                           </span>
                         </div>
-
-                        {/* Stats row */}
                         <div className="grid grid-cols-4 gap-2 mb-3">
                           {[
-                            { label: "Asistidas", value: cycle.usedCredits, color: "#22c55e" },
-                            { label: "Ausentes", value: cycle.absentCount, color: "#ef4444" },
-                            { label: "Pendientes", value: cycle.pendingCount, color: "#f59e0b" },
+                            { label: "Asistidas",    value: cycle.usedCredits,      color: "#22c55e" },
+                            { label: "Ausentes",     value: cycle.absentCount,      color: "#ef4444" },
+                            { label: "Pendientes",   value: cycle.pendingCount,     color: "#f59e0b" },
                             { label: "Recuperables", value: cycle.recoverableCount, color: "#a78bfa" },
                           ].map(({ label, value, color }) => (
                             <div key={label} className="rounded-lg p-2 text-center" style={{ background: "rgba(0,0,0,0.15)" }}>
@@ -466,8 +453,6 @@ function ProfileContent() {
                             </div>
                           ))}
                         </div>
-
-                        {/* Toggle entry list */}
                         {cycle.entries.length > 0 && (
                           <>
                             <button
@@ -610,7 +595,7 @@ function ProfileContent() {
             const sessionsWithNotes = safeHealthSessions.filter((s) => s.patientNotes);
             const closedCount = safeHealthSessions.filter((s) => s.status === "closed").length;
             const totalSessions = kineMembership?.totalSessions ?? null;
-            const usedSessions = kineMembership?.usedSessions ?? closedCount;
+            const usedSessions  = kineMembership?.usedSessions  ?? closedCount;
             const pct = totalSessions ? Math.min((usedSessions / totalSessions) * 100, 100) : 0;
 
             return (
@@ -619,7 +604,6 @@ function ProfileContent() {
                 className="rounded-xl border overflow-hidden"
                 style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
               >
-                {/* Header */}
                 <div className="px-5 pt-5 pb-4" style={{ borderBottom: "1px solid var(--card-border)" }}>
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
@@ -636,16 +620,16 @@ function ProfileContent() {
                     )}
                   </div>
 
-                  {/* Pack progress */}
                   {kineMembership && (
                     <div className="mb-3">
                       <div className="flex justify-between items-center mb-1.5">
                         <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                           {kineMembership.plan ?? "Pack kinesiología"}
                         </span>
-                        <span className="text-sm font-bold" style={{
-                          color: totalSessions && usedSessions >= totalSessions ? "#ef4444" : "#10b981"
-                        }}>
+                        <span
+                          className="text-sm font-bold"
+                          style={{ color: totalSessions && usedSessions >= totalSessions ? "#ef4444" : "#10b981" }}
+                        >
                           {totalSessions != null
                             ? `${usedSessions} / ${totalSessions} sesiones`
                             : `${closedCount} sesión${closedCount !== 1 ? "es" : ""} realizadas`}
@@ -676,7 +660,6 @@ function ProfileContent() {
                     </div>
                   )}
 
-                  {/* Active restrictions */}
                   {safeHealthRestrictions.length > 0 && (
                     <div>
                       <p className="text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>Indicaciones activas</p>
@@ -699,7 +682,6 @@ function ProfileContent() {
                   )}
                 </div>
 
-                {/* Session history — patient notes */}
                 <div className="px-5 py-4">
                   <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>
                     Indicaciones del kinesiólogo
@@ -743,6 +725,37 @@ function ProfileContent() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Dispatcher — resolves role before any member-oriented code runs ────────
+function ProfileContent() {
+  const activeUser = useCurrentUser();
+  const searchParams = useSearchParams();
+
+  if (activeUser.isLoading) {
+    return (
+      <div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>
+        Cargando perfil...
+      </div>
+    );
+  }
+
+  const viewUserId = searchParams.get("userId") ?? activeUser.id;
+  const isOwnProfile = viewUserId === activeUser.id;
+  const isStaffOwnProfile =
+    isOwnProfile && ["admin", "coach", "kinesiologist"].includes(activeUser.role);
+
+  if (isStaffOwnProfile) {
+    return <StaffOwnProfile activeUser={activeUser} />;
+  }
+
+  return (
+    <MemberProfileContent
+      viewUserId={viewUserId}
+      activeUser={activeUser}
+      isOwnProfile={isOwnProfile}
+    />
   );
 }
 

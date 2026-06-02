@@ -99,10 +99,15 @@ function ProfileContent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Guard: always treat state as arrays regardless of how state was set
+  const safeReservations = Array.isArray(reservations) ? reservations : [];
+  const safeMemberships  = Array.isArray(memberships)  ? memberships  : [];
+  const safeClasses      = Array.isArray(allClasses)   ? allClasses   : [];
+
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const upcoming = reservations.filter((r) => r.status === "reserved" && new Date(r.classDate) >= today).sort((a, b) => a.classDate.localeCompare(b.classDate));
-  const past = reservations.filter((r) => r.status !== "reserved" || new Date(r.classDate) < today).sort((a, b) => b.classDate.localeCompare(a.classDate)).slice(0, 8);
-  const activeMemberships = memberships.filter((m) => m.membershipStatus === "active");
+  const upcoming = safeReservations.filter((r) => r.status === "reserved" && new Date(r.classDate) >= today).sort((a, b) => a.classDate.localeCompare(b.classDate));
+  const past = safeReservations.filter((r) => r.status !== "reserved" || new Date(r.classDate) < today).sort((a, b) => b.classDate.localeCompare(a.classDate)).slice(0, 8);
+  const activeMemberships = safeMemberships.filter((m) => m.membershipStatus === "active");
   const activeServiceTypes = [...new Set(activeMemberships.map((m) => m.serviceType).filter((s): s is ServiceType => !!s && s !== "blocked_time"))];
 
   if (loading) {
@@ -227,17 +232,17 @@ function ProfileContent() {
           >
             <div className="flex items-center gap-2 mb-4">
               <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Membresías</p>
-              {memberships.length > 1 && (
+              {safeMemberships.length > 1 && (
                 <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
-                  {memberships.length}
+                  {safeMemberships.length}
                 </span>
               )}
             </div>
-            {memberships.length === 0 ? (
+            {safeMemberships.length === 0 ? (
               <p className="text-sm" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Sin membresías registradas</p>
             ) : (
               <div className="space-y-3">
-                {memberships.map((ms) => (
+                {safeMemberships.map((ms) => (
                   <div key={ms.id} className="rounded-lg p-4 border" style={{ borderColor: "var(--card-border)", background: "rgba(0,0,0,0.15)" }}>
                     <div className="flex items-start justify-between mb-3">
                       <div>
@@ -295,10 +300,10 @@ function ProfileContent() {
           </motion.div>
 
           {/* Membership cycles */}
-          {memberships.length > 0 && (() => {
+          {safeMemberships.length > 0 && (() => {
             const cycles = memberships.flatMap((ms) => {
               try {
-                return [computeMembershipCycle(ms, reservations, allClasses)];
+                return [computeMembershipCycle(ms, safeReservations, safeClasses)];
               } catch {
                 return [];
               }
@@ -498,7 +503,7 @@ function ProfileContent() {
 
           {/* Kinesiología section — patient journey view */}
           {(healthSessions.length > 0 || healthRestrictions.length > 0) && (() => {
-            const kineMembership = memberships.find(
+            const kineMembership = safeMemberships.find(
               (ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active"
             );
             const sessionsWithNotes = healthSessions.filter((s) => s.patientNotes);

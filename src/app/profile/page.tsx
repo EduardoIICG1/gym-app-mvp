@@ -40,6 +40,7 @@ function ProfileContent() {
   console.warn("[profile] mount rev=2ca0732 role=", activeUser.role, "id=", activeUser.id ? "(set)" : "(empty)");
   const viewUserId = searchParams.get("userId") ?? activeUser.id;
   const isOwnProfile = viewUserId === activeUser.id;
+  const isStaffOwnProfile = isOwnProfile && ["admin", "coach", "kinesiologist"].includes(activeUser.role);
 
   const [member, setMember] = useState<Member | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -55,7 +56,25 @@ function ProfileContent() {
     if (!viewUserId) return;
     setLoading(true);
     setFetchError(false);
-    console.warn("[profile] fetchData start", { viewUserId, isOwnProfile });
+    console.warn("[profile] fetchData start", { viewUserId, isOwnProfile, isStaffOwnProfile });
+
+    // Staff viewing own profile: only fetch basic member record — skip member-oriented data
+    if (isStaffOwnProfile) {
+      try {
+        const res = await fetch("/api/members");
+        const raw = res.ok ? await res.json() : [];
+        const all: Member[] = Array.isArray(raw) ? raw : [];
+        setMember(all.find((m) => m.id === viewUserId) ?? null);
+        console.warn("[profile] staff fetchData complete");
+      } catch (err) {
+        console.error("[profile] staff fetchData error", err);
+        setFetchError(true);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
         fetch("/api/members"),
@@ -112,7 +131,7 @@ function ProfileContent() {
     } finally {
       setLoading(false);
     }
-  }, [viewUserId]);
+  }, [viewUserId, isStaffOwnProfile]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -131,6 +150,69 @@ function ProfileContent() {
 
   if (loading) {
     return <div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>Cargando perfil...</div>;
+  }
+
+  // Staff own profile — simple, safe render (no member-oriented data)
+  if (isStaffOwnProfile) {
+    const staffName  = member?.name  ?? activeUser.name  ?? "Usuario";
+    const staffEmail = member?.email ?? activeUser.email ?? "";
+    const staffRole  = member?.roles?.[0] ?? activeUser.role;
+
+    const staffLinks: { label: string; href: string; roles: string[] }[] = [
+      { label: "Calendario",   href: "/calendar",          roles: ["admin", "coach", "kinesiologist"] },
+      { label: "Miembros",     href: "/admin/members",     roles: ["admin", "coach", "kinesiologist"] },
+      { label: "Membresías",   href: "/admin/memberships", roles: ["admin", "coach"] },
+      { label: "Kinesiología", href: "/health",            roles: ["admin", "kinesiologist"] },
+      { label: "Pacientes",    href: "/health/patients",   roles: ["kinesiologist"] },
+      { label: "Clases",       href: "/admin/classes",     roles: ["admin", "coach"] },
+    ].filter(l => l.roles.includes(activeUser.role));
+
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-start gap-5 mb-8">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shrink-0"
+            style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+          >
+            {safeInitials(staffName)}
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+              {staffName}
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{staffEmail}</p>
+            <div className="mt-2"><RoleBadge role={staffRole} /></div>
+          </div>
+        </div>
+
+        <div className="rounded-xl p-5 border mb-4" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>
+            Perfil operativo
+          </p>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            Este perfil corresponde a una cuenta de staff. Las métricas de membresías, reservas y ciclos se muestran en los perfiles de miembros y alumnos.
+          </p>
+        </div>
+
+        {staffLinks.length > 0 && (
+          <div className="rounded-xl p-5 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-secondary)" }}>Accesos rápidos</p>
+            <div className="flex flex-wrap gap-2">
+              {staffLinks.map(l => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="text-sm px-3 py-1.5 rounded-lg font-medium transition-colors hover:opacity-80"
+                  style={{ background: "#4fc3f720", color: "#4fc3f7" }}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   const displayName = member?.name ?? (isOwnProfile ? activeUser.name : "Usuario");

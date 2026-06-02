@@ -37,6 +37,7 @@ function formatAmount(amount?: number | null): string {
 function ProfileContent() {
   const activeUser = useCurrentUser();
   const searchParams = useSearchParams();
+  console.warn("[profile] mount rev=2ca0732 role=", activeUser.role, "id=", activeUser.id ? "(set)" : "(empty)");
   const viewUserId = searchParams.get("userId") ?? activeUser.id;
   const isOwnProfile = viewUserId === activeUser.id;
 
@@ -54,6 +55,7 @@ function ProfileContent() {
     if (!viewUserId) return;
     setLoading(true);
     setFetchError(false);
+    console.warn("[profile] fetchData start", { viewUserId, isOwnProfile });
     try {
       const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
         fetch("/api/members"),
@@ -61,19 +63,32 @@ function ProfileContent() {
         fetch(`/api/reservations?userId=${viewUserId}`),
         fetch("/api/classes"),
       ]);
+      console.warn("[profile] fetch status", {
+        members:    membersRes.status,
+        memberships: memshipsRes.status,
+        reservations: resvRes.status,
+        classes:    classesRes.status,
+      });
+
       const allMembersRaw = membersRes.ok ? await membersRes.json() : [];
       const allMembers: Member[] = Array.isArray(allMembersRaw) ? allMembersRaw : [];
+      console.warn("[profile] members", { count: allMembers.length, isArray: Array.isArray(allMembersRaw) });
       setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
 
       const msRaw = memshipsRes.ok ? await memshipsRes.json() : [];
       const msData: Membership[] = Array.isArray(msRaw) ? msRaw : [];
+      console.warn("[profile] memberships", { count: msData.length, isArray: Array.isArray(msRaw), status: memshipsRes.status });
       setMemberships(msData);
 
       const resvRaw = resvRes.ok ? await resvRes.json() : [];
-      setReservations(Array.isArray(resvRaw) ? resvRaw : []);
+      const resvData = Array.isArray(resvRaw) ? resvRaw : [];
+      console.warn("[profile] reservations", { count: resvData.length, isArray: Array.isArray(resvRaw) });
+      setReservations(resvData);
 
       const classesRaw = classesRes.ok ? await classesRes.json() : [];
-      setAllClasses(Array.isArray(classesRaw) ? classesRaw : []);
+      const classesData = Array.isArray(classesRaw) ? classesRaw : [];
+      console.warn("[profile] classes", { count: classesData.length, isArray: Array.isArray(classesRaw) });
+      setAllClasses(classesData);
 
       const hasKine = msData.some((ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active");
       if (hasKine) {
@@ -90,7 +105,9 @@ function ProfileContent() {
           if (Array.isArray(restRaw)) setHealthRestrictions(restRaw);
         }
       }
-    } catch {
+      console.warn("[profile] fetchData complete");
+    } catch (err) {
+      console.error("[profile] fetchData error", err);
       setFetchError(true);
     } finally {
       setLoading(false);

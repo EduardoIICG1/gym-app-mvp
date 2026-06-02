@@ -79,9 +79,9 @@ export function Navbar() {
 
           {/* Profile avatar */}
           <Link
-            href="/profile"
+            href={["admin", "coach", "kinesiologist"].includes(activeUser.role) ? "/staff-profile" : "/profile"}
             className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg nav-icon-btn"
-            style={pathname.startsWith("/profile") ? { background: "rgba(255,255,255,0.06)" } : {}}
+            style={pathname.startsWith("/profile") || pathname.startsWith("/staff-profile") ? { background: "rgba(255,255,255,0.06)" } : {}}
           >
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"

@@ -40,29 +40,39 @@ function ProfileContent() {
   const fetchData = useCallback(async () => {
     if (!viewUserId) return; // wait for real session before fetching
     setLoading(true);
-    const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
-      fetch("/api/members"),
-      fetch(`/api/memberships?studentId=${viewUserId}`),
-      fetch(`/api/reservations?userId=${viewUserId}`),
-      fetch("/api/classes"),
-    ]);
-    const allMembers: Member[] = await membersRes.json();
-    setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
-    const msData: Membership[] = await memshipsRes.json();
-    setMemberships(msData);
-    setReservations(await resvRes.json());
-    setAllClasses(await classesRes.json());
-    setLoading(false);
-
-    // If user has kinesiology, load their health data
-    const hasKine = msData.some((ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active");
-    if (hasKine) {
-      const [sessRes, restRes] = await Promise.all([
-        fetch(`/api/health/sessions?patientId=${viewUserId}`),
-        fetch(`/api/health/restrictions?patientId=${viewUserId}&isActive=true`),
+    try {
+      const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
+        fetch("/api/members"),
+        fetch(`/api/memberships?studentId=${viewUserId}`),
+        fetch(`/api/reservations?userId=${viewUserId}`),
+        fetch("/api/classes"),
       ]);
-      if (sessRes.ok) setHealthSessions(await sessRes.json());
-      if (restRes.ok) setHealthRestrictions(await restRes.json());
+      const allMembersRaw = membersRes.ok ? await membersRes.json() : [];
+      const allMembers: Member[] = Array.isArray(allMembersRaw) ? allMembersRaw : [];
+      setMember(allMembers.find((m) => m.id === viewUserId) ?? null);
+
+      const msRaw = memshipsRes.ok ? await memshipsRes.json() : [];
+      const msData: Membership[] = Array.isArray(msRaw) ? msRaw : [];
+      setMemberships(msData);
+
+      const resvRaw = resvRes.ok ? await resvRes.json() : [];
+      setReservations(Array.isArray(resvRaw) ? resvRaw : []);
+
+      const classesRaw = classesRes.ok ? await classesRes.json() : [];
+      setAllClasses(Array.isArray(classesRaw) ? classesRaw : []);
+
+      // If user has kinesiology, load their health data
+      const hasKine = msData.some((ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active");
+      if (hasKine) {
+        const [sessRes, restRes] = await Promise.all([
+          fetch(`/api/health/sessions?patientId=${viewUserId}`),
+          fetch(`/api/health/restrictions?patientId=${viewUserId}&isActive=true`),
+        ]);
+        if (sessRes.ok) setHealthSessions(await sessRes.json());
+        if (restRes.ok) setHealthRestrictions(await restRes.json());
+      }
+    } finally {
+      setLoading(false);
     }
   }, [viewUserId]);
 
@@ -80,7 +90,7 @@ function ProfileContent() {
 
   const displayName = member?.name ?? (isOwnProfile ? activeUser.name : "Usuario");
   const displayEmail = member?.email ?? (isOwnProfile ? activeUser.email : "");
-  const displayRole = member?.roles[0] ?? activeUser.role;
+  const displayRole = member?.roles?.[0] ?? activeUser.role;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

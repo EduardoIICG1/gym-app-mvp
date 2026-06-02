@@ -730,8 +730,17 @@ function MemberProfileContent({
 
 // ─── Dispatcher — resolves role before any member-oriented code runs ────────
 function ProfileContent() {
+  console.log("[profile] ProfileContent mounted");
   const activeUser = useCurrentUser();
   const searchParams = useSearchParams();
+
+  console.log("[profile] activeUser", {
+    isLoading: activeUser.isLoading,
+    isAuthenticated: activeUser.isAuthenticated,
+    role: activeUser.role,
+    hasId: Boolean(activeUser.id),
+    hasEmail: Boolean(activeUser.email),
+  });
 
   if (activeUser.isLoading) {
     return (
@@ -746,8 +755,31 @@ function ProfileContent() {
   const isStaffOwnProfile =
     isOwnProfile && ["admin", "coach", "kinesiologist"].includes(activeUser.role);
 
+  console.log("[profile] routing", {
+    viewUserId: Boolean(viewUserId),
+    isOwnProfile,
+    isStaffOwnProfile,
+    role: activeUser.role,
+  });
+
   if (isStaffOwnProfile) {
-    return <StaffOwnProfile activeUser={activeUser} />;
+    console.log("[profile] rendering StaffOwnProfile");
+    // Fallback extremo: HTML puro sin componentes importados
+    return (
+      <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", marginBottom: "0.5rem" }}>
+          Perfil operativo
+        </h1>
+        <p style={{ marginBottom: "0.25rem" }}>{activeUser.name || "Usuario staff"}</p>
+        <p style={{ marginBottom: "0.25rem", opacity: 0.7 }}>{activeUser.email}</p>
+        <p style={{ marginBottom: "1.5rem", opacity: 0.7 }}>Rol: {activeUser.role}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+          <a href="/calendar" style={{ padding: "0.5rem 1rem", background: "#4fc3f720", color: "#4fc3f7", borderRadius: "0.5rem", textDecoration: "none" }}>Calendario</a>
+          <a href="/admin/members" style={{ padding: "0.5rem 1rem", background: "#4fc3f720", color: "#4fc3f7", borderRadius: "0.5rem", textDecoration: "none" }}>Miembros</a>
+          <a href="/admin/classes" style={{ padding: "0.5rem 1rem", background: "#4fc3f720", color: "#4fc3f7", borderRadius: "0.5rem", textDecoration: "none" }}>Clases</a>
+        </div>
+      </div>
+    );
   }
 
   return (

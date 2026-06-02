@@ -18,8 +18,20 @@ const PLAN_LABELS: Record<string, string> = {
 
 const CANCEL_WINDOW_MS = 2 * 60 * 60 * 1000;
 
-function formatDate(s: string) { const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; }
-function initials(name: string) { return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase(); }
+function safeFormatDate(s?: string | null): string {
+  if (!s || typeof s !== "string" || !s.includes("-")) return "Sin fecha";
+  const [y, m, d] = s.split("-");
+  if (!y || !m || !d) return "Sin fecha";
+  return `${d}/${m}/${y}`;
+}
+function safeInitials(name?: string | null): string {
+  const clean = typeof name === "string" && name.trim() ? name.trim() : "U";
+  return clean.split(" ").slice(0, 2).map((w) => w[0] ?? "").join("").toUpperCase() || "U";
+}
+function formatAmount(amount?: number | null): string {
+  if (typeof amount !== "number" || Number.isNaN(amount)) return "Sin monto";
+  return `$${amount.toLocaleString("es-CL")}`;
+}
 
 // ─── Inner component ───────────────────────────────────────────────────────
 function ProfileContent() {
@@ -36,10 +48,12 @@ function ProfileContent() {
   const [loading, setLoading] = useState(true);
   const [healthSessions, setHealthSessions] = useState<{ id: string; sessionDate: string; status: string; patientNotes: string | null }[]>([]);
   const [healthRestrictions, setHealthRestrictions] = useState<{ id: string; label: string; severity: string; isActive: boolean }[]>([]);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!viewUserId) return; // wait for real session before fetching
+    if (!viewUserId) return;
     setLoading(true);
+    setFetchError(false);
     try {
       const [membersRes, memshipsRes, resvRes, classesRes] = await Promise.all([
         fetch("/api/members"),
@@ -61,16 +75,23 @@ function ProfileContent() {
       const classesRaw = classesRes.ok ? await classesRes.json() : [];
       setAllClasses(Array.isArray(classesRaw) ? classesRaw : []);
 
-      // If user has kinesiology, load their health data
       const hasKine = msData.some((ms) => ms.serviceType === "kinesiology" && ms.membershipStatus === "active");
       if (hasKine) {
         const [sessRes, restRes] = await Promise.all([
           fetch(`/api/health/sessions?patientId=${viewUserId}`),
           fetch(`/api/health/restrictions?patientId=${viewUserId}&isActive=true`),
         ]);
-        if (sessRes.ok) setHealthSessions(await sessRes.json());
-        if (restRes.ok) setHealthRestrictions(await restRes.json());
+        if (sessRes.ok) {
+          const sessRaw = await sessRes.json();
+          if (Array.isArray(sessRaw)) setHealthSessions(sessRaw);
+        }
+        if (restRes.ok) {
+          const restRaw = await restRes.json();
+          if (Array.isArray(restRaw)) setHealthRestrictions(restRaw);
+        }
       }
+    } catch {
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -94,6 +115,11 @@ function ProfileContent() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {fetchError && (
+        <div className="mb-4 rounded-lg px-4 py-3 text-sm" style={{ background: "#f59e0b18", color: "#f59e0b", border: "1px solid #f59e0b30" }}>
+          Algunos datos del perfil no pudieron cargarse. Intenta recargar la página.
+        </div>
+      )}
       {/* Profile header */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
@@ -104,7 +130,7 @@ function ProfileContent() {
           className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shrink-0"
           style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
         >
-          {initials(displayName)}
+          {safeInitials(displayName)}
         </div>
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
@@ -143,7 +169,7 @@ function ProfileContent() {
                   className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
                   style={{ background: "linear-gradient(135deg, #22c55e, #4fc3f7)" }}
                 >
-                  {initials(member.assignedCoachName)}
+                  {safeInitials(member.assignedCoachName)}
                 </div>
                 <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{member.assignedCoachName}</p>
               </div>
@@ -219,7 +245,7 @@ function ProfileContent() {
                           {ms.serviceType && <ServiceBadge type={ms.serviceType} />}
                           <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{PLAN_LABELS[ms.plan] ?? ms.plan}</p>
                         </div>
-                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>${ms.amount.toLocaleString()}</p>
+                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{formatAmount(ms.amount)}</p>
                         {ms.coachName && (
                           <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
                             Prof: <span style={{ color: "var(--text-primary)" }}>{ms.coachName}</span>
@@ -232,8 +258,8 @@ function ProfileContent() {
                       </div>
                     </div>
                     <div className="flex gap-4 text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
-                      <span>Inicio: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.startDate)}</span></span>
-                      <span>Vence: <span style={{ color: "var(--text-primary)" }}>{formatDate(ms.endDate)}</span></span>
+                      <span>Inicio: <span style={{ color: "var(--text-primary)" }}>{safeFormatDate(ms.startDate)}</span></span>
+                      <span>Vence: <span style={{ color: "var(--text-primary)" }}>{safeFormatDate(ms.endDate)}</span></span>
                     </div>
                     {ms.totalSessions != null && ms.usedSessions !== undefined && (
                       <div>
@@ -270,7 +296,13 @@ function ProfileContent() {
 
           {/* Membership cycles */}
           {memberships.length > 0 && (() => {
-            const cycles = memberships.map((ms) => computeMembershipCycle(ms, reservations, allClasses));
+            const cycles = memberships.flatMap((ms) => {
+              try {
+                return [computeMembershipCycle(ms, reservations, allClasses)];
+              } catch {
+                return [];
+              }
+            });
             return (
               <motion.div
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
@@ -527,7 +559,7 @@ function ProfileContent() {
                       {totalSessions != null && totalSessions - usedSessions > 0 && (
                         <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
                           {totalSessions - usedSessions} sesión{totalSessions - usedSessions !== 1 ? "es" : ""} restante{totalSessions - usedSessions !== 1 ? "s" : ""}
-                          {kineMembership.endDate ? ` · Vence ${formatDate(kineMembership.endDate)}` : ""}
+                          {kineMembership.endDate ? ` · Vence ${safeFormatDate(kineMembership.endDate)}` : ""}
                         </p>
                       )}
                       {totalSessions != null && usedSessions >= totalSessions && (

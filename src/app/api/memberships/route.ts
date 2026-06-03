@@ -71,17 +71,12 @@ const NON_COMMERCIAL_GRANTS = new Set(["gift", "compensation", "trial"]);
 async function fetchMemberships(filter: {
   status?: DbStatus;
   memberId?: string;
-  memberIds?: string[];
   planContains?: string;
 }) {
   return prisma.membership.findMany({
     where: {
       ...(filter.status ? { status: filter.status } : {}),
-      ...(filter.memberId
-        ? { memberId: filter.memberId }
-        : filter.memberIds !== undefined
-          ? { memberId: { in: filter.memberIds } }
-          : {}),
+      ...(filter.memberId ? { memberId: filter.memberId } : {}),
       ...(filter.planContains
         ? { planName: { contains: filter.planContains, mode: "insensitive" } }
         : {}),
@@ -134,30 +129,10 @@ export async function GET(request: Request) {
   if (status && status in STATUS_REVERSE) filter.status = STATUS_REVERSE[status];
   if (plan) filter.planContains = plan;
 
-  if (role === "ADMIN") {
-    // ADMIN: unrestricted — apply studentId filter if provided
+  if (role === "ADMIN" || role === "COACH" || role === "KINESIOLOGIST") {
+    // All gym staff can view memberships operationally (pack status, sessions left, payment state).
+    // Write operations remain scoped by MemberCoach relations (see POST).
     if (studentId) filter.memberId = studentId;
-  } else if (role === "COACH" || role === "KINESIOLOGIST") {
-    // Resolve which members this user is allowed to see via MemberCoach
-    const relations = await prisma.memberCoach.findMany({
-      where: {
-        coachId: session.user.id,
-        isActive: true,
-        ...(role === "KINESIOLOGIST" ? { serviceType: "KINESIOLOGY" } : {}),
-      },
-      select: { memberId: true },
-    });
-    const allowedIds = relations.map((r) => r.memberId);
-
-    if (studentId) {
-      if (!allowedIds.includes(studentId)) {
-        return Response.json({ error: "Sin permisos" }, { status: 403 });
-      }
-      filter.memberId = studentId;
-    } else {
-      if (allowedIds.length === 0) return Response.json([]);
-      filter.memberIds = allowedIds;
-    }
   } else {
     // MEMBER: own memberships only — ignore any studentId param
     filter.memberId = session.user.id;

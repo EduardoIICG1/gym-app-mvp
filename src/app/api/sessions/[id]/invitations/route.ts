@@ -88,7 +88,19 @@ export async function POST(
 
     let eligibleSet = new Set<string>();
 
-    if (isGroup) {
+    if (
+      authSession.user.role === "KINESIOLOGIST" &&
+      serviceType === "KINESIOLOGY"
+    ) {
+      // KINESIOLOGIST can invite any active member to a KINESIOLOGY session —
+      // no MemberCoach relation required. This supports the evaluation/onboarding flow
+      // where a new patient is invited before a formal MemberCoach link is created.
+      const users = await prisma.user.findMany({
+        where: { id: { in: toCheck }, isActive: true },
+        select: { id: true },
+      });
+      eligibleSet = new Set(users.map((u) => u.id));
+    } else if (isGroup) {
       // Active membership for GROUP service
       const activeMemberships = await prisma.membership.findMany({
         where: {
@@ -106,7 +118,7 @@ export async function POST(
         }
       }
     } else {
-      // PT or KINESIOLOGY: active MemberCoach relation with the session's coach
+      // PT or KINESIOLOGY (non-KINESIOLOGIST inviter): active MemberCoach relation with session's coach
       const relations = await prisma.memberCoach.findMany({
         where: {
           memberId: { in: toCheck },
@@ -139,6 +151,8 @@ export async function POST(
           memberId,
           reason: isGroup
             ? "Sin membresía activa para clases grupales"
+            : authSession.user.role === "KINESIOLOGIST"
+            ? "Miembro no encontrado o inactivo"
             : "Sin relación activa coach-alumno para este servicio",
         });
         continue;

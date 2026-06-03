@@ -14,9 +14,7 @@ export async function PATCH(
   if (!session?.user?.id) return Response.json({ error: "No autenticado" }, { status: 401 });
 
   const role = session.user.role;
-  if (role !== "ADMIN" && role !== "KINESIOLOGIST") {
-    return Response.json({ error: "Sin permisos" }, { status: 403 });
-  }
+  if (role === "MEMBER") return Response.json({ error: "Sin permisos" }, { status: 403 });
 
   const { id } = await params;
   const existing = await prisma.healthRestriction.findUnique({ where: { id } });
@@ -27,6 +25,11 @@ export async function PATCH(
       where: { coachId: session.user.id, memberId: existing.patientId, serviceType: "KINESIOLOGY", isActive: true },
     });
     if (!rel) return Response.json({ error: "Sin permisos" }, { status: 403 });
+  }
+
+  // COACH can only edit entries they created
+  if (role === "COACH" && existing.createdById !== session.user.id) {
+    return Response.json({ error: "Solo puedes editar tus propias consideraciones" }, { status: 403 });
   }
 
   const body = await request.json();
@@ -46,16 +49,14 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   if (!session?.user?.id) return Response.json({ error: "No autenticado" }, { status: 401 });
 
   const role = session.user.role;
-  if (role !== "ADMIN" && role !== "KINESIOLOGIST") {
-    return Response.json({ error: "Sin permisos" }, { status: 403 });
-  }
+  if (role === "MEMBER") return Response.json({ error: "Sin permisos" }, { status: 403 });
 
   const { id } = await params;
   const existing = await prisma.healthRestriction.findUnique({ where: { id } });
@@ -66,6 +67,11 @@ export async function DELETE(
       where: { coachId: session.user.id, memberId: existing.patientId, serviceType: "KINESIOLOGY", isActive: true },
     });
     if (!rel) return Response.json({ error: "Sin permisos" }, { status: 403 });
+  }
+
+  // COACH can only delete entries they created
+  if (role === "COACH" && existing.createdById !== session.user.id) {
+    return Response.json({ error: "Solo puedes eliminar tus propias consideraciones" }, { status: 403 });
   }
 
   await prisma.healthRestriction.delete({ where: { id } });

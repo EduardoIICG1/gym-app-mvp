@@ -19,7 +19,8 @@ const NAV_ITEMS = [
   { path: "/admin/classes",     label: "Clases",       icon: BookOpen,     roles: ["admin", "coach"] },
   { path: "/admin/members",     label: "Miembros",     icon: Users,        roles: ["admin", "coach", "kinesiologist"] },
   { path: "/admin/memberships", label: "Membresías",   icon: CreditCard,   roles: ["admin", "coach", "kinesiologist"] },
-  { path: "/profile",           label: "Mi Perfil",    icon: User,         roles: ["admin", "coach", "member", "owner", "kinesiologist"] },
+  { path: "/profile",            label: "Mi Perfil",    icon: User,         roles: ["member", "owner"] },
+  { path: "/staff-profile",      label: "Mi Perfil",    icon: User,         roles: ["admin", "coach", "kinesiologist"] },
 ];
 
 const ROLE_COLOR: Record<string, string> = {

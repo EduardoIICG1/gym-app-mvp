@@ -355,12 +355,15 @@ model HealthSession {
   @@index([sessionDate])
 }
 
-// Coach-visible restriction tags — operational alerts, not clinical data
+// Operational restrictions/considerations — visible to all gym staff, not just kinesiologists.
+// healthRecordId is optional: kine-linked restrictions reference a HealthRecord,
+// coach-created operational notes do not (no clinical context needed).
 model HealthRestriction {
   id             String              @id @default(cuid())
-  healthRecordId String
-  patientId      String              // denormalized for query performance
+  healthRecordId String?             // null when created by COACH without a health record
+  patientId      String
   createdById    String
+  sourceRole     Role?               // tracks which role created this entry
 
   label          String
   severity       RestrictionSeverity @default(INFO)
@@ -371,9 +374,9 @@ model HealthRestriction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  healthRecord HealthRecord @relation(fields: [healthRecordId], references: [id], onDelete: Cascade)
-  patient      User         @relation("PatientRestrictions",  fields: [patientId],   references: [id])
-  createdBy    User         @relation("RestrictionCreatedBy", fields: [createdById], references: [id])
+  healthRecord HealthRecord? @relation(fields: [healthRecordId], references: [id], onDelete: Cascade)
+  patient      User          @relation("PatientRestrictions",  fields: [patientId],   references: [id])
+  createdBy    User          @relation("RestrictionCreatedBy", fields: [createdById], references: [id])
 
   @@index([healthRecordId])
   @@index([patientId])

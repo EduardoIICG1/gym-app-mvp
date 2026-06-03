@@ -76,29 +76,10 @@ export async function GET(request: Request) {
 
   let users: Awaited<ReturnType<typeof fetchAllUsers>>;
 
-  if (role === "ADMIN") {
+  if (role === "ADMIN" || role === "COACH" || role === "KINESIOLOGIST") {
+    // All gym staff see the full member directory for operational use
+    // (invitations, referrals, scheduling). Clinical data is guarded by /api/health/*.
     users = await fetchAllUsers();
-  } else if (role === "COACH" || role === "KINESIOLOGIST") {
-    // Scope to members linked via MemberCoach
-    const relations = await prisma.memberCoach.findMany({
-      where: {
-        coachId: session.user.id,
-        isActive: true,
-        ...(role === "KINESIOLOGIST" ? { serviceType: "KINESIOLOGY" } : {}),
-      },
-      select: { memberId: true },
-    });
-    const memberIds = relations.map((r) => r.memberId);
-    users = memberIds.length === 0 ? [] : await prisma.user.findMany({
-      where: { id: { in: memberIds } },
-      orderBy: { name: "asc" },
-      include: {
-        memberRelations: {
-          where: { isActive: true },
-          include: { coach: { select: { id: true, name: true } } },
-        },
-      },
-    });
   } else {
     // MEMBER: own record only
     users = await prisma.user.findMany({

@@ -1093,8 +1093,24 @@ export default function CalendarPage() {
     });
     const data = await res.json();
     if (res.ok) {
-      const n = (data.summary?.created as number) ?? 0;
-      setToast({ msg: `${n} clase${n !== 1 ? "s" : ""} creada${n !== 1 ? "s" : ""}`, ok: true });
+      const created = Number((data.summary as Record<string, unknown>)?.created ?? 0);
+      const skipped = Number((data.summary as Record<string, unknown>)?.skipped ?? 0);
+      if (created === 0) {
+        setToast({
+          msg: skipped > 0
+            ? "No se crearon clases. Todas las fechas tienen conflicto."
+            : "No se crearon clases. Revisa la repetición seleccionada.",
+          ok: false,
+        });
+        setCreating(false);
+        return;
+      }
+      setToast({
+        msg: skipped > 0
+          ? `${created} clases creadas. ${skipped} omitidas por conflicto.`
+          : `${created} clase${created !== 1 ? "s" : ""} creada${created !== 1 ? "s" : ""}`,
+        ok: true,
+      });
       setCreateModal(null);
       fetchData();
     } else {
@@ -1645,20 +1661,28 @@ export default function CalendarPage() {
                     style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
                     Cancelar
                   </button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={recurMode === "weekly" && createModal.eventType !== "blocked_time" ? handleCreateBatch : handleCreateClass}
-                    disabled={creating || !createModal.name}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                    style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}>
-                    {creating
-                      ? "Creando..."
-                      : createModal.eventType === "blocked_time"
-                        ? "Crear bloqueo"
-                        : recurMode === "weekly" && occurrenceCount > 0
-                          ? `Crear ${occurrenceCount} clase${occurrenceCount !== 1 ? "s" : ""}`
-                          : "Crear Clase"}
-                  </motion.button>
+                  {(() => {
+                    const isWeeklyCreate = recurMode === "weekly" && createModal.eventType !== "blocked_time";
+                    const cannotSubmitWeekly = isWeeklyCreate && occurrenceCount === 0;
+                    return (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                        onClick={isWeeklyCreate ? handleCreateBatch : handleCreateClass}
+                        disabled={creating || !createModal.name || cannotSubmitWeekly}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                        style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}>
+                        {creating
+                          ? "Creando..."
+                          : createModal.eventType === "blocked_time"
+                            ? "Crear bloqueo"
+                            : isWeeklyCreate && occurrenceCount === 0
+                              ? "Selecciona fechas"
+                              : isWeeklyCreate
+                                ? `Crear ${occurrenceCount} clase${occurrenceCount !== 1 ? "s" : ""}`
+                                : "Crear Clase"}
+                      </motion.button>
+                    );
+                  })()}
                 </div>
               </div>
             </motion.div>

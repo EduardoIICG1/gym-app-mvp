@@ -294,7 +294,7 @@ export function CreateClassModal({
               {/* Instructor — hidden when KINESIOLOGIST (auto-assigned) */}
               {!isKine && (
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor</label>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor *</label>
                   <select value={form.coach} onChange={e => setF({ coach: e.target.value })}
                     className={inputCls} style={inputStyle}>
                     <option value="">— Seleccionar instructor —</option>
@@ -499,7 +499,7 @@ export function CreateClassModal({
               <motion.button
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 onClick={handleSubmit}
-                disabled={saving || !form.name || cannotSubmitWeekly}
+                disabled={saving || !form.name || (!isKine && !form.coach) || cannotSubmitWeekly}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
                 style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}>
                 {saving

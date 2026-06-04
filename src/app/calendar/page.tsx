@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Users, X, Pencil, ClipboardList, Check, CalendarPlus } from "lucide-react";
@@ -38,6 +38,23 @@ function getWeekDates(offset: number) {
 
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const DAY_INITIALS = ["L", "M", "X", "J", "V", "S"];
+
+function countOccurrences(startDate: string, endDate: string, weekdays: number[], limit = 60): number {
+  const start = new Date(startDate + "T00:00:00");
+  const end   = new Date(endDate   + "T00:00:00");
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end || weekdays.length === 0) return 0;
+  let count = 0;
+  const cursor = new Date(start);
+  while (cursor <= end && count < limit) {
+    const jsDay = cursor.getDay();
+    const feDay = jsDay === 0 ? 6 : jsDay - 1;
+    if (weekdays.includes(feDay)) count++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
 }
 
 interface CreateState {
@@ -855,6 +872,7 @@ export default function CalendarPage() {
   const currentUser = useCurrentUser();
   const CURRENT_USER_ID = currentUser.id;
   const IS_ADMIN_OR_COACH = currentUser.hasRole("admin") || currentUser.hasRole("coach") || currentUser.hasRole("kinesiologist");
+  const isKine = currentUser.hasRole("kinesiologist") && !currentUser.hasRole("admin");
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [classes, setClasses] = useState<GymClass[]>([]);
@@ -872,6 +890,12 @@ export default function CalendarPage() {
   const [createModal, setCreateModal] = useState<CreateState | null>(null);
   const [creating, setCreating] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
+  const [recurMode, setRecurMode] = useState<"none" | "weekly">("none");
+  const [recur, setRecur] = useState<{ weekdays: number[]; startDate: string; endDate: string }>({
+    weekdays: [],
+    startDate: toDateStr(new Date()),
+    endDate: toDateStr(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+  });
 
   const weekDates = getWeekDates(weekOffset);
   const todayStr = toDateStr(new Date());
@@ -1002,6 +1026,21 @@ export default function CalendarPage() {
     setActionLoading(false);
   };
 
+  const openCreateModal = useCallback((dayOfWeek: number) => {
+    const base: CreateState = { ...defaultCreate(dayOfWeek) };
+    if (isKine) {
+      base.serviceType = "kinesiology";
+      base.coach = currentUser.name;
+    }
+    setCreateModal(base);
+    setRecurMode("none");
+    setRecur({
+      weekdays: [dayOfWeek],
+      startDate: toDateStr(new Date()),
+      endDate: toDateStr(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+    });
+  }, [isKine, currentUser.name]);
+
   const handleCreateClass = async () => {
     if (!createModal || !createModal.name || !createModal.coach) return;
     setCreating(true);
@@ -1020,6 +1059,54 @@ export default function CalendarPage() {
     }
     setCreating(false);
   };
+
+  const handleCreateBatch = async () => {
+    if (!createModal || !createModal.name) return;
+    if (!isKine && !createModal.coach) return;
+    if (recur.weekdays.length === 0) {
+      setToast({ msg: "Selecciona al menos un día de la semana", ok: false });
+      return;
+    }
+    if (!recur.startDate || !recur.endDate) {
+      setToast({ msg: "Selecciona fecha de inicio y fin", ok: false });
+      return;
+    }
+    setCreating(true);
+    const res = await fetch("/api/classes/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: createModal.name,
+        serviceType: createModal.serviceType,
+        eventType: createModal.eventType,
+        coach: createModal.coach || undefined,
+        startTime: createModal.startTime,
+        endTime: createModal.endTime,
+        maxCapacity: createModal.maxCapacity,
+        note: createModal.note || undefined,
+        recurrence: {
+          weekdays: recur.weekdays,
+          startDate: recur.startDate,
+          endDate: recur.endDate,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const n = (data.summary?.created as number) ?? 0;
+      setToast({ msg: `${n} clase${n !== 1 ? "s" : ""} creada${n !== 1 ? "s" : ""}`, ok: true });
+      setCreateModal(null);
+      fetchData();
+    } else {
+      setToast({ msg: (data as { error?: string }).error || "Error al crear clases", ok: false });
+    }
+    setCreating(false);
+  };
+
+  const occurrenceCount = useMemo(
+    () => recurMode === "weekly" ? countOccurrences(recur.startDate, recur.endDate, recur.weekdays) : 0,
+    [recurMode, recur.startDate, recur.endDate, recur.weekdays],
+  );
 
   const handleClassUpdated = (updated: GymClass) => {
     setClasses(prev => prev.map(c => c.id === updated.id ? updated : c));
@@ -1211,7 +1298,7 @@ export default function CalendarPage() {
             <div className="space-y-3">
               {getColClasses(selectedDay).length === 0 ? (
                 IS_ADMIN_OR_COACH ? (
-                  <button onClick={() => setCreateModal(defaultCreate(selectedDay))}
+                  <button onClick={() => openCreateModal(selectedDay)}
                     className="w-full py-6 rounded-xl border border-dashed text-sm font-medium hover:opacity-70"
                     style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                     + Añadir clase
@@ -1225,7 +1312,7 @@ export default function CalendarPage() {
                 )
               )}
               {IS_ADMIN_OR_COACH && getColClasses(selectedDay).length > 0 && (
-                <button onClick={() => setCreateModal(defaultCreate(selectedDay))}
+                <button onClick={() => openCreateModal(selectedDay)}
                   className="w-full py-3 rounded-xl border border-dashed text-xs font-medium hover:opacity-70"
                   style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                   + clase
@@ -1248,7 +1335,7 @@ export default function CalendarPage() {
                   <div className="space-y-3">
                     {dayClasses.length === 0 ? (
                       IS_ADMIN_OR_COACH ? (
-                        <button onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                        <button onClick={() => openCreateModal(dayOfWeek)}
                           className="w-full py-4 rounded-xl border border-dashed text-xs hover:opacity-70"
                           style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                           + clase
@@ -1262,7 +1349,7 @@ export default function CalendarPage() {
                           renderCard(cls, dateStr, { delay: dayIndex * 0.05 + clsIdx * 0.02, scale: true })
                         )}
                         {IS_ADMIN_OR_COACH && (
-                          <button onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                          <button onClick={() => openCreateModal(dayOfWeek)}
                             className="w-full py-2 rounded-xl border border-dashed text-xs hover:opacity-70"
                             style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                             +
@@ -1348,7 +1435,10 @@ export default function CalendarPage() {
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de evento</label>
                     <div className="flex gap-2">
                       {(["class", "blocked_time"] as const).map(et => (
-                        <button key={et} onClick={() => setCreateModal({ ...createModal, eventType: et })}
+                        <button key={et} onClick={() => {
+                          setCreateModal({ ...createModal, eventType: et });
+                          if (et === "blocked_time") setRecurMode("none");
+                        }}
                           className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
                           style={createModal.eventType === et
                             ? { background: et === "blocked_time" ? "#71717a" : "#4fc3f7", color: "#0a0a0f" }
@@ -1380,12 +1470,16 @@ export default function CalendarPage() {
                     {createModal.eventType !== "blocked_time" && (
                       <div>
                         <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo</label>
-                        <select value={createModal.serviceType} onChange={e => setCreateModal({ ...createModal, serviceType: e.target.value as ServiceType })}
-                          className={inputCls} style={inputStyle}>
-                          <option value="group">Grupal</option>
-                          <option value="personal_training">Personal</option>
-                          <option value="kinesiology">Kinesio</option>
-                        </select>
+                        {isKine ? (
+                          <div className={inputCls} style={{ ...inputStyle, opacity: 0.7 }}>Kinesiología</div>
+                        ) : (
+                          <select value={createModal.serviceType} onChange={e => setCreateModal({ ...createModal, serviceType: e.target.value as ServiceType })}
+                            className={inputCls} style={inputStyle}>
+                            <option value="group">Grupal</option>
+                            <option value="personal_training">Personal</option>
+                            <option value="kinesiology">Kinesiología</option>
+                          </select>
+                        )}
                       </div>
                     )}
                     <div>
@@ -1478,6 +1572,71 @@ export default function CalendarPage() {
                       placeholder={createModal.eventType === "blocked_time" ? "ej. Acceso restringido" : "ej. Llevar mat"}
                       className={inputCls} style={inputStyle} />
                   </div>
+
+                  {createModal.eventType !== "blocked_time" && (
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Repetición</label>
+                      <div className="flex gap-2">
+                        {(["none", "weekly"] as const).map(mode => (
+                          <button key={mode} type="button"
+                            onClick={() => setRecurMode(mode)}
+                            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                            style={recurMode === mode
+                              ? { background: "#4fc3f7", color: "#0a0a0f" }
+                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                            {mode === "none" ? "No se repite" : "Repetir semanalmente"}
+                          </button>
+                        ))}
+                      </div>
+
+                      {recurMode === "weekly" && (
+                        <div className="mt-3 space-y-3">
+                          <div>
+                            <p className="text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>Días de la semana</p>
+                            <div className="flex gap-1.5">
+                              {DAY_INITIALS.map((d, i) => (
+                                <button key={i} type="button"
+                                  onClick={() => {
+                                    const next = recur.weekdays.includes(i)
+                                      ? recur.weekdays.filter(w => w !== i)
+                                      : [...recur.weekdays, i].sort((a, b) => a - b);
+                                    setRecur(r => ({ ...r, weekdays: next }));
+                                  }}
+                                  className="w-8 h-8 rounded-full text-xs font-bold transition-all"
+                                  style={recur.weekdays.includes(i)
+                                    ? { background: "#4fc3f7", color: "#0a0a0f" }
+                                    : { background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                                  {d}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>Desde</label>
+                              <input type="date" value={recur.startDate}
+                                onChange={e => setRecur(r => ({ ...r, startDate: e.target.value }))}
+                                className={inputCls} style={inputStyle} />
+                            </div>
+                            <div>
+                              <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>Hasta</label>
+                              <input type="date" value={recur.endDate}
+                                onChange={e => setRecur(r => ({ ...r, endDate: e.target.value }))}
+                                className={inputCls} style={inputStyle} />
+                            </div>
+                          </div>
+
+                          <p className="text-xs px-3 py-2 rounded-lg"
+                            style={{ background: "var(--background)", color: occurrenceCount > 0 ? "#4fc3f7" : "var(--text-secondary)" }}>
+                            {occurrenceCount > 0
+                              ? `Se crearán ${occurrenceCount} clase${occurrenceCount !== 1 ? "s" : ""} (máx. 60)`
+                              : "Selecciona días y fechas para ver el total"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3 mt-6">
@@ -1488,11 +1647,17 @@ export default function CalendarPage() {
                   </button>
                   <motion.button
                     whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={handleCreateClass}
+                    onClick={recurMode === "weekly" && createModal.eventType !== "blocked_time" ? handleCreateBatch : handleCreateClass}
                     disabled={creating || !createModal.name}
                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
                     style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}>
-                    {creating ? "Creando..." : createModal.eventType === "blocked_time" ? "Crear bloqueo" : "Crear Clase"}
+                    {creating
+                      ? "Creando..."
+                      : createModal.eventType === "blocked_time"
+                        ? "Crear bloqueo"
+                        : recurMode === "weekly" && occurrenceCount > 0
+                          ? `Crear ${occurrenceCount} clase${occurrenceCount !== 1 ? "s" : ""}`
+                          : "Crear Clase"}
                   </motion.button>
                 </div>
               </div>

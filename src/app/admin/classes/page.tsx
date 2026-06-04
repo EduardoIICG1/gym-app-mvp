@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Play, Pause } from "lucide-react";
 import { GymClass, Reservation, ServiceType, DayOfWeek, EventType, Member } from "@/lib/types";
 import { ServiceBadge } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
+import { CreateClassModal } from "@/components/classes/CreateClassModal";
 
 const EMPTY_FORM = {
   name: "", eventType: "class" as EventType, serviceType: "group" as ServiceType,
@@ -45,6 +46,7 @@ export default function AdminClassesPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<GymClass | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -84,7 +86,7 @@ export default function AdminClassesPage() {
   });
 
   // ─── Modal helpers ───────────────────────────────────────────────────────
-  const openCreate = () => { setEditingClass(null); setForm(EMPTY_FORM); setIsModalOpen(true); };
+  const openCreate = () => setShowCreateModal(true);
   const openEdit = (cls: GymClass) => {
     setEditingClass(cls);
     setForm({ name: cls.name, eventType: cls.eventType ?? "class", serviceType: cls.serviceType, dayOfWeek: cls.dayOfWeek, startTime: cls.startTime, endTime: cls.endTime, coach: cls.coach, maxCapacity: cls.maxCapacity, note: cls.note || "" });
@@ -272,9 +274,19 @@ export default function AdminClassesPage() {
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {/* Shared create modal */}
+      {showCreateModal && (
+        <CreateClassModal
+          coaches={coaches}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={fetchData}
+          onToast={(msg, ok) => setToast({ msg, ok })}
+        />
+      )}
+
+      {/* Edit Modal */}
       <AnimatePresence>
-        {isModalOpen && (
+        {isModalOpen && editingClass && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

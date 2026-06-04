@@ -53,6 +53,7 @@ function generateCandidateDates(
 // {
 //   name: string,
 //   serviceType: "group" | "personal_training" | "kinesiology" | "blocked_time",
+//   eventType?: "class" | "blocked_time",  // recommended UI convention: use eventType for blocks
 //   coach?: string,          // coach display name (resolved by name, same as POST /api/classes)
 //   startTime: "HH:mm",
 //   endTime: "HH:mm",
@@ -68,8 +69,12 @@ function generateCandidateDates(
 // }
 //
 // Notes on behavior:
+// - isBlocked: true when eventType="blocked_time" OR serviceType="blocked_time".
+//   Recommended UI convention: pass eventType="blocked_time" for blocks, serviceType for the service kind.
+// - serviceType is validated strictly — no fallback to GROUP; unknown values → 400.
 // - Past dates are NOT rejected (consistent with POST /api/classes which has no past-date guard).
 // - Sunday (weekday 6) is not supported — DayOfWeek type is 0-5.
+// - Conflicts are pre-evaluated before creating the Program to avoid orphan Programs.
 // - Conflicts (same coach, overlapping time, status != CANCELLED) are skipped, not aborted.
 // - dayOfWeek is intentionally not set on the created Program; toGymClass derives it from Session.startsAt.
 
@@ -88,7 +93,7 @@ export async function POST(request: Request) {
     // ── Parse body ────────────────────────────────────────────────────────────
     const body = await request.json() as Record<string, unknown>;
     const {
-      name, serviceType, coach,
+      name, serviceType, eventType, coach,
       startTime, endTime, maxCapacity,
       note, location, recurrence,
     } = body;
@@ -170,10 +175,19 @@ export async function POST(request: Request) {
     }
 
     // ── Service type ──────────────────────────────────────────────────────────
-    const isBlocked = serviceType === "blocked_time";
+    // Accept blocked_time from either field; no fallback for unknown serviceType values.
+    const isBlocked = eventType === "blocked_time" || serviceType === "blocked_time";
+
+    if (!isBlocked) {
+      const VALID_SVC = new Set(["group", "personal_training", "kinesiology"]);
+      if (!VALID_SVC.has(String(serviceType))) {
+        return Response.json({ error: "serviceType inválido" }, { status: 400 });
+      }
+    }
+
     const dbSvcType: DbServiceType = isBlocked
       ? "OTHER"
-      : (SVC_REVERSE[String(serviceType)] ?? "GROUP");
+      : (SVC_REVERSE[String(serviceType)] as DbServiceType);
 
     if (role === "KINESIOLOGIST" && !isBlocked && dbSvcType !== "KINESIOLOGY") {
       return Response.json(
@@ -208,6 +222,9 @@ export async function POST(request: Request) {
       if (!coachUser) {
         coachUser = await prisma.user.findUnique({ where: { id: authSession.user.id } });
       }
+    } else if (coach && !coachUser) {
+      // ADMIN specified a coach name but no matching staff user found — fail explicitly.
+      return Response.json({ error: "Instructor no encontrado" }, { status: 400 });
     }
 
     const resolvedCoachId =
@@ -223,6 +240,45 @@ export async function POST(request: Request) {
         created: [],
         skipped: [],
         summary: { requested: 0, created: 0, skipped: 0 },
+      });
+    }
+
+    // ── Pre-evaluate conflicts before creating the Program ────────────────────
+    // Separates datesToCreate from skipped up-front so we never create an
+    // orphan Program when every candidate date has a conflict.
+    type ResolvedDate = { sessionStart: Date; sessionEnd: Date; dateStr: string };
+    const datesToCreate: ResolvedDate[] = [];
+    const skipped: { date: string; reason: string }[] = [];
+
+    for (const date of candidateDates) {
+      const sessionStart = new Date(date);
+      sessionStart.setHours(sh, sm, 0, 0);
+      const sessionEnd = new Date(sessionStart.getTime() + durationMin * 60_000);
+      const dateStr    = date.toISOString().slice(0, 10);
+
+      const conflict = await prisma.session.findFirst({
+        where: {
+          coachId:  resolvedCoachId,
+          status:   { not: "CANCELLED" },
+          startsAt: { lt: sessionEnd },
+          endsAt:   { gt: sessionStart },
+        },
+        select: { id: true },
+      });
+
+      if (conflict) {
+        skipped.push({ date: dateStr, reason: "Instructor already has a class at this time" });
+      } else {
+        datesToCreate.push({ sessionStart, sessionEnd, dateStr });
+      }
+    }
+
+    // All dates conflicted — return without creating an orphan Program
+    if (datesToCreate.length === 0) {
+      return Response.json({
+        created: [],
+        skipped,
+        summary: { requested, created: 0, skipped: skipped.length },
       });
     }
 
@@ -242,32 +298,10 @@ export async function POST(request: Request) {
       },
     });
 
-    // ── Process each candidate date ───────────────────────────────────────────
+    // ── Create sessions for non-conflicting dates ─────────────────────────────
     const created: { id: string; date: string; startTime: string; endTime: string }[] = [];
-    const skipped: { date: string; reason: string }[] = [];
 
-    for (const date of candidateDates) {
-      const sessionStart = new Date(date);
-      sessionStart.setHours(sh, sm, 0, 0);
-      const sessionEnd = new Date(sessionStart.getTime() + durationMin * 60_000);
-      const dateStr    = date.toISOString().slice(0, 10);
-
-      // Conflict: same coach, overlapping window, not cancelled
-      const conflict = await prisma.session.findFirst({
-        where: {
-          coachId:  resolvedCoachId,
-          status:   { not: "CANCELLED" },
-          startsAt: { lt: sessionEnd },
-          endsAt:   { gt: sessionStart },
-        },
-        select: { id: true },
-      });
-
-      if (conflict) {
-        skipped.push({ date: dateStr, reason: "Instructor already has a class at this time" });
-        continue;
-      }
-
+    for (const { sessionStart, sessionEnd, dateStr } of datesToCreate) {
       try {
         const session = await prisma.session.create({
           data: {

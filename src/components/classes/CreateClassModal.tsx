@@ -438,6 +438,11 @@ export function CreateClassModal({
                       </button>
                     ))}
                   </div>
+                  {recurMode === "none" && (
+                    <p className="text-xs mt-2" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
+                      Crea una sesión para la próxima fecha del día seleccionado.
+                    </p>
+                  )}
 
                   {recurMode === "weekly" && (
                     <div className="mt-3 space-y-3">

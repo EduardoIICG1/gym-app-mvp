@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronLeft, ChevronRight, Users, X, Pencil, ClipboardList, Check, CalendarPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, X, Pencil, ClipboardList, Check, CalendarPlus, Plus } from "lucide-react";
 import { buildGCalURL } from "@/lib/gcal";
 import type { GymClass, Reservation, ServiceType, EventType, Member, AttendanceStatus } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/calendarHelpers";
 import { getEffectiveDisplayStatus } from "@/lib/cycleHelpers";
 import { DAY_NAMES_SHORT, MONTH_NAMES_SHORT, ATTENDANCE_STATUS_LABELS } from "@/lib/labels";
+import { CreateClassModal } from "@/components/classes/CreateClassModal";
 
 const DAY_SHORT = DAY_NAMES_SHORT;
 const MONTHS = MONTH_NAMES_SHORT;
@@ -40,6 +41,7 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+
 interface CreateState {
   name: string; eventType: EventType; serviceType: ServiceType; dayOfWeek: number;
   startTime: string; endTime: string; coach: string; maxCapacity: number; note: string;
@@ -47,13 +49,6 @@ interface CreateState {
   bookingMode: "regular" | "makeup_only";
 }
 
-function defaultCreate(dayOfWeek: number): CreateState {
-  return {
-    name: "", eventType: "class", serviceType: "group", dayOfWeek,
-    startTime: "09:00", endTime: "10:00", coach: "", maxCapacity: 20, note: "",
-    hasBookingCutoff: true, bookingCutoffValue: 3, bookingCutoffUnit: "hours", bookingMode: "regular",
-  };
-}
 
 const inputCls = "w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-colors";
 const inputStyle = { background: "var(--background)", border: "1px solid var(--card-border)", color: "var(--text-primary)" };
@@ -855,6 +850,7 @@ export default function CalendarPage() {
   const currentUser = useCurrentUser();
   const CURRENT_USER_ID = currentUser.id;
   const IS_ADMIN_OR_COACH = currentUser.hasRole("admin") || currentUser.hasRole("coach") || currentUser.hasRole("kinesiologist");
+  const isKine = currentUser.hasRole("kinesiologist") && !currentUser.hasRole("admin");
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [classes, setClasses] = useState<GymClass[]>([]);
@@ -869,8 +865,7 @@ export default function CalendarPage() {
   const [manageModal, setManageModal] = useState<{ cls: GymClass; dateStr: string } | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [coachFilter, setCoachFilter] = useState("all");
-  const [createModal, setCreateModal] = useState<CreateState | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [createModalDay, setCreateModalDay] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState(0);
 
   const weekDates = getWeekDates(weekOffset);
@@ -1002,24 +997,9 @@ export default function CalendarPage() {
     setActionLoading(false);
   };
 
-  const handleCreateClass = async () => {
-    if (!createModal || !createModal.name || !createModal.coach) return;
-    setCreating(true);
-    const res = await fetch("/api/classes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(createModal),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setClasses(prev => [...prev, data]);
-      setToast({ msg: "Clase creada", ok: true });
-      setCreateModal(null);
-    } else {
-      setToast({ msg: data.error || "Error al crear", ok: false });
-    }
-    setCreating(false);
-  };
+  const openCreateModal = useCallback((dayOfWeek: number) => {
+    setCreateModalDay(dayOfWeek);
+  }, []);
 
   const handleClassUpdated = (updated: GymClass) => {
     setClasses(prev => prev.map(c => c.id === updated.id ? updated : c));
@@ -1143,7 +1123,17 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {IS_ADMIN_OR_COACH && (
+            <button
+              onClick={() => setCreateModalDay(selectedDay)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Nueva clase
+            </button>
+          )}
           <button onClick={() => setWeekOffset(w => w - 1)} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--text-secondary)" }}>
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -1211,7 +1201,7 @@ export default function CalendarPage() {
             <div className="space-y-3">
               {getColClasses(selectedDay).length === 0 ? (
                 IS_ADMIN_OR_COACH ? (
-                  <button onClick={() => setCreateModal(defaultCreate(selectedDay))}
+                  <button onClick={() => openCreateModal(selectedDay)}
                     className="w-full py-6 rounded-xl border border-dashed text-sm font-medium hover:opacity-70"
                     style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                     + Añadir clase
@@ -1225,7 +1215,7 @@ export default function CalendarPage() {
                 )
               )}
               {IS_ADMIN_OR_COACH && getColClasses(selectedDay).length > 0 && (
-                <button onClick={() => setCreateModal(defaultCreate(selectedDay))}
+                <button onClick={() => openCreateModal(selectedDay)}
                   className="w-full py-3 rounded-xl border border-dashed text-xs font-medium hover:opacity-70"
                   style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                   + clase
@@ -1248,7 +1238,7 @@ export default function CalendarPage() {
                   <div className="space-y-3">
                     {dayClasses.length === 0 ? (
                       IS_ADMIN_OR_COACH ? (
-                        <button onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                        <button onClick={() => openCreateModal(dayOfWeek)}
                           className="w-full py-4 rounded-xl border border-dashed text-xs hover:opacity-70"
                           style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                           + clase
@@ -1262,7 +1252,7 @@ export default function CalendarPage() {
                           renderCard(cls, dateStr, { delay: dayIndex * 0.05 + clsIdx * 0.02, scale: true })
                         )}
                         {IS_ADMIN_OR_COACH && (
-                          <button onClick={() => setCreateModal(defaultCreate(dayOfWeek))}
+                          <button onClick={() => openCreateModal(dayOfWeek)}
                             className="w-full py-2 rounded-xl border border-dashed text-xs hover:opacity-70"
                             style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                             +
@@ -1318,188 +1308,17 @@ export default function CalendarPage() {
       </AnimatePresence>
 
       {/* ── Create Class Modal ─────────────────────── */}
-      <AnimatePresence>
-        {createModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
-            onClick={() => setCreateModal(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-2xl border shadow-2xl max-h-[90vh] overflow-y-auto"
-              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-                    {createModal.eventType === "blocked_time" ? "Nuevo tiempo bloqueado" : "Nueva Clase"}
-                  </h2>
-                  <button onClick={() => setCreateModal(null)} className="p-1 rounded-lg hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Event type toggle */}
-                  <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de evento</label>
-                    <div className="flex gap-2">
-                      {(["class", "blocked_time"] as const).map(et => (
-                        <button key={et} onClick={() => setCreateModal({ ...createModal, eventType: et })}
-                          className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                          style={createModal.eventType === et
-                            ? { background: et === "blocked_time" ? "#71717a" : "#4fc3f7", color: "#0a0a0f" }
-                            : { background: "var(--card-border)", color: "var(--text-secondary)" }}>
-                          {et === "class" ? "Clase" : "Tiempo bloqueado"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Nombre *</label>
-                    <input type="text" value={createModal.name}
-                      onChange={e => setCreateModal({ ...createModal, name: e.target.value })}
-                      placeholder={createModal.eventType === "blocked_time" ? "ej. Mantenimiento de equipo" : "ej. Funcional 6am"}
-                      className={inputCls} style={inputStyle} />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor</label>
-                    <select value={createModal.coach} onChange={e => setCreateModal({ ...createModal, coach: e.target.value })}
-                      className={inputCls} style={inputStyle}>
-                      <option value="">— Seleccionar instructor —</option>
-                      {coaches.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {createModal.eventType !== "blocked_time" && (
-                      <div>
-                        <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo</label>
-                        <select value={createModal.serviceType} onChange={e => setCreateModal({ ...createModal, serviceType: e.target.value as ServiceType })}
-                          className={inputCls} style={inputStyle}>
-                          <option value="group">Grupal</option>
-                          <option value="personal_training">Personal</option>
-                          <option value="kinesiology">Kinesio</option>
-                        </select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Día</label>
-                      <select value={createModal.dayOfWeek} onChange={e => setCreateModal({ ...createModal, dayOfWeek: Number(e.target.value) })}
-                        className={inputCls} style={inputStyle}>
-                        {["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"].map((d, i) => (
-                          <option key={i} value={i}>{d}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Inicio</label>
-                      <input type="time" value={createModal.startTime} onChange={e => setCreateModal({ ...createModal, startTime: e.target.value })}
-                        className={inputCls} style={inputStyle} />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Fin</label>
-                      <input type="time" value={createModal.endTime} onChange={e => setCreateModal({ ...createModal, endTime: e.target.value })}
-                        className={inputCls} style={inputStyle} />
-                    </div>
-                  </div>
-
-                  {createModal.eventType !== "blocked_time" && (
-                    <>
-                      <div>
-                        <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Capacidad</label>
-                        <input type="number" min={1} value={createModal.maxCapacity} onChange={e => setCreateModal({ ...createModal, maxCapacity: Number(e.target.value) })}
-                          className={inputCls} style={inputStyle} />
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>Cierre de reserva</label>
-                          <button
-                            type="button"
-                            onClick={() => setCreateModal({ ...createModal, hasBookingCutoff: !createModal.hasBookingCutoff })}
-                            className="relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors"
-                            style={{ background: createModal.hasBookingCutoff ? "#4fc3f7" : "var(--card-border)" }}
-                          >
-                            <span className="inline-block h-4 w-4 transform rounded-full shadow transition-transform mt-0.5"
-                              style={{ background: "var(--card)", marginLeft: createModal.hasBookingCutoff ? "18px" : "2px" }} />
-                          </button>
-                        </div>
-                        {createModal.hasBookingCutoff ? (
-                          <>
-                            <div className="flex gap-2">
-                              <input type="number" min={1} value={createModal.bookingCutoffValue}
-                                onChange={e => setCreateModal({ ...createModal, bookingCutoffValue: Number(e.target.value) })}
-                                className={inputCls + " flex-1"} style={inputStyle} />
-                              <select value={createModal.bookingCutoffUnit}
-                                onChange={e => setCreateModal({ ...createModal, bookingCutoffUnit: e.target.value as "minutes" | "hours" })}
-                                className={inputCls + " flex-1"} style={inputStyle}>
-                                <option value="minutes">minutos</option>
-                                <option value="hours">horas</option>
-                              </select>
-                            </div>
-                            <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>antes del inicio</p>
-                          </>
-                        ) : (
-                          <p className="text-xs px-3 py-2 rounded-lg" style={{ background: "var(--background)", color: "var(--text-secondary)" }}>
-                            Sin restricción — reserva abierta mientras haya cupos
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Modalidad</label>
-                        <div className="flex gap-2">
-                          {(["regular", "makeup_only"] as const).map(mode => (
-                            <button key={mode} onClick={() => setCreateModal({ ...createModal, bookingMode: mode })}
-                              className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                              style={createModal.bookingMode === mode
-                                ? { background: mode === "makeup_only" ? "#a78bfa" : "#4fc3f7", color: "#0a0a0f" }
-                                : { background: "var(--card-border)", color: "var(--text-secondary)" }}>
-                              {mode === "regular" ? "Normal" : "Solo recuperación"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Nota (opcional)</label>
-                    <input type="text" value={createModal.note} onChange={e => setCreateModal({ ...createModal, note: e.target.value })}
-                      placeholder={createModal.eventType === "blocked_time" ? "ej. Acceso restringido" : "ej. Llevar mat"}
-                      className={inputCls} style={inputStyle} />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <button onClick={() => setCreateModal(null)}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium"
-                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
-                    Cancelar
-                  </button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={handleCreateClass}
-                    disabled={creating || !createModal.name}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                    style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}>
-                    {creating ? "Creando..." : createModal.eventType === "blocked_time" ? "Crear bloqueo" : "Crear Clase"}
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {createModalDay !== null && (
+        <CreateClassModal
+          coaches={coaches}
+          initialDayOfWeek={createModalDay}
+          isKine={isKine}
+          currentUserName={currentUser.name}
+          onClose={() => setCreateModalDay(null)}
+          onSuccess={fetchData}
+          onToast={(msg, ok) => setToast({ msg, ok })}
+        />
+      )}
 
       {/* Toast */}
       <AnimatePresence>

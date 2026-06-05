@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Play, Pause } from "lucide-react";
+import { Plus, Pencil, Trash2, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { GymClass, Reservation, ServiceType, DayOfWeek, EventType, Member } from "@/lib/types";
 import { ServiceBadge } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
+import { CreateClassModal } from "@/components/classes/CreateClassModal";
 
 const EMPTY_FORM = {
   name: "", eventType: "class" as EventType, serviceType: "group" as ServiceType,
@@ -15,20 +16,32 @@ const EMPTY_FORM = {
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-function getMondayStr() {
+function getMondayOfWeek(offsetWeeks: number): Date {
   const today = new Date();
-  const day = today.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + diff);
-  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+  const jsDay = today.getDay();
+  const diffToMonday = jsDay === 0 ? -6 : 1 - jsDay;
+  const d = new Date(today);
+  d.setDate(today.getDate() + diffToMonday + offsetWeeks * 7);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
-function weekDateForDay(dayOfWeek: number) {
-  const monday = new Date(getMondayStr() + "T00:00:00");
-  const d = new Date(monday);
-  d.setDate(monday.getDate() + dayOfWeek);
+
+function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+function toDisplayDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+function getDayNameFromISO(isoDate: string): string {
+  const date = new Date(isoDate + "T00:00:00");
+  const feDay = date.getDay() === 0 ? 6 : date.getDay() - 1;
+  return DAY_NAMES[feDay] ?? isoDate;
+}
+
+const MONTHS_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 
 // ─── Shared input style ───────────────────────────────────────────────────
 const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40";
@@ -45,14 +58,24 @@ export default function AdminClassesPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<GymClass | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cancelled">("all");
+
+  // ─── Week range ──────────────────────────────────────────────────────────
+  const mondayDate = getMondayOfWeek(weekOffset);
+  const saturdayDate = new Date(mondayDate);
+  saturdayDate.setDate(mondayDate.getDate() + 5);
+  const weekStartStr = toISODate(mondayDate);
+  const weekLabel = `${String(mondayDate.getDate()).padStart(2, "0")} ${MONTHS_SHORT[mondayDate.getMonth()]} – ${String(saturdayDate.getDate()).padStart(2, "0")} ${MONTHS_SHORT[saturdayDate.getMonth()]} ${saturdayDate.getFullYear()}`;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [cRes, rRes, coachRes] = await Promise.all([
-      fetch("/api/classes"),
+      fetch(`/api/classes?weekStart=${weekStartStr}`),
       fetch("/api/reservations"),
       fetch("/api/members?includesRole=coach"),
     ]);
@@ -61,7 +84,7 @@ export default function AdminClassesPage() {
     const coachMembers: Member[] = await coachRes.json();
     setCoaches(coachMembers.map(m => ({ id: m.id, name: m.name })));
     setLoading(false);
-  }, []);
+  }, [weekStartStr]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
@@ -69,6 +92,12 @@ export default function AdminClassesPage() {
     const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // ─── Filtered & grouped ──────────────────────────────────────────────────
+  const filteredClasses = statusFilter === "all" ? classes : classes.filter(c => c.status === statusFilter);
+  const groupedDates = Array.from(
+    new Set(filteredClasses.map(c => c.sessionDate ?? ""))
+  ).filter(Boolean).sort();
 
   // ─── KPIs ────────────────────────────────────────────────────────────────
   const active = classes.filter((c) => c.status === "active");
@@ -84,7 +113,7 @@ export default function AdminClassesPage() {
   });
 
   // ─── Modal helpers ───────────────────────────────────────────────────────
-  const openCreate = () => { setEditingClass(null); setForm(EMPTY_FORM); setIsModalOpen(true); };
+  const openCreate = () => setShowCreateModal(true);
   const openEdit = (cls: GymClass) => {
     setEditingClass(cls);
     setForm({ name: cls.name, eventType: cls.eventType ?? "class", serviceType: cls.serviceType, dayOfWeek: cls.dayOfWeek, startTime: cls.startTime, endTime: cls.endTime, coach: cls.coach, maxCapacity: cls.maxCapacity, note: cls.note || "" });
@@ -129,10 +158,10 @@ export default function AdminClassesPage() {
   };
 
   const kpis = [
-    { label: "Clases activas", value: active.length, sub: `${classes.length} totales`, accent: "#4fc3f7" },
+    { label: "Clases activas", value: active.length, sub: `${classes.length} esta semana`, accent: "#4fc3f7" },
     { label: "Ocupación promedio", value: `${avgOccupancy}%`, sub: `${totalReserved}/${totalCapacity} cupos`, accent: "#22c55e" },
-    { label: "Reservas hoy", value: todayReservations.length, sub: "esta semana", accent: "#f97316" },
-    { label: "Canceladas", value: classes.filter((c) => c.status === "cancelled").length, sub: "de total", accent: "#ef4444" },
+    { label: "Reservas hoy", value: todayReservations.length, sub: "hoy", accent: "#f97316" },
+    { label: "Canceladas", value: classes.filter((c) => c.status === "cancelled").length, sub: "esta semana", accent: "#ef4444" },
   ];
 
   return (
@@ -166,20 +195,84 @@ export default function AdminClassesPage() {
         ))}
       </div>
 
+      {/* ─── Filter bar ───────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 px-4 py-3 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+        {/* Week navigation */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setWeekOffset(w => w - 1)}
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
+            style={{ color: "var(--text-secondary)" }}
+            title="Semana anterior"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-medium px-2 min-w-[190px] text-center" style={{ color: "var(--text-primary)" }}>
+            {weekLabel}
+          </span>
+          <button
+            onClick={() => setWeekOffset(w => w + 1)}
+            className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
+            style={{ color: "var(--text-secondary)" }}
+            title="Semana siguiente"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        {weekOffset !== 0 && (
+          <button
+            onClick={() => setWeekOffset(0)}
+            className="text-xs px-2.5 py-1 rounded-lg font-medium transition-colors hover:bg-white/5"
+            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+          >
+            Esta semana
+          </button>
+        )}
+        {/* Status filter */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          {(["all", "active", "cancelled"] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={statusFilter === s
+                ? { background: s === "cancelled" ? "#ef444420" : "#4fc3f720", color: s === "cancelled" ? "#ef4444" : "#4fc3f7" }
+                : { background: "var(--card-border)", color: "var(--text-secondary)" }}
+            >
+              {s === "all" ? "Todas" : s === "active" ? "Activas" : "Canceladas"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {loading ? (
         <div className="text-center py-20" style={{ color: "var(--text-secondary)" }}>Cargando clases...</div>
+      ) : groupedDates.length === 0 ? (
+        <div className="text-center py-16 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+          <p className="text-sm font-medium">No hay clases para esta semana</p>
+          {(weekOffset !== 0 || statusFilter !== "all") && (
+            <button
+              onClick={() => { setWeekOffset(0); setStatusFilter("all"); }}
+              className="mt-3 text-xs font-medium"
+              style={{ color: "#4fc3f7" }}
+            >
+              Ver semana actual
+            </button>
+          )}
+        </div>
       ) : (
         <div className="space-y-8">
-          {DAY_NAMES.map((dayName, dayIdx) => {
-            const dayClasses = classes.filter((c) => c.dayOfWeek === dayIdx).sort((a, b) => a.startTime.localeCompare(b.startTime));
-            if (dayClasses.length === 0) return null;
+          {groupedDates.map(date => {
+            const dateClasses = filteredClasses
+              .filter(c => c.sessionDate === date)
+              .sort((a, b) => a.startTime.localeCompare(b.startTime));
             return (
-              <div key={dayName}>
+              <div key={date}>
                 <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-secondary)" }}>
-                  {dayName}
+                  {getDayNameFromISO(date)} · {toDisplayDate(date)}
                 </h2>
                 <div className="space-y-2">
-                  {dayClasses.map((cls) => {
+                  {dateClasses.map((cls) => {
                     const isBlocked = cls.eventType === "blocked_time";
                     const pct = !isBlocked && cls.maxCapacity > 0 ? (cls.reservedCount / cls.maxCapacity) * 100 : 0;
                     const barColor = pct >= 100 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
@@ -197,7 +290,6 @@ export default function AdminClassesPage() {
                           opacity: isBlocked ? 0.9 : 1,
                         }}
                       >
-                        {/* Class row */}
                         <div className="flex items-center gap-3 p-4">
                           {isBlocked
                             ? <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0" style={{ background: "#71717a30", color: "#71717a" }}>Bloqueado</span>
@@ -209,7 +301,6 @@ export default function AdminClassesPage() {
                             <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{cls.startTime}–{cls.endTime} · {cls.coach}</p>
                           </div>
 
-                          {/* Occupancy bar — only for real classes */}
                           {!isBlocked && (
                             <div className="hidden sm:flex flex-col items-end gap-1 w-32 shrink-0">
                               <div className="flex items-center gap-2 w-full">
@@ -228,7 +319,6 @@ export default function AdminClassesPage() {
                             </div>
                           )}
 
-                          {/* Status */}
                           <span
                             className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
                             style={cls.status === "active"
@@ -238,7 +328,6 @@ export default function AdminClassesPage() {
                             {cls.status === "active" ? "Activa" : "Cancelada"}
                           </span>
 
-                          {/* Actions */}
                           <div className="flex items-center gap-1 shrink-0">
                             {!isBlocked && (
                               <Link
@@ -261,7 +350,6 @@ export default function AdminClassesPage() {
                             </button>
                           </div>
                         </div>
-
                       </motion.div>
                     );
                   })}
@@ -272,9 +360,19 @@ export default function AdminClassesPage() {
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {/* Shared create modal */}
+      {showCreateModal && (
+        <CreateClassModal
+          coaches={coaches}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={fetchData}
+          onToast={(msg, ok) => setToast({ msg, ok })}
+        />
+      )}
+
+      {/* Edit Modal */}
       <AnimatePresence>
-        {isModalOpen && (
+        {isModalOpen && editingClass && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -294,14 +392,11 @@ export default function AdminClassesPage() {
             >
               <div className="flex items-center justify-between p-6 sticky top-0 border-b" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                 <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                  {editingClass
-                    ? (form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase")
-                    : (form.eventType === "blocked_time" ? "Nuevo tiempo bloqueado" : "Nueva Clase")}
+                  {form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase"}
                 </h2>
                 <button onClick={() => setIsModalOpen(false)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
               <div className="p-6 space-y-4">
-                {/* Event type toggle */}
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de evento</label>
                   <div className="flex gap-2">
@@ -381,9 +476,7 @@ export default function AdminClassesPage() {
                   className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-opacity disabled:opacity-50 hover:opacity-90"
                   style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
                 >
-                  {saving ? "Guardando..." : editingClass
-                    ? "Guardar cambios"
-                    : form.eventType === "blocked_time" ? "Crear bloqueo" : "Crear clase"}
+                  {saving ? "Guardando..." : "Guardar cambios"}
                 </button>
               </div>
             </motion.div>

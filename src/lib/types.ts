@@ -29,6 +29,7 @@ export interface GymClass {
   bookingCutoffValue: number;       // used only when hasBookingCutoff = true
   bookingCutoffUnit: BookingCutoffUnit;
   bookingMode: BookingMode;         // "regular" | "makeup_only"
+  sessionDate?: string;             // YYYY-MM-DD — exact session date returned by API
 }
 
 export interface Reservation {

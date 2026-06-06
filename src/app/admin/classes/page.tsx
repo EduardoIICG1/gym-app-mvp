@@ -64,6 +64,9 @@ export default function AdminClassesPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cancelled">("all");
+  const [showScopeSelector, setShowScopeSelector] = useState(false);
+  const [editScope, setEditScope] = useState<"this" | null>(null);
+  const [scopeTarget, setScopeTarget] = useState<GymClass | null>(null);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -115,22 +118,47 @@ export default function AdminClassesPage() {
   // ─── Modal helpers ───────────────────────────────────────────────────────
   const openCreate = () => setShowCreateModal(true);
   const openEdit = (cls: GymClass) => {
+    if ((cls.seriesCount ?? 1) > 1) {
+      setScopeTarget(cls);
+      setShowScopeSelector(true);
+      return;
+    }
+    setEditScope(null);
     setEditingClass(cls);
     setForm({ name: cls.name, eventType: cls.eventType ?? "class", serviceType: cls.serviceType, dayOfWeek: cls.dayOfWeek, startTime: cls.startTime, endTime: cls.endTime, coach: cls.coach, maxCapacity: cls.maxCapacity, note: cls.note || "" });
     setIsModalOpen(true);
   };
 
+  const confirmScopeThis = () => {
+    const cls = scopeTarget!;
+    setShowScopeSelector(false);
+    setScopeTarget(null);
+    setEditScope("this");
+    setEditingClass(cls);
+    setForm({ name: cls.name, eventType: cls.eventType ?? "class", serviceType: cls.serviceType, dayOfWeek: cls.dayOfWeek, startTime: cls.startTime, endTime: cls.endTime, coach: cls.coach, maxCapacity: cls.maxCapacity, note: cls.note || "" });
+    setIsModalOpen(true);
+  };
+
+  const closeEditModal = () => { setIsModalOpen(false); setEditScope(null); };
+
   const handleSave = async () => {
-    if (!form.name || !form.startTime || !form.endTime || !form.coach) {
+    const isScopeThis = editingClass !== null && editScope === "this";
+    if (!form.startTime || !form.endTime || !form.coach) {
+      setToast({ msg: "Completa los campos requeridos", ok: false }); return;
+    }
+    if (!isScopeThis && !form.name) {
       setToast({ msg: "Completa los campos requeridos", ok: false }); return;
     }
     setSaving(true);
     const method = editingClass ? "PUT" : "POST";
     const url = editingClass ? `/api/classes/${editingClass.id}` : "/api/classes";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    const payload = isScopeThis
+      ? { startTime: form.startTime, endTime: form.endTime, coach: form.coach, note: form.note, scope: "this" }
+      : form;
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (res.ok) {
       await fetchData();
-      setIsModalOpen(false);
+      closeEditModal();
       setToast({ msg: editingClass ? "Clase actualizada" : "Clase creada", ok: true });
     } else {
       const d = await res.json();
@@ -370,6 +398,96 @@ export default function AdminClassesPage() {
         />
       )}
 
+      {/* Scope Selector Modal */}
+      <AnimatePresence>
+        {showScopeSelector && scopeTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => setShowScopeSelector(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-sm rounded-2xl border overflow-hidden"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b" style={{ borderColor: "var(--card-border)" }}>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#4fc3f7" }}>Clase recurrente</p>
+                <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                  ¿Qué quieres editar?
+                </h2>
+                <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                  {scopeTarget.name} · {toDisplayDate(scopeTarget.sessionDate ?? "")}
+                </p>
+              </div>
+              <div className="p-4 space-y-2">
+                {/* Option 1: Solo esta clase — enabled */}
+                <button
+                  onClick={confirmScopeThis}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors hover:bg-white/5 border"
+                  style={{ borderColor: "#4fc3f740", background: "#4fc3f710" }}
+                >
+                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center" style={{ borderColor: "#4fc3f7" }}>
+                    <div className="w-2 h-2 rounded-full" style={{ background: "#4fc3f7" }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Solo esta clase</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                      Edita únicamente la sesión del {toDisplayDate(scopeTarget.sessionDate ?? "")}
+                    </p>
+                  </div>
+                </button>
+
+                {/* Option 2: Esta y futuras — disabled */}
+                <div
+                  className="w-full flex items-start gap-3 p-3 rounded-xl border opacity-50 cursor-not-allowed"
+                  style={{ borderColor: "var(--card-border)" }}
+                >
+                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0" style={{ borderColor: "var(--text-secondary)" }} />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Esta y futuras</p>
+                      <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#f97316", color: "#0a0a0f" }}>Próxima fase</span>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Modifica esta sesión y todas las siguientes</p>
+                  </div>
+                </div>
+
+                {/* Option 3: Toda la serie — disabled */}
+                <div
+                  className="w-full flex items-start gap-3 p-3 rounded-xl border opacity-50 cursor-not-allowed"
+                  style={{ borderColor: "var(--card-border)" }}
+                >
+                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0" style={{ borderColor: "var(--text-secondary)" }} />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Toda la serie</p>
+                      <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#f97316", color: "#0a0a0f" }}>Próxima fase</span>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Aplica los cambios a todas las sesiones ({scopeTarget.seriesCount ?? "?"} en total)</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowScopeSelector(false)}
+                  className="w-full py-2 rounded-xl text-sm font-medium mt-2 transition-colors hover:bg-white/5"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Edit Modal */}
       <AnimatePresence>
         {isModalOpen && editingClass && (
@@ -379,7 +497,7 @@ export default function AdminClassesPage() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4"
             style={{ background: "rgba(0,0,0,0.7)" }}
-            onClick={() => setIsModalOpen(false)}
+            onClick={closeEditModal}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -391,86 +509,132 @@ export default function AdminClassesPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between p-6 sticky top-0 border-b" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-                <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                  {form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase"}
-                </h2>
-                <button onClick={() => setIsModalOpen(false)} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                    {editScope === "this" ? "Editar solo esta clase" : (form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase")}
+                  </h2>
+                  {editScope === "this" && (
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                      {editingClass.name} · {toDisplayDate(editingClass.sessionDate ?? "")}
+                    </p>
+                  )}
+                </div>
+                <button onClick={closeEditModal} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de evento</label>
-                  <div className="flex gap-2">
-                    {(["class", "blocked_time"] as const).map(et => (
-                      <button key={et} type="button" onClick={() => setForm({ ...form, eventType: et })}
-                        className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                        style={form.eventType === et
-                          ? { background: et === "blocked_time" ? "#71717a" : "#4fc3f7", color: "#0a0a0f" }
-                          : { background: "var(--card-border)", color: "var(--text-secondary)" }}>
-                        {et === "class" ? "Clase" : "Tiempo bloqueado"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {editScope === "this" ? (
+                  /* Simplified form for single-session scope */
+                  <>
+                    <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs" style={{ background: "#4fc3f710", color: "#4fc3f7", border: "1px solid #4fc3f730" }}>
+                      <span className="mt-0.5 shrink-0">ℹ</span>
+                      <span>Solo se modifica esta sesión. Nombre, tipo y capacidad se mantienen para toda la serie.</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora inicio *</label>
+                        <input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                          className={inputCls} style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora fin *</label>
+                        <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                          className={inputCls} style={inputStyle} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor *</label>
+                        <select value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value })}
+                          className={inputCls} style={inputStyle}>
+                          <option value="">— Seleccionar instructor —</option>
+                          {coaches.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nota (opcional)</label>
+                        <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
+                          rows={2} placeholder="ej. Clase de recuperación, se modifica horario..."
+                          className={`${inputCls} resize-none`} style={inputStyle} />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* Full form for non-recurring classes */
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de evento</label>
+                      <div className="flex gap-2">
+                        {(["class", "blocked_time"] as const).map(et => (
+                          <button key={et} type="button" onClick={() => setForm({ ...form, eventType: et })}
+                            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                            style={form.eventType === et
+                              ? { background: et === "blocked_time" ? "#71717a" : "#4fc3f7", color: "#0a0a0f" }
+                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                            {et === "class" ? "Clase" : "Tiempo bloqueado"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nombre *</label>
-                    <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder={form.eventType === "blocked_time" ? "ej. Mantenimiento de equipo" : "ej. Funcional 6am"}
-                      className={inputCls} style={inputStyle} />
-                  </div>
-                  {form.eventType !== "blocked_time" && (
-                    <div>
-                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de clase</label>
-                      <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value as ServiceType })}
-                        className={inputCls} style={inputStyle}>
-                        <option value="group">Grupal</option>
-                        <option value="personal_training">Entrenamiento personal</option>
-                        <option value="kinesiology">Kinesiología</option>
-                      </select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nombre *</label>
+                        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          placeholder={form.eventType === "blocked_time" ? "ej. Mantenimiento de equipo" : "ej. Funcional 6am"}
+                          className={inputCls} style={inputStyle} />
+                      </div>
+                      {form.eventType !== "blocked_time" && (
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de clase</label>
+                          <select value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value as ServiceType })}
+                            className={inputCls} style={inputStyle}>
+                            <option value="group">Grupal</option>
+                            <option value="personal_training">Entrenamiento personal</option>
+                            <option value="kinesiology">Kinesiología</option>
+                          </select>
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Día de la semana</label>
+                        <select value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) as DayOfWeek })}
+                          className={inputCls} style={inputStyle}>
+                          {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"].map((d, i) => (
+                            <option key={d} value={i}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora inicio *</label>
+                        <input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                          className={inputCls} style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora fin *</label>
+                        <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                          className={inputCls} style={inputStyle} />
+                      </div>
+                      <div className={form.eventType !== "blocked_time" ? "" : "col-span-2"}>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor</label>
+                        <select value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value })}
+                          className={inputCls} style={inputStyle}>
+                          <option value="">— Seleccionar instructor —</option>
+                          {coaches.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      {form.eventType !== "blocked_time" && (
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Capacidad máxima</label>
+                          <input type="number" min={1} value={form.maxCapacity} onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
+                            className={inputCls} style={inputStyle} />
+                        </div>
+                      )}
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nota (opcional)</label>
+                        <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
+                          rows={2} placeholder={form.eventType === "blocked_time" ? "ej. Acceso restringido" : "Información adicional..."}
+                          className={`${inputCls} resize-none`} style={inputStyle} />
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Día de la semana</label>
-                    <select value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) as DayOfWeek })}
-                      className={inputCls} style={inputStyle}>
-                      {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"].map((d, i) => (
-                        <option key={d} value={i}>{d}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora inicio *</label>
-                    <input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                      className={inputCls} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Hora fin *</label>
-                    <input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                      className={inputCls} style={inputStyle} />
-                  </div>
-                  <div className={form.eventType !== "blocked_time" ? "" : "col-span-2"}>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor</label>
-                    <select value={form.coach} onChange={(e) => setForm({ ...form, coach: e.target.value })}
-                      className={inputCls} style={inputStyle}>
-                      <option value="">— Seleccionar instructor —</option>
-                      {coaches.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  {form.eventType !== "blocked_time" && (
-                    <div>
-                      <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Capacidad máxima</label>
-                      <input type="number" min={1} value={form.maxCapacity} onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
-                        className={inputCls} style={inputStyle} />
-                    </div>
-                  )}
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nota (opcional)</label>
-                    <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })}
-                      rows={2} placeholder={form.eventType === "blocked_time" ? "ej. Acceso restringido" : "Información adicional..."}
-                      className={`${inputCls} resize-none`} style={inputStyle} />
-                  </div>
-                </div>
+                  </>
+                )}
                 <button
                   onClick={handleSave} disabled={saving}
                   className="w-full py-2.5 rounded-xl text-white font-semibold text-sm transition-opacity disabled:opacity-50 hover:opacity-90"

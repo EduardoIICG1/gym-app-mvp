@@ -17,13 +17,6 @@ const SVC_REVERSE: Record<string, DbServiceType> = {
   blocked_time: "OTHER",
 };
 
-// Add minutes to "HH:mm" string
-function addMinutes(time: string, minutes: number): string {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + minutes;
-  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 // JS getDay() 0=Sun,1=Mon...6=Sat → frontend 0=Mon...5=Sat
 function jsDayToFrontend(jsDay: number): number {
   return jsDay === 0 ? 6 : jsDay - 1;

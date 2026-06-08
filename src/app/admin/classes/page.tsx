@@ -9,6 +9,35 @@ import { ServiceBadge } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
 import { CreateClassModal } from "@/components/classes/CreateClassModal";
 
+interface SeriesSession {
+  id: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  coachId: string;
+  coachName: string;
+  status: "active" | "cancelled";
+  reservedCount: number;
+  capacity: number;
+  hasActiveBookings: boolean;
+}
+
+interface SeriesDetail {
+  programId: string;
+  programName: string;
+  serviceType: ServiceType;
+  capacity: number;
+  startTime: string;
+  endTime: string;
+  coachVaries: boolean;
+  primaryCoachName: string;
+  totalActive: number;
+  totalCancelled: number;
+  rangeStart: string | null;
+  rangeEnd: string | null;
+  sessions: SeriesSession[];
+}
+
 interface TrimPreview {
   applied: boolean;
   programName: string;
@@ -82,6 +111,10 @@ export default function AdminClassesPage() {
   const [trimEndDate, setTrimEndDate] = useState("");
   const [trimPreview, setTrimPreview] = useState<TrimPreview | null>(null);
   const [trimLoading, setTrimLoading] = useState(false);
+  const [showSeriesModal, setShowSeriesModal] = useState(false);
+  const [seriesTarget, setSeriesTarget] = useState<GymClass | null>(null);
+  const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>(null);
+  const [seriesLoading, setSeriesLoading] = useState(false);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -164,6 +197,31 @@ export default function AdminClassesPage() {
     setTrimEndDate(cls.sessionDate ?? "");
     setTrimPreview(null);
     setShowTrimModal(true);
+  };
+
+  // ─── View recurring series detail (read-only) ───────────────────────────
+  const openSeries = async (cls: GymClass) => {
+    setShowScopeSelector(false);
+    setScopeTarget(null);
+    setSeriesTarget(cls);
+    setSeriesDetail(null);
+    setShowSeriesModal(true);
+    setSeriesLoading(true);
+    const res = await fetch(`/api/classes/${cls.id}/series`);
+    if (res.ok) {
+      setSeriesDetail(await res.json());
+    } else {
+      const d = await res.json();
+      setToast({ msg: d.error || "Error al cargar la serie", ok: false });
+      setShowSeriesModal(false);
+    }
+    setSeriesLoading(false);
+  };
+
+  const closeSeriesModal = () => {
+    setShowSeriesModal(false);
+    setSeriesTarget(null);
+    setSeriesDetail(null);
   };
 
   const closeTrimModal = () => {
@@ -503,6 +561,23 @@ export default function AdminClassesPage() {
                   </div>
                 </button>
 
+                {/* Option: Ver sesiones de la serie (read-only) */}
+                <button
+                  onClick={() => openSeries(scopeTarget)}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors hover:bg-white/5 border"
+                  style={{ borderColor: "#a78bfa40", background: "#a78bfa10" }}
+                >
+                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center" style={{ borderColor: "#a78bfa" }}>
+                    <div className="w-2 h-2 rounded-full" style={{ background: "#a78bfa" }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Ver sesiones de la serie</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                      Muestra todas las sesiones de esta serie recurrente, activas y canceladas (solo lectura)
+                    </p>
+                  </div>
+                </button>
+
                 {/* Option 2: Esta y futuras — enabled */}
                 <button
                   onClick={() => confirmScope("future")}
@@ -677,6 +752,123 @@ export default function AdminClassesPage() {
                   )}
                 </div>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Series Detail Modal (read-only) */}
+      <AnimatePresence>
+        {showSeriesModal && seriesTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={closeSeriesModal}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-6 sticky top-0 border-b z-10" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#a78bfa" }}>Serie recurrente · Solo lectura</p>
+                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                    {seriesTarget.name}
+                  </h2>
+                </div>
+                <button onClick={closeSeriesModal} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+              </div>
+
+              {seriesLoading || !seriesDetail ? (
+                <div className="p-10 text-center text-sm" style={{ color: "var(--text-secondary)" }}>Cargando serie...</div>
+              ) : (
+                <div className="p-6 space-y-5">
+                  {/* Summary */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="rounded-xl border p-3" style={{ borderColor: "var(--card-border)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Tipo de servicio</p>
+                      <div className="mt-1"><ServiceBadge type={seriesDetail.serviceType} /></div>
+                    </div>
+                    <div className="rounded-xl border p-3" style={{ borderColor: "var(--card-border)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Horario</p>
+                      <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--text-primary)" }}>{seriesDetail.startTime}–{seriesDetail.endTime}</p>
+                    </div>
+                    <div className="rounded-xl border p-3" style={{ borderColor: "var(--card-border)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Capacidad</p>
+                      <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--text-primary)" }}>{seriesDetail.capacity} cupos</p>
+                    </div>
+                    <div className="rounded-xl border p-3" style={{ borderColor: "var(--card-border)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Coach</p>
+                      <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--text-primary)" }}>
+                        {seriesDetail.coachVaries ? "Varía por sesión" : seriesDetail.primaryCoachName}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border p-3" style={{ borderColor: "var(--card-border)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Sesiones activas / canceladas</p>
+                      <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--text-primary)" }}>
+                        <span style={{ color: "#22c55e" }}>{seriesDetail.totalActive}</span>
+                        {" / "}
+                        <span style={{ color: "#ef4444" }}>{seriesDetail.totalCancelled}</span>
+                      </p>
+                    </div>
+                    <div className="rounded-xl border p-3" style={{ borderColor: "var(--card-border)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Rango de fechas</p>
+                      <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--text-primary)" }}>
+                        {seriesDetail.rangeStart ? toDisplayDate(seriesDetail.rangeStart) : "—"} → {seriesDetail.rangeEnd ? toDisplayDate(seriesDetail.rangeEnd) : "—"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Sessions list */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-secondary)" }}>
+                      Sesiones de la serie ({seriesDetail.sessions.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {seriesDetail.sessions.map((s) => (
+                        <div
+                          key={s.id}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm"
+                          style={{
+                            borderColor: "var(--card-border)",
+                            background: s.status === "cancelled" ? "var(--card-border)" : "transparent",
+                            opacity: s.status === "cancelled" ? 0.6 : 1,
+                          }}
+                        >
+                          <span className="w-24 shrink-0 font-medium" style={{ color: "var(--text-primary)" }}>{toDisplayDate(s.sessionDate)}</span>
+                          <span className="w-28 shrink-0" style={{ color: "var(--text-secondary)" }}>{s.startTime}–{s.endTime}</span>
+                          <span className="flex-1 min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{s.coachName}</span>
+                          <span
+                            className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                            style={s.status === "active"
+                              ? { background: "#22c55e20", color: "#22c55e" }
+                              : { background: "#ef444420", color: "#ef4444" }}
+                          >
+                            {s.status === "active" ? "Activa" : "Cancelada"}
+                          </span>
+                          <span
+                            className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                            style={s.hasActiveBookings
+                              ? { background: "#f9731620", color: "#f97316" }
+                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}
+                            title={s.hasActiveBookings ? "Tiene reservas activas" : "Sin reservas activas"}
+                          >
+                            {s.reservedCount}/{s.capacity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

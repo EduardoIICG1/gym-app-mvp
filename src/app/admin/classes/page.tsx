@@ -65,7 +65,7 @@ export default function AdminClassesPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cancelled">("all");
   const [showScopeSelector, setShowScopeSelector] = useState(false);
-  const [editScope, setEditScope] = useState<"this" | null>(null);
+  const [editScope, setEditScope] = useState<"this" | "future" | null>(null);
   const [scopeTarget, setScopeTarget] = useState<GymClass | null>(null);
 
   // ─── Week range ──────────────────────────────────────────────────────────
@@ -129,11 +129,11 @@ export default function AdminClassesPage() {
     setIsModalOpen(true);
   };
 
-  const confirmScopeThis = () => {
+  const confirmScope = (scope: "this" | "future") => {
     const cls = scopeTarget!;
     setShowScopeSelector(false);
     setScopeTarget(null);
-    setEditScope("this");
+    setEditScope(scope);
     setEditingClass(cls);
     setForm({ name: cls.name, eventType: cls.eventType ?? "class", serviceType: cls.serviceType, dayOfWeek: cls.dayOfWeek, startTime: cls.startTime, endTime: cls.endTime, coach: cls.coach, maxCapacity: cls.maxCapacity, note: cls.note || "" });
     setIsModalOpen(true);
@@ -142,18 +142,18 @@ export default function AdminClassesPage() {
   const closeEditModal = () => { setIsModalOpen(false); setEditScope(null); };
 
   const handleSave = async () => {
-    const isScopeThis = editingClass !== null && editScope === "this";
+    const isSessionScoped = editingClass !== null && (editScope === "this" || editScope === "future");
     if (!form.startTime || !form.endTime || !form.coach) {
       setToast({ msg: "Completa los campos requeridos", ok: false }); return;
     }
-    if (!isScopeThis && !form.name) {
+    if (!isSessionScoped && !form.name) {
       setToast({ msg: "Completa los campos requeridos", ok: false }); return;
     }
     setSaving(true);
     const method = editingClass ? "PUT" : "POST";
     const url = editingClass ? `/api/classes/${editingClass.id}` : "/api/classes";
-    const payload = isScopeThis
-      ? { startTime: form.startTime, endTime: form.endTime, coach: form.coach, note: form.note, scope: "this" }
+    const payload = isSessionScoped
+      ? { startTime: form.startTime, endTime: form.endTime, coach: form.coach, note: form.note, scope: editScope }
       : form;
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (res.ok) {
@@ -430,7 +430,7 @@ export default function AdminClassesPage() {
               <div className="p-4 space-y-2">
                 {/* Option 1: Solo esta clase — enabled */}
                 <button
-                  onClick={confirmScopeThis}
+                  onClick={() => confirmScope("this")}
                   className="w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors hover:bg-white/5 border"
                   style={{ borderColor: "#4fc3f740", background: "#4fc3f710" }}
                 >
@@ -445,20 +445,20 @@ export default function AdminClassesPage() {
                   </div>
                 </button>
 
-                {/* Option 2: Esta y futuras — disabled */}
-                <div
-                  className="w-full flex items-start gap-3 p-3 rounded-xl border opacity-50 cursor-not-allowed"
-                  style={{ borderColor: "var(--card-border)" }}
+                {/* Option 2: Esta y futuras — enabled */}
+                <button
+                  onClick={() => confirmScope("future")}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors hover:bg-white/5 border"
+                  style={{ borderColor: "#4fc3f740", background: "#4fc3f710" }}
                 >
-                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0" style={{ borderColor: "var(--text-secondary)" }} />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Esta y futuras</p>
-                      <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#f97316", color: "#0a0a0f" }}>Próxima fase</span>
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Modifica esta sesión y todas las siguientes</p>
+                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center" style={{ borderColor: "#4fc3f7" }}>
+                    <div className="w-2 h-2 rounded-full" style={{ background: "#4fc3f7" }} />
                   </div>
-                </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Esta y futuras</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Modifica esta sesión y todas las siguientes (no afecta sesiones pasadas)</p>
+                  </div>
+                </button>
 
                 {/* Option 3: Toda la serie — disabled */}
                 <div
@@ -511,23 +511,27 @@ export default function AdminClassesPage() {
               <div className="flex items-center justify-between p-6 sticky top-0 border-b" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                 <div>
                   <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
-                    {editScope === "this" ? "Editar solo esta clase" : (form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase")}
+                    {editScope === "this" ? "Editar solo esta clase" : editScope === "future" ? "Editar esta y futuras clases" : (form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase")}
                   </h2>
-                  {editScope === "this" && (
+                  {(editScope === "this" || editScope === "future") && (
                     <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                      {editingClass.name} · {toDisplayDate(editingClass.sessionDate ?? "")}
+                      {editingClass.name} · {editScope === "future" ? "desde el " : ""}{toDisplayDate(editingClass.sessionDate ?? "")}
                     </p>
                   )}
                 </div>
                 <button onClick={closeEditModal} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
               </div>
               <div className="p-6 space-y-4">
-                {editScope === "this" ? (
-                  /* Simplified form for single-session scope */
+                {(editScope === "this" || editScope === "future") ? (
+                  /* Simplified form for session-scoped edits (this / this+future) */
                   <>
                     <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs" style={{ background: "#4fc3f710", color: "#4fc3f7", border: "1px solid #4fc3f730" }}>
                       <span className="mt-0.5 shrink-0">ℹ</span>
-                      <span>Solo se modifica esta sesión. Nombre, tipo y capacidad se mantienen para toda la serie.</span>
+                      <span>
+                        {editScope === "future"
+                          ? "Se modifican esta sesión y todas las futuras de la serie. Las sesiones pasadas no se ven afectadas. Nombre, tipo y capacidad se mantienen para toda la serie."
+                          : "Solo se modifica esta sesión. Nombre, tipo y capacidad se mantienen para toda la serie."}
+                      </span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>

@@ -637,31 +637,43 @@ export default function AdminClassesPage() {
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={closeTrimModal}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
-                    style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
-                  >
-                    Cancelar
-                  </button>
-                  {!trimPreview || trimPreview.applied ? (
+                  {trimPreview?.applied ? (
                     <button
-                      onClick={() => requestTrim(false)}
-                      disabled={!trimEndDate || trimLoading || trimPreview?.applied}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                      style={{ background: "#f97316" }}
+                      onClick={closeTrimModal}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                      style={{ background: "#22c55e" }}
                     >
-                      {trimLoading ? "Calculando..." : trimPreview?.applied ? "Listo" : "Vista previa"}
+                      Listo
                     </button>
                   ) : (
-                    <button
-                      onClick={() => requestTrim(true)}
-                      disabled={trimLoading || trimPreview.affectedCount === 0}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                      style={{ background: "#ef4444" }}
-                    >
-                      {trimLoading ? "Aplicando..." : "Confirmar y cancelar sesiones"}
-                    </button>
+                    <>
+                      <button
+                        onClick={closeTrimModal}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
+                        style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                      >
+                        Cancelar
+                      </button>
+                      {!trimPreview ? (
+                        <button
+                          onClick={() => requestTrim(false)}
+                          disabled={!trimEndDate || trimLoading}
+                          className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                          style={{ background: "#f97316" }}
+                        >
+                          {trimLoading ? "Calculando..." : "Vista previa"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => requestTrim(true)}
+                          disabled={trimLoading || trimPreview.affectedCount === 0}
+                          className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                          style={{ background: "#ef4444" }}
+                        >
+                          {trimLoading ? "Aplicando..." : "Confirmar y cancelar sesiones"}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

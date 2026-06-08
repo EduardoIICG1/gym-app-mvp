@@ -224,6 +224,75 @@ export default function AdminClassesPage() {
     setSeriesDetail(null);
   };
 
+  // ─── Actions launched from the series panel ──────────────────────────────
+  const editFromSeries = (s: SeriesSession) => {
+    if (!seriesDetail) return;
+    const detail = seriesDetail;
+    closeSeriesModal();
+    setEditScope("this");
+    setEditingClass({
+      id: s.id,
+      name: detail.programName,
+      eventType: "class",
+      serviceType: detail.serviceType,
+      dayOfWeek: 0,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      coach: s.coachName,
+      coachId: s.coachId,
+      maxCapacity: detail.capacity,
+      reservedCount: s.reservedCount,
+      status: "active",
+      hasBookingCutoff: false,
+      bookingCutoffValue: 0,
+      bookingCutoffUnit: "minutes",
+      bookingMode: "regular",
+      sessionDate: s.sessionDate,
+      programId: detail.programId,
+    });
+    setForm({
+      name: detail.programName,
+      eventType: "class",
+      serviceType: detail.serviceType,
+      dayOfWeek: 0,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      coach: s.coachName,
+      maxCapacity: detail.capacity,
+      note: "",
+    });
+    setIsModalOpen(true);
+  };
+
+  const trimFromSeries = (s: SeriesSession) => {
+    if (!seriesDetail) return;
+    const detail = seriesDetail;
+    closeSeriesModal();
+    setTrimTarget({
+      id: s.id,
+      name: detail.programName,
+      eventType: "class",
+      serviceType: detail.serviceType,
+      dayOfWeek: 0,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      coach: s.coachName,
+      coachId: s.coachId,
+      maxCapacity: detail.capacity,
+      reservedCount: s.reservedCount,
+      status: "active",
+      hasBookingCutoff: false,
+      bookingCutoffValue: 0,
+      bookingCutoffUnit: "minutes",
+      bookingMode: "regular",
+      sessionDate: s.sessionDate,
+      programId: detail.programId,
+    });
+    setTrimEndDate(s.sessionDate);
+    setTrimPreview(null);
+    setShowTrimModal(true);
+  };
+
   const closeTrimModal = () => {
     setShowTrimModal(false);
     setTrimTarget(null);
@@ -779,7 +848,7 @@ export default function AdminClassesPage() {
             >
               <div className="flex items-center justify-between p-6 sticky top-0 border-b z-10" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#a78bfa" }}>Serie recurrente · Solo lectura</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#a78bfa" }}>Serie recurrente</p>
                   <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
                     {seriesTarget.name}
                   </h2>
@@ -863,6 +932,27 @@ export default function AdminClassesPage() {
                           >
                             {s.reservedCount}/{s.capacity}
                           </span>
+                          {s.status === "active" && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => editFromSeries(s)}
+                                className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
+                                style={{ color: "#4fc3f7" }}
+                                title="Editar solo esta sesión"
+                              >
+                                Editar
+                              </button>
+                              <span className="text-xs" style={{ color: "var(--card-border)" }}>·</span>
+                              <button
+                                onClick={() => trimFromSeries(s)}
+                                className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
+                                style={{ color: "#f97316" }}
+                                title="Acortar serie desde esta fecha"
+                              >
+                                Acortar
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

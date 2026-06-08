@@ -167,8 +167,8 @@ export async function PUT(
       durationMin = Math.max(1, (eh * 60 + em) - (sh * 60 + sm));
     }
 
-    // Update Program — skipped for scope="this" (only this session changes)
-    if (scope !== "this") {
+    // Update Program — skipped for scope="this"/"future" (session-level edits only)
+    if (scope !== "this" && scope !== "future") {
       await prisma.program.update({
         where: { id: prog.id },
         data: {
@@ -206,15 +206,47 @@ export async function PUT(
       endsAt = new Date(startsAt.getTime() + durationMin * 60_000);
     }
 
-    await prisma.session.update({
-      where: { id },
-      data: {
-        coachId,
-        startsAt,
-        endsAt,
-        notes: body.note !== undefined ? (body.note || null) : existing.notes,
-      },
-    });
+    if (scope === "future") {
+      // Apply to selected session + future non-cancelled siblings of the same program,
+      // preserving each session's own date and only changing the time-of-day/coach/note.
+      const futureSessions = await prisma.session.findMany({
+        where: {
+          programId: prog.id,
+          startsAt: { gte: existing.startsAt },
+          status: { not: "CANCELLED" },
+        },
+        select: { id: true, startsAt: true, endsAt: true },
+      });
+
+      const notes = body.note !== undefined ? (body.note || null) : existing.notes;
+
+      await Promise.all(
+        futureSessions.map((s) => {
+          let sStart = s.startsAt;
+          let sEnd = s.endsAt;
+          if (newStart) {
+            const [sh, sm] = newStart.split(":").map(Number);
+            sStart = new Date(s.startsAt);
+            sStart.setHours(sh, sm, 0, 0);
+            sEnd = new Date(sStart.getTime() + durationMin * 60_000);
+          }
+          return prisma.session.update({
+            where: { id: s.id },
+            data: { coachId, startsAt: sStart, endsAt: sEnd, notes },
+          });
+        })
+      );
+    } else {
+      await prisma.session.update({
+        where: { id },
+        data: {
+          coachId,
+          startsAt,
+          endsAt,
+          notes: body.note !== undefined ? (body.note || null) : existing.notes,
+        },
+      });
+    }
 
     const updated = await prisma.session.findUniqueOrThrow({
       where: { id },

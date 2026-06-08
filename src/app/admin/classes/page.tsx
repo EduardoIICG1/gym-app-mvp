@@ -264,6 +264,45 @@ export default function AdminClassesPage() {
     setIsModalOpen(true);
   };
 
+  const editFutureFromSeries = (s: SeriesSession) => {
+    if (!seriesDetail) return;
+    const detail = seriesDetail;
+    closeSeriesModal();
+    setEditScope("future");
+    setEditingClass({
+      id: s.id,
+      name: detail.programName,
+      eventType: "class",
+      serviceType: detail.serviceType,
+      dayOfWeek: 0,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      coach: s.coachName,
+      coachId: s.coachId,
+      maxCapacity: detail.capacity,
+      reservedCount: s.reservedCount,
+      status: "active",
+      hasBookingCutoff: false,
+      bookingCutoffValue: 0,
+      bookingCutoffUnit: "minutes",
+      bookingMode: "regular",
+      sessionDate: s.sessionDate,
+      programId: detail.programId,
+    });
+    setForm({
+      name: detail.programName,
+      eventType: "class",
+      serviceType: detail.serviceType,
+      dayOfWeek: 0,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      coach: s.coachName,
+      maxCapacity: detail.capacity,
+      note: "",
+    });
+    setIsModalOpen(true);
+  };
+
   const trimFromSeries = (s: SeriesSession) => {
     if (!seriesDetail) return;
     const detail = seriesDetail;
@@ -941,6 +980,15 @@ export default function AdminClassesPage() {
                                 title="Editar solo esta sesión"
                               >
                                 Editar
+                              </button>
+                              <span className="text-xs" style={{ color: "var(--card-border)" }}>·</span>
+                              <button
+                                onClick={() => editFutureFromSeries(s)}
+                                className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
+                                style={{ color: "#22c55e" }}
+                                title="Editar esta y futuras sesiones"
+                              >
+                                Futuras
                               </button>
                               <span className="text-xs" style={{ color: "var(--card-border)" }}>·</span>
                               <button

@@ -9,6 +9,16 @@ import { ServiceBadge } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
 import { CreateClassModal } from "@/components/classes/CreateClassModal";
 
+interface TrimPreview {
+  applied: boolean;
+  programName: string;
+  newEndDate: string;
+  affectedCount: number;
+  skippedCount: number;
+  affected: { id: string; sessionDate: string }[];
+  skipped: { id: string; sessionDate: string; reason: string }[];
+}
+
 const EMPTY_FORM = {
   name: "", eventType: "class" as EventType, serviceType: "group" as ServiceType,
   dayOfWeek: 0 as DayOfWeek, startTime: "", endTime: "",
@@ -67,6 +77,11 @@ export default function AdminClassesPage() {
   const [showScopeSelector, setShowScopeSelector] = useState(false);
   const [editScope, setEditScope] = useState<"this" | "future" | null>(null);
   const [scopeTarget, setScopeTarget] = useState<GymClass | null>(null);
+  const [showTrimModal, setShowTrimModal] = useState(false);
+  const [trimTarget, setTrimTarget] = useState<GymClass | null>(null);
+  const [trimEndDate, setTrimEndDate] = useState("");
+  const [trimPreview, setTrimPreview] = useState<TrimPreview | null>(null);
+  const [trimLoading, setTrimLoading] = useState(false);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -140,6 +155,49 @@ export default function AdminClassesPage() {
   };
 
   const closeEditModal = () => { setIsModalOpen(false); setEditScope(null); };
+
+  // ─── Trim recurring series ───────────────────────────────────────────────
+  const openTrim = (cls: GymClass) => {
+    setShowScopeSelector(false);
+    setScopeTarget(null);
+    setTrimTarget(cls);
+    setTrimEndDate(cls.sessionDate ?? "");
+    setTrimPreview(null);
+    setShowTrimModal(true);
+  };
+
+  const closeTrimModal = () => {
+    setShowTrimModal(false);
+    setTrimTarget(null);
+    setTrimPreview(null);
+    setTrimEndDate("");
+  };
+
+  const requestTrim = async (confirm: boolean) => {
+    if (!trimTarget || !trimEndDate) return;
+    setTrimLoading(true);
+    const res = await fetch(`/api/classes/${trimTarget.id}/trim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endDate: trimEndDate, confirm }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setTrimPreview(data);
+      if (confirm) {
+        await fetchData();
+        setToast({
+          msg: data.affectedCount > 0
+            ? `Serie acortada: ${data.affectedCount} sesión(es) cancelada(s)`
+            : "No había sesiones futuras para cancelar",
+          ok: true,
+        });
+      }
+    } else {
+      setToast({ msg: data.error || "Error al acortar la serie", ok: false });
+    }
+    setTrimLoading(false);
+  };
 
   const handleSave = async () => {
     const isSessionScoped = editingClass !== null && (editScope === "this" || editScope === "future");
@@ -460,6 +518,23 @@ export default function AdminClassesPage() {
                   </div>
                 </button>
 
+                {/* Option: Acortar serie desde una fecha */}
+                <button
+                  onClick={() => openTrim(scopeTarget)}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors hover:bg-white/5 border"
+                  style={{ borderColor: "#f9731640", background: "#f9731610" }}
+                >
+                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center" style={{ borderColor: "#f97316" }}>
+                    <div className="w-2 h-2 rounded-full" style={{ background: "#f97316" }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Acortar serie desde una fecha</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                      Cancela las sesiones futuras posteriores a la fecha que elijas. No afecta sesiones pasadas.
+                    </p>
+                  </div>
+                </button>
+
                 {/* Option 3: Toda la serie — disabled */}
                 <div
                   className="w-full flex items-start gap-3 p-3 rounded-xl border opacity-50 cursor-not-allowed"
@@ -482,6 +557,113 @@ export default function AdminClassesPage() {
                 >
                   Cancelar
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Trim Series Modal */}
+      <AnimatePresence>
+        {showTrimModal && trimTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={closeTrimModal}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-md rounded-2xl border overflow-hidden"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: "var(--card-border)" }}>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#f97316" }}>Acortar serie</p>
+                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                    {trimTarget.name}
+                  </h2>
+                </div>
+                <button onClick={closeTrimModal} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs" style={{ background: "#f9731610", color: "#f97316", border: "1px solid #f9731630" }}>
+                  <span className="mt-0.5 shrink-0">⚠</span>
+                  <span>Se cancelarán las sesiones futuras posteriores a la fecha elegida. No se tocarán sesiones pasadas ni la sesión del día seleccionado.</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nueva fecha de término (última sesión a conservar) *</label>
+                  <input
+                    type="date"
+                    value={trimEndDate}
+                    onChange={(e) => { setTrimEndDate(e.target.value); setTrimPreview(null); }}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </div>
+
+                {trimPreview && (
+                  <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "var(--card-border)" }}>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {trimPreview.applied
+                        ? `Se cancelaron ${trimPreview.affectedCount} sesión(es)`
+                        : `Se cancelarán ${trimPreview.affectedCount} sesión(es) futura(s)`}
+                    </p>
+                    {trimPreview.affected.length > 0 && (
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                        {trimPreview.affected.map(s => toDisplayDate(s.sessionDate)).join(", ")}
+                      </p>
+                    )}
+                    {trimPreview.skippedCount > 0 && (
+                      <div className="pt-2 mt-2 border-t" style={{ borderColor: "var(--card-border)" }}>
+                        <p className="text-xs font-semibold" style={{ color: "#f97316" }}>
+                          {trimPreview.skippedCount} sesión(es) con reservas activas — no se modificarán
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                          {trimPreview.skipped.map(s => toDisplayDate(s.sessionDate)).join(", ")}
+                        </p>
+                      </div>
+                    )}
+                    {trimPreview.affectedCount === 0 && trimPreview.skippedCount === 0 && (
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>No hay sesiones futuras posteriores a esta fecha.</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={closeTrimModal}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
+                    style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                  >
+                    Cancelar
+                  </button>
+                  {!trimPreview || trimPreview.applied ? (
+                    <button
+                      onClick={() => requestTrim(false)}
+                      disabled={!trimEndDate || trimLoading || trimPreview?.applied}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "#f97316" }}
+                    >
+                      {trimLoading ? "Calculando..." : trimPreview?.applied ? "Listo" : "Vista previa"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => requestTrim(true)}
+                      disabled={trimLoading || trimPreview.affectedCount === 0}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "#ef4444" }}
+                    >
+                      {trimLoading ? "Aplicando..." : "Confirmar y cancelar sesiones"}
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>

@@ -155,6 +155,8 @@ export async function PUT(
       ? "OTHER"
       : (SVC_REVERSE[body.serviceType] ?? prog.serviceType);
 
+    const scope = body.scope as string | undefined; // "this" = only this session
+
     // Compute durationMin if times provided
     const newStart: string | null = body.startTime ?? null;
     const newEnd: string | null = body.endTime ?? null;
@@ -165,18 +167,20 @@ export async function PUT(
       durationMin = Math.max(1, (eh * 60 + em) - (sh * 60 + sm));
     }
 
-    // Update Program
-    await prisma.program.update({
-      where: { id: prog.id },
-      data: {
-        name: body.name ?? prog.name,
-        serviceType: dbSvcType,
-        maxCapacity: body.maxCapacity != null ? Number(body.maxCapacity) : prog.maxCapacity,
-        startTime: newStart ?? prog.startTime,
-        durationMin,
-        description: body.note !== undefined ? (body.note || null) : prog.description,
-      },
-    });
+    // Update Program — skipped for scope="this" (only this session changes)
+    if (scope !== "this") {
+      await prisma.program.update({
+        where: { id: prog.id },
+        data: {
+          name: body.name ?? prog.name,
+          serviceType: dbSvcType,
+          maxCapacity: body.maxCapacity != null ? Number(body.maxCapacity) : prog.maxCapacity,
+          startTime: newStart ?? prog.startTime,
+          durationMin,
+          description: body.note !== undefined ? (body.note || null) : prog.description,
+        },
+      });
+    }
 
     // Resolve coach by name if changed
     let coachId = existing.coachId;
@@ -229,8 +233,8 @@ export async function PUT(
     const isUpdatedBlocked = p.serviceType === "OTHER";
     const svcType: ServiceType = SVC_MAP[p.serviceType] ?? "group";
     const rawDay = p.dayOfWeek != null ? p.dayOfWeek : jsDayToFrontend(updated.startsAt.getDay());
-    const startTime = p.startTime ?? `${String(updated.startsAt.getHours()).padStart(2, "0")}:${String(updated.startsAt.getMinutes()).padStart(2, "0")}`;
-    const endTime = addMinutes(startTime, p.durationMin);
+    const startTime = `${String(updated.startsAt.getHours()).padStart(2, "0")}:${String(updated.startsAt.getMinutes()).padStart(2, "0")}`;
+    const endTime = `${String(updated.endsAt.getHours()).padStart(2, "0")}:${String(updated.endsAt.getMinutes()).padStart(2, "0")}`;
     const maxCapacity = p.maxCapacity ?? 0;
     const reservedCount = updated._count.bookings;
 

@@ -30,6 +30,8 @@ export interface GymClass {
   bookingCutoffUnit: BookingCutoffUnit;
   bookingMode: BookingMode;         // "regular" | "makeup_only"
   sessionDate?: string;             // YYYY-MM-DD — exact session date returned by API
+  programId?: string;               // Program this session belongs to
+  seriesCount?: number;             // Non-cancelled sibling sessions count (>1 = recurring)
 }
 
 export interface Reservation {

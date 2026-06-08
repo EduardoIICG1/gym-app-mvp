@@ -17,13 +17,6 @@ const SVC_REVERSE: Record<string, DbServiceType> = {
   blocked_time: "OTHER",
 };
 
-// Add minutes to "HH:mm" string
-function addMinutes(time: string, minutes: number): string {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + minutes;
-  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 // JS getDay() 0=Sun,1=Mon...6=Sat → frontend 0=Mon...5=Sat
 function jsDayToFrontend(jsDay: number): number {
   return jsDay === 0 ? 6 : jsDay - 1;
@@ -36,7 +29,11 @@ async function fetchSessions(from: Date, to?: Date) {
       startsAt: to ? { gte: from, lt: to } : { gte: from },
     },
     include: {
-      program: true,
+      program: {
+        include: {
+          _count: { select: { sessions: { where: { status: { not: "CANCELLED" } } } } },
+        },
+      },
       coach: { select: { id: true, name: true } },
       _count: {
         select: {
@@ -54,6 +51,7 @@ type GymClassResponse = GymClass & {
   coachId: string;
   sessionDate: string;
   programId: string;
+  seriesCount: number;
   // /classes page backward compat aliases
   capacity: number;
   reserved: number;
@@ -71,11 +69,9 @@ function toGymClass(s: SessionRow): GymClassResponse {
       : jsDayToFrontend(s.startsAt.getDay());
   const dayOfWeek = rawDayOfWeek as DayOfWeek;
 
-  // Prefer program.startTime to avoid UTC timezone issues
-  const startTime =
-    prog.startTime ??
-    `${String(s.startsAt.getHours()).padStart(2, "0")}:${String(s.startsAt.getMinutes()).padStart(2, "0")}`;
-  const endTime = addMinutes(startTime, prog.durationMin);
+  // Derive from session's actual stored times so per-session edits display correctly
+  const startTime = `${String(s.startsAt.getHours()).padStart(2, "0")}:${String(s.startsAt.getMinutes()).padStart(2, "0")}`;
+  const endTime = `${String(s.endsAt.getHours()).padStart(2, "0")}:${String(s.endsAt.getMinutes()).padStart(2, "0")}`;
 
   const reservedCount = s._count.bookings;
   const maxCapacity = prog.maxCapacity ?? 0;
@@ -102,6 +98,7 @@ function toGymClass(s: SessionRow): GymClassResponse {
     // Extra fields
     sessionDate: s.startsAt.toISOString().slice(0, 10),
     programId: prog.id,
+    seriesCount: prog._count.sessions,
     // Backward compat for /classes page (uses capacity/reserved field names)
     capacity: maxCapacity,
     reserved: reservedCount,
@@ -205,7 +202,11 @@ export async function POST(request: Request) {
     const withIncludes = await prisma.session.findUniqueOrThrow({
       where: { id: session.id },
       include: {
-        program: true,
+        program: {
+          include: {
+            _count: { select: { sessions: { where: { status: { not: "CANCELLED" } } } } },
+          },
+        },
         coach: { select: { id: true, name: true } },
         _count: {
           select: {

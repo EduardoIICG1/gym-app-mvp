@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
 import { Plus, Pencil, Trash2, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
@@ -77,6 +77,13 @@ interface InviteConfirmResult {
   members: InviteConfirmMember[];
 }
 
+interface SessionInvitation {
+  memberId: string;
+  memberName: string;
+  status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED" | "CANCELLED";
+  invitedAt: string;
+}
+
 const EMPTY_FORM = {
   name: "", eventType: "class" as EventType, serviceType: "group" as ServiceType,
   dayOfWeek: 0 as DayOfWeek, startTime: "", endTime: "",
@@ -110,6 +117,26 @@ function getDayNameFromISO(isoDate: string): string {
 }
 
 const MONTHS_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
+function invStatusStyle(status: string): React.CSSProperties {
+  switch (status) {
+    case "PENDING":   return { background: "#a78bfa20", color: "#a78bfa" };
+    case "ACCEPTED":  return { background: "#22c55e20", color: "#22c55e" };
+    case "DECLINED":  return { background: "#ef444420", color: "#ef4444" };
+    default:           return { background: "var(--card-border)", color: "var(--text-secondary)" };
+  }
+}
+
+function invStatusLabel(status: string): string {
+  switch (status) {
+    case "PENDING":   return "Pendiente";
+    case "ACCEPTED":  return "Aceptó";
+    case "DECLINED":  return "Rechazó";
+    case "EXPIRED":   return "Expirada";
+    case "CANCELLED": return "Cancelada";
+    default:           return status;
+  }
+}
 
 // ─── Shared input style ───────────────────────────────────────────────────
 const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40";
@@ -162,6 +189,9 @@ export default function AdminClassesPage() {
   const [invitePreviewLoading, setInvitePreviewLoading] = useState(false);
   const [inviteConfirming, setInviteConfirming] = useState(false);
   const [inviteConfirmResult, setInviteConfirmResult] = useState<InviteConfirmResult | null>(null);
+  const [expandedInviteSessionId, setExpandedInviteSessionId] = useState<string | null>(null);
+  const [sessionInvitations, setSessionInvitations] = useState<Record<string, SessionInvitation[]>>({});
+  const [sessionInvitationsLoading, setSessionInvitationsLoading] = useState<Record<string, boolean>>({});
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -273,6 +303,8 @@ export default function AdminClassesPage() {
     setSeriesDetail(null);
     setShowSeriesModal(true);
     setSeriesLoading(true);
+    setExpandedInviteSessionId(null);
+    setSessionInvitations({});
     const res = await fetch(`/api/classes/${cls.id}/series`);
     if (res.ok) {
       setSeriesDetail(await res.json());
@@ -289,6 +321,8 @@ export default function AdminClassesPage() {
     setSeriesTarget(null);
     setSeriesDetail(null);
     setSeriesBackTarget(null);
+    setExpandedInviteSessionId(null);
+    setSessionInvitations({});
   };
 
   const backToScopeSelector = () => {
@@ -432,12 +466,27 @@ export default function AdminClassesPage() {
       const data: InviteConfirmResult = await res.json();
       setInviteConfirmResult(data);
       setInvitePreview(null);
+      setSessionInvitations({});
       await fetchData();
     } else {
       const d = await res.json();
       setToast({ msg: d.error || "Error al confirmar invitaciones", ok: false });
     }
     setInviteConfirming(false);
+  };
+
+  const toggleInviteDetail = async (sessionId: string) => {
+    if (expandedInviteSessionId === sessionId) {
+      setExpandedInviteSessionId(null);
+      return;
+    }
+    setExpandedInviteSessionId(sessionId);
+    if (sessionInvitations[sessionId] !== undefined) return;
+    setSessionInvitationsLoading(prev => ({ ...prev, [sessionId]: true }));
+    const res = await fetch(`/api/classes/${sessionId}/invitations`);
+    const data: SessionInvitation[] = res.ok ? await res.json() : [];
+    setSessionInvitations(prev => ({ ...prev, [sessionId]: data }));
+    setSessionInvitationsLoading(prev => ({ ...prev, [sessionId]: false }));
   };
 
   // ─── Actions launched from the series panel ──────────────────────────────
@@ -1299,70 +1348,102 @@ export default function AdminClassesPage() {
                       {seriesDetail.sessions.map((s) => (
                         <div
                           key={s.id}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm"
+                          className="rounded-xl border text-sm overflow-hidden"
                           style={{
                             borderColor: "var(--card-border)",
                             background: s.status === "cancelled" ? "var(--card-border)" : "transparent",
                             opacity: s.status === "cancelled" ? 0.6 : 1,
                           }}
                         >
-                          <span className="w-24 shrink-0 font-medium" style={{ color: "var(--text-primary)" }}>{toDisplayDate(s.sessionDate)}</span>
-                          <span className="w-28 shrink-0" style={{ color: "var(--text-secondary)" }}>{s.startTime}–{s.endTime}</span>
-                          <span className="flex-1 min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{s.coachName}</span>
-                          <span
-                            className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
-                            style={s.status === "active"
-                              ? { background: "#22c55e20", color: "#22c55e" }
-                              : { background: "#ef444420", color: "#ef4444" }}
-                          >
-                            {s.status === "active" ? "Activa" : "Cancelada"}
-                          </span>
-                          <span
-                            className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
-                            style={s.hasActiveBookings
-                              ? { background: "#f9731620", color: "#f97316" }
-                              : { background: "var(--card-border)", color: "var(--text-secondary)" }}
-                            title={s.hasActiveBookings ? "Tiene reservas activas" : "Sin reservas activas"}
-                          >
-                            {s.reservedCount}/{s.capacity}
-                          </span>
-                          {s.pendingCount > 0 && (
+                          <div className="flex items-center gap-3 px-3 py-2.5">
+                            <span className="w-24 shrink-0 font-medium" style={{ color: "var(--text-primary)" }}>{toDisplayDate(s.sessionDate)}</span>
+                            <span className="w-28 shrink-0" style={{ color: "var(--text-secondary)" }}>{s.startTime}–{s.endTime}</span>
+                            <span className="flex-1 min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{s.coachName}</span>
                             <span
                               className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
-                              style={{ background: "#a78bfa20", color: "#a78bfa" }}
-                              title={`${s.pendingCount} invitación${s.pendingCount !== 1 ? "es" : ""} pendiente${s.pendingCount !== 1 ? "s" : ""}`}
+                              style={s.status === "active"
+                                ? { background: "#22c55e20", color: "#22c55e" }
+                                : { background: "#ef444420", color: "#ef4444" }}
                             >
-                              {s.pendingCount} inv.
+                              {s.status === "active" ? "Activa" : "Cancelada"}
                             </span>
-                          )}
-                          {s.status === "active" && (
-                            <div className="flex items-center gap-1 shrink-0">
+                            <span
+                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                              style={s.hasActiveBookings
+                                ? { background: "#f9731620", color: "#f97316" }
+                                : { background: "var(--card-border)", color: "var(--text-secondary)" }}
+                              title={s.hasActiveBookings ? "Tiene reservas activas" : "Sin reservas activas"}
+                            >
+                              {s.reservedCount}/{s.capacity}
+                            </span>
+                            {s.pendingCount > 0 && (
                               <button
-                                onClick={() => editFromSeries(s)}
-                                className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
-                                style={{ color: "#4fc3f7" }}
-                                title="Editar solo esta sesión"
+                                onClick={() => toggleInviteDetail(s.id)}
+                                className="text-xs px-2 py-0.5 rounded font-semibold shrink-0 transition-colors"
+                                style={expandedInviteSessionId === s.id
+                                  ? { background: "#a78bfa40", color: "#a78bfa" }
+                                  : { background: "#a78bfa20", color: "#a78bfa" }
+                                }
+                                title={expandedInviteSessionId === s.id ? "Ocultar invitados" : "Ver invitados"}
                               >
-                                Editar
+                                {s.pendingCount} inv.
                               </button>
-                              <span className="text-xs" style={{ color: "var(--card-border)" }}>·</span>
-                              <button
-                                onClick={() => editFutureFromSeries(s)}
-                                className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
-                                style={{ color: "#22c55e" }}
-                                title="Editar esta y futuras sesiones"
-                              >
-                                Futuras
-                              </button>
-                              <span className="text-xs" style={{ color: "var(--card-border)" }}>·</span>
-                              <button
-                                onClick={() => trimFromSeries(s)}
-                                className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
-                                style={{ color: "#f97316" }}
-                                title="Acortar serie desde esta fecha"
-                              >
-                                Acortar
-                              </button>
+                            )}
+                            {s.status === "active" && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => editFromSeries(s)}
+                                  className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
+                                  style={{ color: "#4fc3f7" }}
+                                  title="Editar solo esta sesión"
+                                >
+                                  Editar
+                                </button>
+                                <span className="text-xs" style={{ color: "var(--card-border)" }}>·</span>
+                                <button
+                                  onClick={() => editFutureFromSeries(s)}
+                                  className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
+                                  style={{ color: "#22c55e" }}
+                                  title="Editar esta y futuras sesiones"
+                                >
+                                  Futuras
+                                </button>
+                                <span className="text-xs" style={{ color: "var(--card-border)" }}>·</span>
+                                <button
+                                  onClick={() => trimFromSeries(s)}
+                                  className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
+                                  style={{ color: "#f97316" }}
+                                  title="Acortar serie desde esta fecha"
+                                >
+                                  Acortar
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {expandedInviteSessionId === s.id && (
+                            <div
+                              className="px-3 pb-3 border-t"
+                              style={{ borderColor: "var(--card-border)" }}
+                            >
+                              {sessionInvitationsLoading[s.id] ? (
+                                <p className="text-xs py-2" style={{ color: "var(--text-secondary)" }}>Cargando invitados...</p>
+                              ) : (sessionInvitations[s.id]?.length ?? 0) === 0 ? (
+                                <p className="text-xs py-2" style={{ color: "var(--text-secondary)" }}>Sin invitaciones registradas</p>
+                              ) : (
+                                <div className="space-y-1 pt-2">
+                                  {sessionInvitations[s.id].map((inv) => (
+                                    <div key={inv.memberId} className="flex items-center gap-2">
+                                      <span className="text-xs flex-1" style={{ color: "var(--text-primary)" }}>{inv.memberName}</span>
+                                      <span
+                                        className="text-xs px-1.5 py-0.5 rounded font-semibold"
+                                        style={invStatusStyle(inv.status)}
+                                      >
+                                        {invStatusLabel(inv.status)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

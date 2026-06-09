@@ -168,6 +168,7 @@ export async function PUT(
     }
 
     // Update Program — skipped for scope="this"/"future" (session-level edits only)
+    // scope="series": updates Program metadata only (no timing, no individual sessions)
     if (scope !== "this" && scope !== "future") {
       await prisma.program.update({
         where: { id: prog.id },
@@ -175,9 +176,12 @@ export async function PUT(
           name: body.name ?? prog.name,
           serviceType: dbSvcType,
           maxCapacity: body.maxCapacity != null ? Number(body.maxCapacity) : prog.maxCapacity,
-          startTime: newStart ?? prog.startTime,
-          durationMin,
           description: body.note !== undefined ? (body.note || null) : prog.description,
+          // Timing fields are intentionally excluded for scope="series" (preserves per-session schedules)
+          ...(scope !== "series" && {
+            startTime: newStart ?? prog.startTime,
+            durationMin,
+          }),
         },
       });
     }
@@ -206,6 +210,8 @@ export async function PUT(
       endsAt = new Date(startsAt.getTime() + durationMin * 60_000);
     }
 
+    // scope="series" only updates the Program — skip all session-level writes
+    if (scope !== "series") {
     if (scope === "future") {
       // Apply to selected session + future non-cancelled siblings of the same program,
       // preserving each session's own date and only changing the time-of-day/coach/note.
@@ -247,6 +253,7 @@ export async function PUT(
         },
       });
     }
+    } // end if (scope !== "series")
 
     const updated = await prisma.session.findUniqueOrThrow({
       where: { id },

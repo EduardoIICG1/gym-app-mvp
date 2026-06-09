@@ -120,6 +120,10 @@ export default function AdminClassesPage() {
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [returnToSeriesSource, setReturnToSeriesSource] = useState<{ id: string; name: string } | null>(null);
   const [seriesBackTarget, setSeriesBackTarget] = useState<GymClass | null>(null);
+  const [showSeriesEditModal, setShowSeriesEditModal] = useState(false);
+  const [seriesEditTarget, setSeriesEditTarget] = useState<GymClass | null>(null);
+  const [seriesEditForm, setSeriesEditForm] = useState({ name: "", serviceType: "group" as ServiceType, maxCapacity: 20, note: "" });
+  const [seriesEditSaving, setSeriesEditSaving] = useState(false);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -256,6 +260,50 @@ export default function AdminClassesPage() {
     closeSeriesModal();
     setScopeTarget(back);
     setShowScopeSelector(true);
+  };
+
+  // ─── Edit entire series (Program metadata) ───────────────────────────────
+  const openSeriesEdit = (cls: GymClass) => {
+    setShowScopeSelector(false);
+    setScopeTarget(null);
+    setSeriesEditTarget(cls);
+    setSeriesEditForm({ name: cls.name, serviceType: cls.serviceType, maxCapacity: cls.maxCapacity, note: cls.note ?? "" });
+    setShowSeriesEditModal(true);
+  };
+
+  const openSeriesEditFromPanel = () => {
+    if (!seriesTarget) return;
+    const cls = seriesTarget;
+    closeSeriesModal();
+    setSeriesEditTarget(cls);
+    setSeriesEditForm({ name: cls.name, serviceType: cls.serviceType, maxCapacity: cls.maxCapacity, note: cls.note ?? "" });
+    setShowSeriesEditModal(true);
+  };
+
+  const handleSeriesSave = async () => {
+    if (!seriesEditTarget) return;
+    setSeriesEditSaving(true);
+    const res = await fetch(`/api/classes/${seriesEditTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: seriesEditForm.name,
+        serviceType: seriesEditForm.serviceType,
+        maxCapacity: seriesEditForm.maxCapacity,
+        note: seriesEditForm.note,
+        scope: "series",
+      }),
+    });
+    if (res.ok) {
+      setShowSeriesEditModal(false);
+      setSeriesEditTarget(null);
+      setToast({ msg: "Serie actualizada", ok: true });
+      await fetchData();
+    } else {
+      const d = await res.json();
+      setToast({ msg: d.error || "Error al guardar", ok: false });
+    }
+    setSeriesEditSaving(false);
   };
 
   // ─── Actions launched from the series panel ──────────────────────────────
@@ -841,20 +889,22 @@ export default function AdminClassesPage() {
                   </div>
                 </button>
 
-                {/* Option 3: Toda la serie — disabled */}
-                <div
-                  className="w-full flex items-start gap-3 p-3 rounded-xl border opacity-50 cursor-not-allowed"
-                  style={{ borderColor: "var(--card-border)" }}
+                {/* Option: Toda la serie — enabled */}
+                <button
+                  onClick={() => openSeriesEdit(scopeTarget)}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors hover:bg-white/5 border"
+                  style={{ borderColor: "#22c55e40", background: "#22c55e10" }}
                 >
-                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0" style={{ borderColor: "var(--text-secondary)" }} />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Toda la serie</p>
-                      <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#f97316", color: "#0a0a0f" }}>Próxima fase</span>
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>Aplica los cambios a todas las sesiones ({scopeTarget.seriesCount ?? "?"} en total)</p>
+                  <div className="w-4 h-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center" style={{ borderColor: "#22c55e" }}>
+                    <div className="w-2 h-2 rounded-full" style={{ background: "#22c55e" }} />
                   </div>
-                </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Toda la serie</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                      Actualiza nombre, tipo y capacidad en todas las sesiones ({scopeTarget.seriesCount ?? "?"} en total)
+                    </p>
+                  </div>
+                </button>
 
                 <button
                   onClick={() => setShowScopeSelector(false)}
@@ -1033,7 +1083,18 @@ export default function AdminClassesPage() {
                     {seriesTarget.name}
                   </h2>
                 </div>
-                <button onClick={closeSeriesModal} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                <div className="flex items-center gap-2">
+                  {!seriesLoading && seriesDetail && (
+                    <button
+                      onClick={openSeriesEditFromPanel}
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors hover:bg-white/5 border"
+                      style={{ borderColor: "#22c55e40", color: "#22c55e" }}
+                    >
+                      Editar serie
+                    </button>
+                  )}
+                  <button onClick={closeSeriesModal} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
+                </div>
               </div>
 
               {seriesLoading || !seriesDetail ? (
@@ -1320,6 +1381,109 @@ export default function AdminClassesPage() {
                 >
                   {saving ? "Guardando..." : "Guardar cambios"}
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Series Edit Modal */}
+      <AnimatePresence>
+        {showSeriesEditModal && seriesEditTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={() => setShowSeriesEditModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-md rounded-2xl border overflow-hidden"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b" style={{ borderColor: "var(--card-border)" }}>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#22c55e" }}>Toda la serie</p>
+                <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                  Editar datos de la serie
+                </h2>
+                <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                  {seriesEditTarget.name} · {seriesEditTarget.seriesCount ?? "?"} sesiones
+                </p>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs" style={{ background: "#4fc3f710", color: "#4fc3f7", border: "1px solid #4fc3f730" }}>
+                  <span className="mt-0.5 shrink-0">ℹ</span>
+                  <span>No modifica horarios ni reservas. Solo actualiza los datos generales de la serie.</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nombre *</label>
+                  <input
+                    type="text"
+                    value={seriesEditForm.name}
+                    onChange={e => setSeriesEditForm(f => ({ ...f, name: e.target.value }))}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Tipo de servicio</label>
+                  <select
+                    value={seriesEditForm.serviceType}
+                    onChange={e => setSeriesEditForm(f => ({ ...f, serviceType: e.target.value as ServiceType }))}
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    <option value="group">Grupal</option>
+                    <option value="personal_training">Entrenamiento personal</option>
+                    <option value="kinesiology">Kinesiología</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Capacidad máxima</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={seriesEditForm.maxCapacity}
+                    onChange={e => setSeriesEditForm(f => ({ ...f, maxCapacity: Number(e.target.value) }))}
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Nota (opcional)</label>
+                  <input
+                    type="text"
+                    value={seriesEditForm.note}
+                    onChange={e => setSeriesEditForm(f => ({ ...f, note: e.target.value }))}
+                    placeholder="ej. Llevar mat"
+                    className={inputCls}
+                    style={inputStyle}
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowSeriesEditModal(false)}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
+                    style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                  >
+                    Cancelar
+                  </button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                    onClick={handleSeriesSave}
+                    disabled={seriesEditSaving || !seriesEditForm.name.trim()}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                    style={{ background: "linear-gradient(to right, #22c55e, #4fc3f7)" }}
+                  >
+                    {seriesEditSaving ? "Guardando..." : "Guardar toda la serie"}
+                  </motion.button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

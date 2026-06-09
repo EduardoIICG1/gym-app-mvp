@@ -18,6 +18,7 @@ interface SeriesSession {
   coachName: string;
   status: "active" | "cancelled";
   reservedCount: number;
+  pendingCount: number;
   capacity: number;
   hasActiveBookings: boolean;
 }
@@ -1315,6 +1316,15 @@ export default function AdminClassesPage() {
                           >
                             {s.reservedCount}/{s.capacity}
                           </span>
+                          {s.pendingCount > 0 && (
+                            <span
+                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                              style={{ background: "#a78bfa20", color: "#a78bfa" }}
+                              title={`${s.pendingCount} invitación${s.pendingCount !== 1 ? "es" : ""} pendiente${s.pendingCount !== 1 ? "s" : ""}`}
+                            >
+                              {s.pendingCount} inv.
+                            </span>
+                          )}
                           {s.status === "active" && (
                             <div className="flex items-center gap-1 shrink-0">
                               <button

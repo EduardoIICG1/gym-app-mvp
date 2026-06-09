@@ -53,7 +53,10 @@ export async function GET(
     include: {
       coach: { select: { id: true, name: true } },
       _count: {
-        select: { bookings: { where: { status: { notIn: ["CANCELLED", "WAITLISTED"] } } } },
+        select: {
+          bookings: { where: { status: { notIn: ["CANCELLED", "WAITLISTED"] } } },
+          invitations: { where: { status: "PENDING" } },
+        },
       },
     },
     orderBy: { startsAt: "asc" },
@@ -85,6 +88,7 @@ export async function GET(
       coachName: s.coach.name ?? "",
       status: s.status === "CANCELLED" ? "cancelled" : "active",
       reservedCount: s._count.bookings,
+      pendingCount: s._count.invitations,
       capacity: prog.maxCapacity ?? 0,
       hasActiveBookings: s._count.bookings > 0,
     })),

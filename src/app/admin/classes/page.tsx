@@ -115,6 +115,7 @@ export default function AdminClassesPage() {
   const [seriesTarget, setSeriesTarget] = useState<GymClass | null>(null);
   const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(false);
+  const [returnToSeriesSource, setReturnToSeriesSource] = useState<{ id: string; name: string } | null>(null);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -187,7 +188,7 @@ export default function AdminClassesPage() {
     setIsModalOpen(true);
   };
 
-  const closeEditModal = () => { setIsModalOpen(false); setEditScope(null); };
+  const closeEditModal = () => { setIsModalOpen(false); setEditScope(null); setReturnToSeriesSource(null); };
 
   // ─── Trim recurring series ───────────────────────────────────────────────
   const openTrim = (cls: GymClass) => {
@@ -228,6 +229,7 @@ export default function AdminClassesPage() {
   const editFromSeries = (s: SeriesSession) => {
     if (!seriesDetail) return;
     const detail = seriesDetail;
+    setReturnToSeriesSource({ id: s.id, name: detail.programName });
     closeSeriesModal();
     setEditScope("this");
     setEditingClass({
@@ -267,6 +269,7 @@ export default function AdminClassesPage() {
   const editFutureFromSeries = (s: SeriesSession) => {
     if (!seriesDetail) return;
     const detail = seriesDetail;
+    setReturnToSeriesSource({ id: s.id, name: detail.programName });
     closeSeriesModal();
     setEditScope("future");
     setEditingClass({
@@ -306,6 +309,7 @@ export default function AdminClassesPage() {
   const trimFromSeries = (s: SeriesSession) => {
     if (!seriesDetail) return;
     const detail = seriesDetail;
+    setReturnToSeriesSource({ id: s.id, name: detail.programName });
     closeSeriesModal();
     setTrimTarget({
       id: s.id,
@@ -332,11 +336,41 @@ export default function AdminClassesPage() {
     setShowTrimModal(true);
   };
 
+  const goBackToSeries = () => {
+    const source = returnToSeriesSource;
+    if (!source) return;
+    setReturnToSeriesSource(null);
+    setIsModalOpen(false);
+    setEditScope(null);
+    setShowTrimModal(false);
+    setTrimTarget(null);
+    setTrimPreview(null);
+    setTrimEndDate("");
+    openSeries({
+      id: source.id,
+      name: source.name,
+      eventType: "class",
+      serviceType: "group",
+      dayOfWeek: 0,
+      startTime: "",
+      endTime: "",
+      coach: "",
+      maxCapacity: 0,
+      reservedCount: 0,
+      status: "active",
+      hasBookingCutoff: false,
+      bookingCutoffValue: 0,
+      bookingCutoffUnit: "minutes",
+      bookingMode: "regular",
+    });
+  };
+
   const closeTrimModal = () => {
     setShowTrimModal(false);
     setTrimTarget(null);
     setTrimPreview(null);
     setTrimEndDate("");
+    setReturnToSeriesSource(null);
   };
 
   const requestTrim = async (confirm: boolean) => {
@@ -768,6 +802,15 @@ export default function AdminClassesPage() {
             >
               <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: "var(--card-border)" }}>
                 <div>
+                  {returnToSeriesSource && (
+                    <button
+                      onClick={goBackToSeries}
+                      className="flex items-center gap-1 text-xs font-medium mb-2 transition-opacity hover:opacity-70"
+                      style={{ color: "#a78bfa" }}
+                    >
+                      ← Ver serie
+                    </button>
+                  )}
                   <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#f97316" }}>Acortar serie</p>
                   <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
                     {trimTarget.name}
@@ -1034,6 +1077,15 @@ export default function AdminClassesPage() {
             >
               <div className="flex items-center justify-between p-6 sticky top-0 border-b" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                 <div>
+                  {returnToSeriesSource && (
+                    <button
+                      onClick={goBackToSeries}
+                      className="flex items-center gap-1 text-xs font-medium mb-2 transition-opacity hover:opacity-70"
+                      style={{ color: "#a78bfa" }}
+                    >
+                      ← Ver serie
+                    </button>
+                  )}
                   <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
                     {editScope === "this" ? "Editar solo esta clase" : editScope === "future" ? "Editar esta y futuras clases" : (form.eventType === "blocked_time" ? "Editar bloqueo" : "Editar Clase")}
                   </h2>

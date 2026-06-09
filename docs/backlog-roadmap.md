@@ -1,11 +1,40 @@
 # Backlog / Roadmap — Gym App MVP
 
-Fecha de actualización: 2026-06-05  
+Fecha de actualización: 2026-06-09  
 Proyecto: Primary Performance / Gym App MVP
 
 Este documento resume, a nivel macro, qué existe hoy en la app, qué falta construir y cómo priorizar las siguientes iteraciones.
 
 El objetivo es que cualquier continuación del proyecto tenga contexto suficiente para avanzar sin reabrir decisiones ya tomadas.
+
+> **Nota:** Las estimaciones de progreso son aproximadas y se ajustarán con el feedback real de la admin tras la demo.
+
+---
+
+## Estado de progreso aproximado
+
+| Hito | Progreso estimado |
+|------|:-----------------:|
+| Demo operativa para feedback admin | 75% |
+| Uso interno asistido en Primary | 65–70% |
+| Producto pulido mobile-first / producción | 50–55% |
+
+### Avance por bloque funcional
+
+| Bloque | Avance |
+|--------|:------:|
+| Core clases / calendario / reservas | 85% |
+| Series recurrentes | 95% |
+| Filtros / búsqueda | 100% MVP |
+| Invitaciones masivas | 85% |
+| Experiencia admin / coach | 70% |
+| Experiencia miembro | 60% |
+| Health / Kinesiología | 50% |
+| Responsive / mobile-first | 20% |
+| Rediseño visual Loganfield | 15% |
+| Producción / backups / seguridad | 45% |
+| Super Admin / multi-gimnasio | 10% |
+| Pagos / membresías avanzado | 25% |
 
 ---
 
@@ -19,7 +48,7 @@ El objetivo es que cualquier continuación del proyecto tenga contexto suficient
   - `COACH`
   - `KINESIOLOGIST`
   - `MEMBER`
-- Home con información general/anuncios.
+- Home con información general / anuncios.
 - Calendario `/calendar`.
 - Vista de clases para miembros `/classes`.
 - Gestión de clases `/admin/classes`.
@@ -27,211 +56,226 @@ El objetivo es que cualquier continuación del proyecto tenga contexto suficient
 - Gestión de membresías `/admin/memberships`.
 - Perfil miembro `/profile`.
 - Perfil staff `/staff-profile`.
-- Módulo Health/Kinesiología `/health`.
+- Módulo Health / Kinesiología `/health`.
 
 ### Clases y calendario
 
 - Crear clase individual.
 - Crear clase recurrente semanal.
 - Selector de hora 24h.
-- Vista semanal en `/admin/classes`.
-- Filtros:
-  - Todas.
-  - Activas.
-  - Canceladas.
+- Vista semanal en `/admin/classes` con navegación por semanas.
+- Filtros en `/admin/classes`:
+  - Todas / Activas / Canceladas.
+  - Búsqueda por nombre.
+  - Filtro por coach.
+  - Filtro por tipo de servicio.
+- Filtros en `/calendar` (Issue #10 — cerrado en alcance MVP).
 - Fecha exacta por sesión.
-- Editar clase.
-- Pausar/reactivar clase.
+- Editar clase individual.
+- Pausar / reactivar clase.
 - Eliminar clase.
+
+### Series recurrentes (Issue #4 — cerrado en alcance funcional)
+
+- [x] Ver panel de serie: metadatos + lista completa de sesiones.
+- [x] Identificar qué clases pertenecen a una serie.
+- [x] Editar solo esta clase (ocurrencia puntual).
+- [x] Editar esta y futuras (desde la sesión seleccionada en adelante).
+- [x] Editar toda la serie (nombre, tipo, capacidad, nota).
+- [x] Acortar serie desde una fecha elegida (cancela sesiones futuras sin reservas).
+- [x] Acciones desde el panel de serie: Editar · Futuras · Acortar.
+- [x] Badge de reservas e invitaciones pendientes por sesión.
+- [x] Invitación masiva — dry-run con vista previa de creaciones y omisiones.
+- [x] Invitación masiva — confirmación real en transacción atómica.
+- [x] Detalle de invitados por sesión desde el panel de serie (expandible, con estado por invitado).
+- [x] Badge "N inv." visible en `/admin/classes` y `/calendar` (admin/coach).
 
 ### Membresías
 
 - Crear membresías.
 - Editar membresías.
 - Renovar membresías.
-- Control de sesiones usadas/restantes.
+- Control de sesiones usadas / restantes.
 - Estado de pago.
-- Bloqueo/validación según membresía y tipo de servicio.
+- Bloqueo / validación según membresía y tipo de servicio.
 
 ### Health / Kinesiología
 
-- Acceso separado para Kinesiólogo/Admin.
+- Acceso separado para Kinesiólogo / Admin.
 - Ficha base de pacientes.
-- Registro clínico inicial.
-- Separación de permisos frente a Coach/Member.
+- Registro clínico inicial (SOAP).
+- Separación de permisos frente a Coach / Member.
 
 ---
 
-## 2. Lo urgente antes de mostrar la app
+## 2. Estado actual y próximo paso
 
-Objetivo: demo estable y clara, sin agregar features nuevas.
+El núcleo funcional de clases, series recurrentes y filtros está prácticamente cerrado para el alcance del MVP.
 
-- [ ] Revisar PR de demo readiness.
-- [ ] Quitar emails reales o datos sensibles de documentación pública.
-- [ ] Hacer smoke test en preview.
-- [ ] Mergear solo si el preview está limpio.
-- [ ] Probar Production/UAT:
+**Antes de la demo:**
+
+- [ ] Smoke test en preview con los flujos principales:
   - Home.
   - Calendar.
-  - Admin Classes.
+  - Admin Classes + panel de serie.
   - Members.
   - Memberships.
   - Health.
-  - Member Classes.
-- [ ] Preparar preguntas para la admin.
+  - Member Classes (`/classes`).
+- [ ] Quitar datos sensibles o emails reales de documentación pública.
+- [ ] Preparar preguntas concretas para la admin.
 - [ ] Anotar feedback real sin implementar en caliente.
 
 ---
 
-## 3. Backlog obligatorio siguiente: Issue #4
+## 3. Backlog abierto: Issues y funcionalidad pendiente
 
-Este bloque viene después de la demo.
-
-### 3.1 Gestión de series recurrentes
-
-Hoy se pueden crear clases recurrentes, pero todavía falta administrarlas bien como serie.
-
-- [ ] Ver una serie agrupada.
-- [ ] Identificar qué clases pertenecen a una serie.
-- [ ] Editar una serie completa.
-- [ ] Acortar una serie desde cierta fecha.
-- [ ] Eliminar futuras sesiones.
-- [ ] No eliminar clases con reservas/asistencia sin confirmación.
-
-### 3.2 Editar ocurrencia vs serie
-
-- [ ] Al editar una clase recurrente, preguntar:
-  - Solo esta clase.
-  - Esta y futuras.
-  - Toda la serie.
-- [ ] Mostrar impacto antes de aplicar cambios.
-- [ ] No tocar sesiones pasadas sin confirmación.
-
-### 3.3 Invitación masiva
-
-- [ ] Seleccionar alumnos una vez al crear una serie.
-- [ ] Crear invitaciones para todas las sesiones.
-- [ ] Evitar duplicados.
-- [ ] Mostrar resumen:
-  - creadas,
-  - omitidas,
-  - conflictos.
-
-### 3.4 Reemplazo de coach
+### 3.1 Reemplazo de coach
 
 - [ ] Cambiar coach de una sesión puntual.
-- [ ] Permitir que el coach reemplazante vea la clase.
-- [ ] Permitir tomar asistencia.
+- [ ] Permitir que el coach reemplazante vea la clase y tome asistencia.
 - [ ] Guardar trazabilidad del cambio.
 
-### 3.5 Asistencia post-clase
+### 3.2 Asistencia post-clase
 
 - [ ] Permitir tomar asistencia después de terminada la clase.
-- [ ] Definir ventana:
-  - 24 horas, o
-  - 48 horas.
+- [ ] Definir ventana: 24 o 48 horas.
 - [ ] Evitar asistencia editable indefinidamente.
 
----
+### 3.3 Invitaciones — funcionalidad restante (15%)
 
-## 4. Orden recomendado de PRs después de la demo
-
-### PR 7 — Editar ocurrencia vs serie
-
-- Define la UX y reglas.
-- No incluye invitación masiva.
-
-### PR 8 — Reemplazo de coach por sesión
-
-- Cambiar instructor en una clase puntual.
-- Permisos para coach reemplazante.
-
-### PR 9 — Asistencia post-clase
-
-- Ventana configurable para tomar asistencia después.
-
-### PR 10 — Invitación masiva
-
-- Selección de alumnos al crear serie.
-- Invitaciones automáticas.
-
-### PR 11 — Gestión avanzada de serie
-
-- Acortar/extender/eliminar futuras clases.
-- Manejo de clases con reservas.
+- [ ] Ver y gestionar invitaciones individuales pendientes desde detalle de clase.
+- [ ] Cancelar invitación puntual desde panel admin.
+- [ ] Expiración automática de invitaciones (job o trigger).
 
 ---
 
-## 5. Backlog de experiencia miembro
+## 4. Experiencia miembro (60% completada)
 
-Este bloque es relevante antes de profundizar en administración/pagos, porque afecta directamente la claridad para el cliente final.
+Relevante antes de profundizar en administración avanzada, porque afecta directamente la claridad para el cliente final.
 
 - [ ] Mejorar claridad de sesiones disponibles.
-- [ ] Mostrar próximas reservas.
+- [ ] Mostrar próximas reservas en `/profile`.
 - [ ] Mostrar historial de reservas.
-- [ ] Mejorar mensajes cuando no puede reservar.
-- [ ] Mostrar motivo claro:
+- [ ] Mejorar mensajes cuando no puede reservar:
   - sin membresía,
   - membresía vencida,
-  - sin sesiones,
+  - sin sesiones restantes,
   - clase llena,
   - servicio no incluido en su plan.
-- [ ] Mejorar visualmente el estado de membresía activa/vencida.
-- [ ] Evaluar notificaciones después:
-  - email,
-  - WhatsApp.
+- [ ] Mejorar visualización del estado de membresía activa / vencida.
+- [ ] Evaluar notificaciones (email, WhatsApp) como mejora posterior.
 
 ---
 
-## 6. Backlog Health / Kinesiología
+## 5. Backlog Health / Kinesiología (Fase 2)
 
-No necesariamente bloquea el lanzamiento, pero puede ser más relevante que pagos avanzados si el gimnasio quiere usar Kinesiología como parte del servicio.
+No bloquea el lanzamiento. Su prioridad depende del feedback de la admin sobre qué tan central es Kinesiología en el día a día.
 
-- [ ] Reabrir sesión clínica cerrada con control.
-- [ ] Adjuntar documentos:
-  - PDF,
-  - imágenes,
-  - exámenes.
-- [ ] Exportar ficha/bitácora.
-- [ ] Reporte para Isapre/aseguradora.
+- [ ] Reabrir sesión clínica cerrada con control (solo Admin, con razón).
+- [ ] Adjuntar documentos: PDF, imágenes, exámenes.
+- [ ] Exportar ficha / bitácora.
+- [ ] Reporte para Isapre / aseguradora.
 - [ ] Historial clínico más completo.
-- [ ] Separar Health como módulo activable por gimnasio/usuario.
+- [ ] Separar Health como módulo activable por gimnasio / usuario.
 
 ---
 
-## 7. Backlog de membresías y pagos
+## 6. Rediseño visual Loganfield
 
-Este bloque queda como mejora operativa en marcha, no como requisito de lanzamiento.
+La app funciona pero la identidad visual es genérica. Este bloque aplica el diseño de referencia Loganfield / Claude Design para unificar la apariencia y darle consistencia entre roles.
 
-Motivo: hoy puede seguir gestionándose como se hace actualmente si la administración no urge.
+**Alcance:**
 
-- [ ] Mejorar flujo de pago pendiente.
+- Aplicar tokens de diseño desde el archivo `.zip` de Claude Design:
+  - paleta de colores principal y secundaria,
+  - tipografía,
+  - espaciado y radios de borde.
+- Unificar componentes:
+  - botones (primario, secundario, destructivo, ghost),
+  - labels y etiquetas,
+  - cards (clases, miembros, membresías, pacientes),
+  - badges de estado y servicio,
+  - modales y drawers,
+  - formularios (inputs, selects, checkboxes, date pickers),
+  - tablas y listas,
+  - navegación (sidebar, header, bottom nav mobile).
+- Consistencia visual entre roles (admin, coach, kinesiologista, miembro).
+- Revisión de contraste y accesibilidad básica.
+
+**Orden recomendado dentro del bloque:**
+
+1. Tokens globales y componentes base (buttons, inputs, badges).
+2. Navegación (sidebar desktop + bottom nav mobile).
+3. Módulo clases / calendario.
+4. Módulo admin (members, memberships).
+5. Módulo Health.
+6. Perfil y vistas de miembro.
+
+---
+
+## 7. Responsive / Mobile-first
+
+> **80% del uso esperado de la app será desde dispositivos móviles** (Android e iPhone). Hoy la app es funcional pero está optimizada para desktop.
+
+Este bloque adapta la experiencia para que sea fluida y cómoda en cualquier tamaño de pantalla, sin sacrificar funcionalidad en desktop.
+
+**Objetivos:**
+
+- Diseño mobile-first: la pantalla chica es la pantalla de diseño base.
+- Compatible con: Android, iPhone, tablet y desktop.
+- Evitar saturación visual en mobile: priorizar la información más relevante.
+- Todos los botones tocables (mínimo 44 × 44 px de área táctil).
+- Sin patrones hover-only: cualquier acción que hoy requiera hover debe tener alternativa en tap.
+
+**Prioridades de vista (en orden):**
+
+1. `/admin/classes` — lista semanal, acciones de clase, panel de serie.
+2. `/calendar` — vista semanal, chips de sesión, modal de inscripción.
+3. Panel de serie — sesiones densas con múltiples acciones por fila.
+4. Detalle de clase `/classes/[id]` — lista de inscritos, asistencia.
+5. `/classes` (member-facing) — explorar y reservar clases.
+6. Módulo Health — ficha clínica y registro de sesión (SOAP).
+7. `/profile` — estado de membresía, reservas, historial.
+
+**Patrones de adaptación:**
+
+- Filas densas con muchas columnas → cards apiladas en mobile.
+- Tablas de más de 4 columnas → formato card o scroll horizontal controlado.
+- Modales largos → bottom sheets en mobile.
+- Sidebar desktop → bottom nav en mobile (ya existe parcialmente, revisar cobertura).
+- Formularios de varios campos → una columna en mobile.
+- Acciones secundarias de fila (Editar · Futuras · Acortar) → menú contextual o bottom sheet en mobile.
+
+---
+
+## 8. Backlog de membresías y pagos (25%)
+
+Este bloque queda como mejora operativa progresiva. No es requisito de lanzamiento si la administración puede gestionarlo manualmente.
+
+- [ ] Mejorar flujo de pago pendiente / vencido.
 - [ ] Manejar pagos parciales si el gimnasio lo necesita.
 - [ ] Mejor visibilidad de vencimientos próximos.
 - [ ] Alertas de membresías por vencer.
-- [ ] Exportar membresías a Excel/CSV.
+- [ ] Exportar membresías a Excel / CSV.
 - [ ] Historial de renovaciones.
 - [ ] Historial de pagos.
-- [ ] Dashboard simple:
-  - activas,
-  - vencidas,
-  - pendientes,
-  - renovaciones próximas.
+- [ ] Dashboard simple: activas, vencidas, pendientes, renovaciones próximas.
 
 ---
 
-## 8. Backlog técnico para producción
+## 9. Backlog técnico para producción (45%)
 
 ### Base de datos
 
 - [ ] Confirmar Supabase productivo.
 - [ ] Separar data demo de data real.
-- [ ] Definir backups.
+- [ ] Definir backups automáticos.
 - [ ] Documentar recuperación ante pérdida de datos.
 
 ### Seguridad
 
-- [ ] Revisar permisos en endpoints críticos.
+- [ ] Revisar permisos en endpoints críticos por rol.
 - [ ] Rate limit en endpoints sensibles.
 - [ ] Audit log básico.
 - [ ] Evitar datos reales en repo público.
@@ -254,49 +298,39 @@ Motivo: hoy puede seguir gestionándose como se hace actualmente si la administr
 
 ---
 
-## 9. Futuro: Multi-gimnasio / Super Admin
-
-Este bloque reemplaza la idea de sitio público/CMS.
-
-No se trata de administrar contenido de una web informativa, sino de que Eduardo, como dueño/desarrollador de la plataforma, pueda configurar cada gimnasio cuando se sumen nuevos clientes.
+## 10. Futuro: Multi-gimnasio / Super Admin (10%)
 
 No implementar antes de estabilizar Primary Performance.
 
-- [ ] Entidad `Gym` o tenant.
+- [ ] Entidad `Gym` / tenant.
 - [ ] Panel Super Admin.
-- [ ] Crear/editar gimnasios.
+- [ ] Crear / editar gimnasios.
 - [ ] Asignar admin principal por gimnasio.
-- [ ] Configurar identidad del gimnasio:
-  - nombre,
-  - logo,
-  - color principal,
-  - emoji/icono,
-  - datos de contacto.
-- [ ] Activar/desactivar módulos por gimnasio:
-  - clases grupales,
-  - personal training,
-  - kinesiología,
-  - Health,
-  - membresías,
-  - reservas.
-- [ ] Master de personas/base de usuarios por gimnasio.
-- [ ] Onboarding inicial del gimnasio.
-- [ ] Primeros pasos guiados:
-  - crear staff,
-  - crear servicios,
-  - crear membresías,
-  - crear primeras clases.
-- [ ] Configuración de permisos por gimnasio.
+- [ ] Configurar identidad: nombre, logo, color, datos de contacto.
+- [ ] Activar / desactivar módulos por gimnasio.
 - [ ] Separación de datos entre gimnasios.
-- [ ] Evitar que staff de un gimnasio vea datos de otro.
-- [ ] Definir modelo comercial/precio por gimnasio.
-- [ ] Activación/desactivación vía backend o panel interno.
+- [ ] Onboarding inicial guiado.
+- [ ] Definir modelo comercial / precio por gimnasio.
 
 ---
 
-## 10. Checklist para considerar MVP cerrado
+## 11. Orden recomendado post-demo
 
-El MVP estaría cerrado cuando:
+El orden asume que la demo se realiza con el estado actual y que el feedback de la admin determina qué ajustes son críticos.
+
+1. **Cerrar PRs abiertos y estabilizar** — ningún PR sin mergear pendiente de QA.
+2. **Demo con admin** — flujos principales, anotar feedback sin implementar en caliente.
+3. **Incorporar feedback crítico** — solo lo que bloquea la operación diaria.
+4. **Mobile-first de flujos principales** — `/admin/classes`, calendario, panel de serie, `/classes` member-facing.
+5. **Rediseño visual Loganfield por módulos** — empezar por tokens y componentes base, luego por vista.
+6. **Health fase 2** — reabrir sesión, adjuntar documentos, exportar ficha.
+7. **Producción / hardening** — DB, backups, seguridad, dominio, deploy controlado.
+8. **Super Admin / multi-gimnasio** — solo cuando Primary Performance esté estable en producción.
+9. **Pagos / membresías avanzado** — paralelizable con #8 si hay demanda real.
+
+---
+
+## 12. Checklist para considerar MVP cerrado
 
 - [ ] Admin puede crear y gestionar clases sin ayuda técnica.
 - [ ] Admin puede crear clases individuales y recurrentes.
@@ -313,52 +347,40 @@ El MVP estaría cerrado cuando:
 
 ---
 
-## 11. Checklist para considerar producción real
+## 13. Checklist para considerar producción real
 
-Producción real requiere:
-
-- [ ] Dominio final.
+- [ ] Dominio final configurado.
 - [ ] Auth configurado en dominio final.
 - [ ] Supabase productivo estable.
-- [ ] Backups.
-- [ ] Deploy controlado.
+- [ ] Backups automáticos activos.
+- [ ] Deploy controlado con rollback.
 - [ ] Smoke test post-deploy.
 - [ ] Permisos revisados por rol.
-- [ ] Logs/errores visibles.
+- [ ] Logs / errores visibles.
 - [ ] Admin capacitada.
 - [ ] Plan de soporte básico.
 
 ---
 
-## 12. Qué NO hacer ahora
+## 14. Qué NO hacer ahora
 
 - No iniciar multi-gimnasio antes de validar Primary Performance.
 - No construir Super Admin antes de cerrar operación base.
 - No rediseñar toda la UI antes de la demo.
-- No mezclar Issue #4 con producción/hosting.
-- No introducir WhatsApp/notificaciones automáticas antes de cerrar operación base.
+- No introducir WhatsApp / notificaciones automáticas antes de cerrar operación base.
 - No arreglar todos los lint errors dentro de PRs funcionales.
 - No meter credenciales, emails reales o información sensible en documentación pública.
+- No abrir Issues de diseño / mobile antes de tener feedback de la demo.
+- No prometer fechas exactas: el orden se ajustará con el feedback real de la admin.
 
 ---
 
-## 13. Prioridad macro recomendada
-
-1. Demo readiness / PR actual.
-2. Feedback admin.
-3. Issue #4 — clases recurrentes avanzadas.
-4. Experiencia miembro.
-5. Health / Kinesiología fase 2.
-6. Producción real: DB, backups, dominio, seguridad.
-7. Membresías/pagos avanzado.
-8. Multi-gimnasio / Super Admin.
-
----
-
-## 14. Regla práctica para próximas iteraciones
+## 15. Regla práctica para próximas iteraciones
 
 Si la admin no puede operar el día a día sin ayuda, eso va antes que cualquier mejora técnica o visual.
 
 Si el miembro no entiende por qué puede o no puede reservar, eso va antes que mejoras administrativas avanzadas.
 
-Si algo es visión de plataforma, como Multi-gimnasio o Super Admin, debe quedar registrado pero no mezclarse con la estabilización del MVP de Primary Performance.
+Si algo es visión de plataforma (Multi-gimnasio, Super Admin), debe quedar registrado pero no mezclarse con la estabilización del MVP de Primary Performance.
+
+Si el feedback de la admin tras la demo cambia las prioridades, este roadmap se actualiza — no se fuerza el orden original.

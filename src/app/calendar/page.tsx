@@ -865,6 +865,8 @@ export default function CalendarPage() {
   const [manageModal, setManageModal] = useState<{ cls: GymClass; dateStr: string } | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [coachFilter, setCoachFilter] = useState("all");
+  const [searchText, setSearchText] = useState("");
+  const [serviceFilter, setServiceFilter] = useState<ServiceType | "">("");
   const [createModalDay, setCreateModalDay] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState(0);
 
@@ -940,6 +942,14 @@ export default function CalendarPage() {
   const canBookMakeup = currentMember?.canBookMakeupClasses === true;
   const pendingInvitedSessions = new Map(pendingInvitations.map(inv => [inv.session.id, true]));
   const coachFilterNames = Array.from(new Set(classes.filter(c => c.eventType !== "blocked_time").map(c => c.coach))).sort();
+
+  const hasActiveFilters = Boolean(searchText.trim()) || Boolean(serviceFilter) || coachFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchText("");
+    setServiceFilter("");
+    setCoachFilter("all");
+  };
 
   const isReserved = (classId: string, dateStr: string) =>
     reservations.some(r => r.classId === classId && r.classDate === dateStr && r.status !== "cancelled");
@@ -1021,6 +1031,12 @@ export default function CalendarPage() {
       // Members only see classes matching their active membership service types
       .filter(c => IS_ADMIN_OR_COACH || validServiceTypes === null || validServiceTypes.has(c.serviceType))
       .filter(c => coachFilter === "all" || c.coach === coachFilter)
+      .filter(c => !serviceFilter || c.serviceType === serviceFilter)
+      .filter(c => {
+        if (!searchText.trim()) return true;
+        const q = searchText.trim().toLowerCase();
+        return c.name.toLowerCase().includes(q) || c.coach.toLowerCase().includes(q);
+      })
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   // Render a single class card (shared between mobile and desktop)
@@ -1152,24 +1168,70 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Coach filter */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>Instructor:</span>
-        <div className="flex gap-2 flex-wrap">
-          {["all", ...coachFilterNames].map(c => (
-            <button key={c} onClick={() => setCoachFilter(coachFilter === c ? "all" : c)}
-              className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
-              style={coachFilter === c
-                ? { backgroundColor: "#4fc3f7", color: "#0a0a0f" }
-                : { background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}>
-              {c === "all" ? "Todos" : c.split(" ")[0]}
+      {/* Filters */}
+      <div className="space-y-2 mb-6">
+        {/* Coach pills */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>Instructor:</span>
+          <div className="flex gap-2 flex-wrap">
+            {["all", ...coachFilterNames].map(c => (
+              <button key={c} onClick={() => setCoachFilter(coachFilter === c ? "all" : c)}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
+                style={coachFilter === c
+                  ? { backgroundColor: "#4fc3f7", color: "#0a0a0f" }
+                  : { background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}>
+                {c === "all" ? "Todos" : c.split(" ")[0]}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Search + service type */}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Buscar por clase o coach..."
+            className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40 flex-1 min-w-[180px]"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}
+          />
+          <select
+            value={serviceFilter}
+            onChange={e => setServiceFilter(e.target.value as ServiceType | "")}
+            className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+          >
+            <option value="">Todos los tipos</option>
+            <option value="group">Grupal</option>
+            <option value="personal_training">Entrenamiento personal</option>
+            <option value="kinesiology">Kinesiología</option>
+            {IS_ADMIN_OR_COACH && <option value="blocked_time">Bloqueo de horario</option>}
+          </select>
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-white/5"
+              style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+            >
+              Limpiar filtros
             </button>
-          ))}
+          )}
         </div>
       </div>
 
       {loading ? (
         <div className="text-center py-24" style={{ color: "var(--text-secondary)" }}>Cargando clases...</div>
+      ) : hasActiveFilters && !weekDates.some(({ dayOfWeek }) => getColClasses(dayOfWeek).length > 0) ? (
+        <div className="text-center py-16 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+          <p className="text-sm font-medium">No encontramos clases con esos filtros en esta semana.</p>
+          <button
+            onClick={clearFilters}
+            className="mt-3 text-xs font-medium"
+            style={{ color: "#4fc3f7" }}
+          >
+            Limpiar filtros
+          </button>
+        </div>
       ) : memberHasNoMemberships ? (
         <div className="rounded-xl p-8 text-center border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
           <p className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Sin membresías activas</p>
@@ -1200,14 +1262,16 @@ export default function CalendarPage() {
 
             <div className="space-y-3">
               {getColClasses(selectedDay).length === 0 ? (
-                IS_ADMIN_OR_COACH ? (
+                IS_ADMIN_OR_COACH && !hasActiveFilters ? (
                   <button onClick={() => openCreateModal(selectedDay)}
                     className="w-full py-6 rounded-xl border border-dashed text-sm font-medium hover:opacity-70"
                     style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
                     + Añadir clase
                   </button>
                 ) : (
-                  <p className="text-center py-8 text-sm" style={{ color: "var(--text-secondary)" }}>Sin clases este día</p>
+                  <p className="text-center py-8 text-sm" style={{ color: "var(--text-secondary)" }}>
+                    {hasActiveFilters ? "Sin resultados" : "Sin clases este día"}
+                  </p>
                 )
               ) : (
                 getColClasses(selectedDay).map((cls, i) =>

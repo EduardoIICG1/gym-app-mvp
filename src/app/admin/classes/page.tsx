@@ -18,6 +18,7 @@ interface SeriesSession {
   coachName: string;
   status: "active" | "cancelled";
   reservedCount: number;
+  pendingCount: number;
   capacity: number;
   hasActiveBookings: boolean;
 }
@@ -60,6 +61,20 @@ interface InvitePreview {
   members: InvitePreviewMember[];
   totalWouldCreate: number;
   totalWouldSkip: number;
+}
+
+interface InviteConfirmMember {
+  memberId: string;
+  memberName: string;
+  created: number;
+  skipped: { sessionId: string; sessionDate: string; reason: string }[];
+}
+
+interface InviteConfirmResult {
+  sessions: number;
+  totalCreated: number;
+  totalSkipped: number;
+  members: InviteConfirmMember[];
 }
 
 const EMPTY_FORM = {
@@ -145,6 +160,8 @@ export default function AdminClassesPage() {
   const [inviteSearchText, setInviteSearchText] = useState("");
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
   const [invitePreviewLoading, setInvitePreviewLoading] = useState(false);
+  const [inviteConfirming, setInviteConfirming] = useState(false);
+  const [inviteConfirmResult, setInviteConfirmResult] = useState<InviteConfirmResult | null>(null);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -351,12 +368,16 @@ export default function AdminClassesPage() {
     setSeriesDetail(null);
     setInvitePreview(null);
     setInviteSelectedIds(new Set());
+    setInviteConfirmResult(null);
   };
 
   const backToSeriesFromInvite = () => {
+    const target = seriesTarget;
     setShowInviteModal(false);
     setInvitePreview(null);
-    setShowSeriesModal(true);
+    setInviteConfirmResult(null);
+    if (target) openSeries(target); // re-fetches series panel with fresh counts
+    else setShowSeriesModal(true);
   };
 
   const toggleInviteMember = (id: string) => {
@@ -367,6 +388,7 @@ export default function AdminClassesPage() {
       return next;
     });
     setInvitePreview(null);
+    setInviteConfirmResult(null);
   };
 
   const toggleAllVisible = (visible: { id: string }[]) => {
@@ -378,6 +400,7 @@ export default function AdminClassesPage() {
       return next;
     });
     setInvitePreview(null);
+    setInviteConfirmResult(null);
   };
 
   const handleInvitePreview = async () => {
@@ -395,6 +418,26 @@ export default function AdminClassesPage() {
       setToast({ msg: d.error || "Error al calcular vista previa", ok: false });
     }
     setInvitePreviewLoading(false);
+  };
+
+  const handleInviteConfirm = async () => {
+    if (!seriesTarget || inviteSelectedIds.size === 0 || inviteConfirming) return;
+    setInviteConfirming(true);
+    const res = await fetch(`/api/classes/${seriesTarget.id}/series/invitations/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberIds: [...inviteSelectedIds] }),
+    });
+    if (res.ok) {
+      const data: InviteConfirmResult = await res.json();
+      setInviteConfirmResult(data);
+      setInvitePreview(null);
+      await fetchData();
+    } else {
+      const d = await res.json();
+      setToast({ msg: d.error || "Error al confirmar invitaciones", ok: false });
+    }
+    setInviteConfirming(false);
   };
 
   // ─── Actions launched from the series panel ──────────────────────────────
@@ -1273,6 +1316,15 @@ export default function AdminClassesPage() {
                           >
                             {s.reservedCount}/{s.capacity}
                           </span>
+                          {s.pendingCount > 0 && (
+                            <span
+                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                              style={{ background: "#a78bfa20", color: "#a78bfa" }}
+                              title={`${s.pendingCount} invitación${s.pendingCount !== 1 ? "es" : ""} pendiente${s.pendingCount !== 1 ? "s" : ""}`}
+                            >
+                              {s.pendingCount} inv.
+                            </span>
+                          )}
                           {s.status === "active" && (
                             <div className="flex items-center gap-1 shrink-0">
                               <button
@@ -1692,8 +1744,62 @@ export default function AdminClassesPage() {
                   )}
                 </div>
 
+                {/* Confirm result (replaces preview + selection) */}
+                {inviteConfirmResult && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                      Resultado · {inviteConfirmResult.sessions} sesión(es) consideradas
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border p-3 text-center" style={{ borderColor: "#22c55e40", background: "#22c55e08" }}>
+                        <p className="text-2xl font-bold" style={{ color: "#22c55e" }}>{inviteConfirmResult.totalCreated}</p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>invitaciones creadas</p>
+                      </div>
+                      <div className="rounded-xl border p-3 text-center" style={{ borderColor: "#f9731640", background: "#f9731608" }}>
+                        <p className="text-2xl font-bold" style={{ color: "#f97316" }}>{inviteConfirmResult.totalSkipped}</p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>omitidas</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                      {inviteConfirmResult.members.map(m => {
+                        const LABELS: Record<string, string> = {
+                          already_invited: "Invitación pendiente",
+                          already_booked: "Ya tiene reserva",
+                          full: "Sin cupo",
+                          not_eligible: "Sin membresía activa",
+                        };
+                        const grouped: Record<string, number> = {};
+                        for (const s of m.skipped) {
+                          grouped[s.reason] = (grouped[s.reason] ?? 0) + 1;
+                        }
+                        return (
+                          <div key={m.memberId} className="px-3 py-2 rounded-xl border text-xs" style={{ borderColor: "var(--card-border)" }}>
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium" style={{ color: "var(--text-primary)" }}>{m.memberName || m.memberId}</span>
+                              {m.created > 0 && (
+                                <span className="px-1.5 py-0.5 rounded font-semibold" style={{ background: "#22c55e20", color: "#22c55e" }}>
+                                  ✓ {m.created} creadas
+                                </span>
+                              )}
+                            </div>
+                            {m.skipped.length > 0 && (
+                              <div className="mt-1.5 space-y-0.5">
+                                {Object.entries(grouped).map(([reason, count]) => (
+                                  <p key={reason} style={{ color: "#f97316" }}>
+                                    ✗ {count > 1 ? `${count}× ` : ""}{LABELS[reason] ?? reason}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Preview results */}
-                {invitePreview && (
+                {invitePreview && !inviteConfirmResult && (
                   <div className="space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
                       Vista previa · {invitePreview.sessions} sesión(es) futuras consideradas
@@ -1710,80 +1816,115 @@ export default function AdminClassesPage() {
                     </div>
                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
                       {invitePreview.members.map(m => {
-                        const skipReasons: Record<string, number> = {};
-                        for (const s of m.skipped) {
-                          skipReasons[s.reason] = (skipReasons[s.reason] ?? 0) + 1;
-                        }
                         const LABELS: Record<string, string> = {
-                          already_invited: "inv. pendiente",
-                          already_booked: "ya reservada",
-                          full: "sin cupo",
-                          not_eligible: "sin membresía",
+                          already_invited: "Invitación pendiente",
+                          already_booked: "Ya tiene reserva",
+                          full: "Sin cupo",
+                          not_eligible: "Sin membresía activa",
                         };
+                        const grouped: Record<string, number> = {};
+                        for (const s of m.skipped) {
+                          grouped[s.reason] = (grouped[s.reason] ?? 0) + 1;
+                        }
                         return (
-                          <div
-                            key={m.memberId}
-                            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs border"
-                            style={{ borderColor: "var(--card-border)" }}
-                          >
-                            <span className="font-medium truncate" style={{ color: "var(--text-primary)" }}>{m.memberName || m.memberId}</span>
-                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <div key={m.memberId} className="px-3 py-2 rounded-xl border text-xs" style={{ borderColor: "var(--card-border)" }}>
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium" style={{ color: "var(--text-primary)" }}>{m.memberName || m.memberId}</span>
                               {m.toCreate > 0 && (
-                                <span className="px-1.5 py-0.5 rounded font-semibold" style={{ background: "#22c55e20", color: "#22c55e" }}>
-                                  +{m.toCreate}
+                                <span className="px-1.5 py-0.5 rounded font-semibold shrink-0 ml-2" style={{ background: "#22c55e20", color: "#22c55e" }}>
+                                  +{m.toCreate} sesión{m.toCreate !== 1 ? "es" : ""}
                                 </span>
-                              )}
-                              {m.skipped.length > 0 && (
-                                <span
-                                  className="px-1.5 py-0.5 rounded font-semibold"
-                                  style={{ background: "#f9731620", color: "#f97316" }}
-                                  title={Object.entries(skipReasons).map(([r, n]) => `${n}× ${LABELS[r] ?? r}`).join(", ")}
-                                >
-                                  {m.skipped.length} omit.
-                                </span>
-                              )}
-                              {m.toCreate === 0 && m.skipped.length === 0 && (
-                                <span style={{ color: "var(--text-secondary)" }}>—</span>
                               )}
                             </div>
+                            {m.skipped.length > 0 && (
+                              <div className="mt-1.5 space-y-0.5">
+                                {Object.entries(grouped).map(([reason, count]) => (
+                                  <p key={reason} style={{ color: "#f97316" }}>
+                                    ✗ {count > 1 ? `${count}× ` : ""}{LABELS[reason] ?? reason}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                    <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
-                      Pasa el cursor sobre &quot;omit.&quot; para ver el motivo detallado.
-                    </p>
+                    {invitePreview.totalWouldCreate > 0 && (
+                      <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs" style={{ background: "#4fc3f710", color: "#4fc3f7", border: "1px solid #4fc3f730" }}>
+                        <span className="mt-0.5 shrink-0">ℹ</span>
+                        <span>
+                          Se crearán <strong>{invitePreview.totalWouldCreate}</strong> invitaciones en {invitePreview.sessions} sesión(es).
+                          {invitePreview.totalWouldSkip > 0 && ` Las ${invitePreview.totalWouldSkip} omitidas no se modificarán.`}
+                        </span>
+                      </div>
+                    )}
+                    {invitePreview.totalWouldCreate === 0 && (
+                      <p className="text-xs text-center py-1" style={{ color: "var(--text-secondary)" }}>
+                        No hay invitaciones nuevas que crear para los alumnos seleccionados.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* Footer */}
               <div className="p-6 border-t shrink-0 flex gap-3" style={{ borderColor: "var(--card-border)" }}>
-                <button
-                  onClick={closeInviteModal}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
-                  style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
-                >
-                  Cancelar
-                </button>
-                {!invitePreview ? (
-                  <button
-                    onClick={handleInvitePreview}
-                    disabled={inviteSelectedIds.size === 0 || invitePreviewLoading}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                    style={{ background: "#4fc3f7" }}
-                  >
-                    {invitePreviewLoading ? "Calculando..." : "Calcular vista previa"}
-                  </button>
+                {inviteConfirmResult ? (
+                  <>
+                    <button
+                      onClick={closeInviteModal}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
+                      style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                    >
+                      Cerrar
+                    </button>
+                    <button
+                      onClick={backToSeriesFromInvite}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                      style={{ background: "#22c55e" }}
+                    >
+                      ← Ver serie actualizada
+                    </button>
+                  </>
+                ) : invitePreview ? (
+                  <>
+                    <button
+                      onClick={() => { setInvitePreview(null); setInviteConfirmResult(null); }}
+                      disabled={inviteConfirming}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5 disabled:opacity-50"
+                      style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                    >
+                      Recalcular
+                    </button>
+                    <button
+                      onClick={handleInviteConfirm}
+                      disabled={invitePreview.totalWouldCreate === 0 || inviteConfirming}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "#22c55e" }}
+                    >
+                      {inviteConfirming
+                        ? "Confirmando..."
+                        : `Confirmar ${invitePreview.totalWouldCreate} invitación${invitePreview.totalWouldCreate !== 1 ? "es" : ""}`}
+                    </button>
+                  </>
                 ) : (
-                  <button
-                    disabled
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white opacity-40 cursor-not-allowed"
-                    style={{ background: "#22c55e" }}
-                    title="Disponible en la próxima fase"
-                  >
-                    Confirmar invitaciones — próxima fase
-                  </button>
+                  <>
+                    <button
+                      onClick={closeInviteModal}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
+                      style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleInvitePreview}
+                      disabled={inviteSelectedIds.size === 0 || invitePreviewLoading}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "#4fc3f7" }}
+                    >
+                      {invitePreviewLoading ? "Calculando..." : "Calcular vista previa"}
+                    </button>
+                  </>
                 )}
               </div>
             </motion.div>

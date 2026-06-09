@@ -48,6 +48,20 @@ interface TrimPreview {
   skipped: { id: string; sessionDate: string; reason: string }[];
 }
 
+interface InvitePreviewMember {
+  memberId: string;
+  memberName: string;
+  toCreate: number;
+  skipped: { sessionId: string; sessionDate: string; reason: string }[];
+}
+
+interface InvitePreview {
+  sessions: number;
+  members: InvitePreviewMember[];
+  totalWouldCreate: number;
+  totalWouldSkip: number;
+}
+
 const EMPTY_FORM = {
   name: "", eventType: "class" as EventType, serviceType: "group" as ServiceType,
   dayOfWeek: 0 as DayOfWeek, startTime: "", endTime: "",
@@ -124,6 +138,13 @@ export default function AdminClassesPage() {
   const [seriesEditTarget, setSeriesEditTarget] = useState<GymClass | null>(null);
   const [seriesEditForm, setSeriesEditForm] = useState({ name: "", serviceType: "group" as ServiceType, maxCapacity: 20, note: "" });
   const [seriesEditSaving, setSeriesEditSaving] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteMembers, setInviteMembers] = useState<{ id: string; name: string }[]>([]);
+  const [inviteMembersLoading, setInviteMembersLoading] = useState(false);
+  const [inviteSelectedIds, setInviteSelectedIds] = useState<Set<string>>(new Set());
+  const [inviteSearchText, setInviteSearchText] = useState("");
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
+  const [invitePreviewLoading, setInvitePreviewLoading] = useState(false);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -304,6 +325,76 @@ export default function AdminClassesPage() {
       setToast({ msg: d.error || "Error al guardar", ok: false });
     }
     setSeriesEditSaving(false);
+  };
+
+  // ─── Bulk invite (dry-run preview) ──────────────────────────────────────
+  const openInviteFromSeries = async () => {
+    setShowSeriesModal(false);
+    setShowInviteModal(true);
+    setInvitePreview(null);
+    setInviteSelectedIds(new Set());
+    setInviteSearchText("");
+    if (inviteMembers.length === 0) {
+      setInviteMembersLoading(true);
+      const res = await fetch("/api/members?includesRole=member");
+      if (res.ok) {
+        const data = await res.json() as Member[];
+        setInviteMembers(data.map(m => ({ id: m.id, name: m.name })));
+      }
+      setInviteMembersLoading(false);
+    }
+  };
+
+  const closeInviteModal = () => {
+    setShowInviteModal(false);
+    setSeriesTarget(null);
+    setSeriesDetail(null);
+    setInvitePreview(null);
+    setInviteSelectedIds(new Set());
+  };
+
+  const backToSeriesFromInvite = () => {
+    setShowInviteModal(false);
+    setInvitePreview(null);
+    setShowSeriesModal(true);
+  };
+
+  const toggleInviteMember = (id: string) => {
+    setInviteSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setInvitePreview(null);
+  };
+
+  const toggleAllVisible = (visible: { id: string }[]) => {
+    const allSelected = visible.every(m => inviteSelectedIds.has(m.id));
+    setInviteSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) visible.forEach(m => next.delete(m.id));
+      else visible.forEach(m => next.add(m.id));
+      return next;
+    });
+    setInvitePreview(null);
+  };
+
+  const handleInvitePreview = async () => {
+    if (!seriesTarget || inviteSelectedIds.size === 0) return;
+    setInvitePreviewLoading(true);
+    const res = await fetch(`/api/classes/${seriesTarget.id}/series/invitations/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberIds: [...inviteSelectedIds] }),
+    });
+    if (res.ok) {
+      setInvitePreview(await res.json());
+    } else {
+      const d = await res.json();
+      setToast({ msg: d.error || "Error al calcular vista previa", ok: false });
+    }
+    setInvitePreviewLoading(false);
   };
 
   // ─── Actions launched from the series panel ──────────────────────────────
@@ -1085,13 +1176,22 @@ export default function AdminClassesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {!seriesLoading && seriesDetail && (
-                    <button
-                      onClick={openSeriesEditFromPanel}
-                      className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors hover:bg-white/5 border"
-                      style={{ borderColor: "#22c55e40", color: "#22c55e" }}
-                    >
-                      Editar serie
-                    </button>
+                    <>
+                      <button
+                        onClick={openInviteFromSeries}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors hover:bg-white/5 border"
+                        style={{ borderColor: "#4fc3f740", color: "#4fc3f7" }}
+                      >
+                        Invitar alumnos
+                      </button>
+                      <button
+                        onClick={openSeriesEditFromPanel}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors hover:bg-white/5 border"
+                        style={{ borderColor: "#22c55e40", color: "#22c55e" }}
+                      >
+                        Editar serie
+                      </button>
+                    </>
                   )}
                   <button onClick={closeSeriesModal} className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>×</button>
                 </div>
@@ -1484,6 +1584,207 @@ export default function AdminClassesPage() {
                     {seriesEditSaving ? "Guardando..." : "Guardar toda la serie"}
                   </motion.button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Invite Preview Modal */}
+      <AnimatePresence>
+        {showInviteModal && seriesTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            onClick={closeInviteModal}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border overflow-hidden"
+              style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between p-6 border-b shrink-0" style={{ borderColor: "var(--card-border)" }}>
+                <div>
+                  <button
+                    onClick={backToSeriesFromInvite}
+                    className="flex items-center gap-1 text-xs font-medium mb-2 transition-opacity hover:opacity-70"
+                    style={{ color: "#a78bfa" }}
+                  >
+                    ← Ver serie
+                  </button>
+                  <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#4fc3f7" }}>Invitar alumnos</p>
+                  <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                    {seriesTarget.name}
+                  </h2>
+                </div>
+                <button onClick={closeInviteModal} className="text-2xl leading-none mt-1" style={{ color: "var(--text-secondary)" }}>×</button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Member selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                      Alumnos {inviteSelectedIds.size > 0 && <span style={{ color: "#4fc3f7" }}>({inviteSelectedIds.size} seleccionados)</span>}
+                    </p>
+                    {(() => {
+                      const visible = inviteMembers.filter(m =>
+                        !inviteSearchText.trim() || m.name.toLowerCase().includes(inviteSearchText.trim().toLowerCase())
+                      );
+                      if (visible.length === 0) return null;
+                      const allSel = visible.every(m => inviteSelectedIds.has(m.id));
+                      return (
+                        <button
+                          onClick={() => toggleAllVisible(visible)}
+                          className="text-xs font-medium transition-opacity hover:opacity-70"
+                          style={{ color: "#4fc3f7" }}
+                        >
+                          {allSel ? "Deseleccionar todos" : "Seleccionar todos"}
+                        </button>
+                      );
+                    })()}
+                  </div>
+                  <input
+                    type="text"
+                    value={inviteSearchText}
+                    onChange={e => setInviteSearchText(e.target.value)}
+                    placeholder="Buscar alumno..."
+                    className="w-full rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
+                    style={{ background: "var(--card-border)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}
+                  />
+                  {inviteMembersLoading ? (
+                    <p className="text-xs text-center py-4" style={{ color: "var(--text-secondary)" }}>Cargando alumnos...</p>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto space-y-1 rounded-xl border p-1" style={{ borderColor: "var(--card-border)" }}>
+                      {inviteMembers
+                        .filter(m =>
+                          !inviteSearchText.trim() || m.name.toLowerCase().includes(inviteSearchText.trim().toLowerCase())
+                        )
+                        .map(m => (
+                          <label
+                            key={m.id}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={inviteSelectedIds.has(m.id)}
+                              onChange={() => toggleInviteMember(m.id)}
+                              className="w-4 h-4 rounded accent-[#4fc3f7]"
+                            />
+                            <span className="text-sm" style={{ color: "var(--text-primary)" }}>{m.name}</span>
+                          </label>
+                        ))}
+                      {inviteMembers.filter(m =>
+                        !inviteSearchText.trim() || m.name.toLowerCase().includes(inviteSearchText.trim().toLowerCase())
+                      ).length === 0 && (
+                        <p className="text-xs text-center py-3" style={{ color: "var(--text-secondary)" }}>Sin resultados</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Preview results */}
+                {invitePreview && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                      Vista previa · {invitePreview.sessions} sesión(es) futuras consideradas
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border p-3 text-center" style={{ borderColor: "#22c55e40", background: "#22c55e08" }}>
+                        <p className="text-2xl font-bold" style={{ color: "#22c55e" }}>{invitePreview.totalWouldCreate}</p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>invitaciones a crear</p>
+                      </div>
+                      <div className="rounded-xl border p-3 text-center" style={{ borderColor: "#f9731640", background: "#f9731608" }}>
+                        <p className="text-2xl font-bold" style={{ color: "#f97316" }}>{invitePreview.totalWouldSkip}</p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>omitidas</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {invitePreview.members.map(m => {
+                        const skipReasons: Record<string, number> = {};
+                        for (const s of m.skipped) {
+                          skipReasons[s.reason] = (skipReasons[s.reason] ?? 0) + 1;
+                        }
+                        const LABELS: Record<string, string> = {
+                          already_invited: "inv. pendiente",
+                          already_booked: "ya reservada",
+                          full: "sin cupo",
+                          not_eligible: "sin membresía",
+                        };
+                        return (
+                          <div
+                            key={m.memberId}
+                            className="flex items-center justify-between px-3 py-2 rounded-xl text-xs border"
+                            style={{ borderColor: "var(--card-border)" }}
+                          >
+                            <span className="font-medium truncate" style={{ color: "var(--text-primary)" }}>{m.memberName || m.memberId}</span>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              {m.toCreate > 0 && (
+                                <span className="px-1.5 py-0.5 rounded font-semibold" style={{ background: "#22c55e20", color: "#22c55e" }}>
+                                  +{m.toCreate}
+                                </span>
+                              )}
+                              {m.skipped.length > 0 && (
+                                <span
+                                  className="px-1.5 py-0.5 rounded font-semibold"
+                                  style={{ background: "#f9731620", color: "#f97316" }}
+                                  title={Object.entries(skipReasons).map(([r, n]) => `${n}× ${LABELS[r] ?? r}`).join(", ")}
+                                >
+                                  {m.skipped.length} omit.
+                                </span>
+                              )}
+                              {m.toCreate === 0 && m.skipped.length === 0 && (
+                                <span style={{ color: "var(--text-secondary)" }}>—</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                      Pasa el cursor sobre &quot;omit.&quot; para ver el motivo detallado.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t shrink-0 flex gap-3" style={{ borderColor: "var(--card-border)" }}>
+                <button
+                  onClick={closeInviteModal}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5"
+                  style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+                >
+                  Cancelar
+                </button>
+                {!invitePreview ? (
+                  <button
+                    onClick={handleInvitePreview}
+                    disabled={inviteSelectedIds.size === 0 || invitePreviewLoading}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ background: "#4fc3f7" }}
+                  >
+                    {invitePreviewLoading ? "Calculando..." : "Calcular vista previa"}
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white opacity-40 cursor-not-allowed"
+                    style={{ background: "#22c55e" }}
+                    title="Disponible en la próxima fase"
+                  >
+                    Confirmar invitaciones — próxima fase
+                  </button>
+                )}
               </div>
             </motion.div>
           </motion.div>

@@ -116,6 +116,7 @@ export default function AdminClassesPage() {
   const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [returnToSeriesSource, setReturnToSeriesSource] = useState<{ id: string; name: string } | null>(null);
+  const [seriesBackTarget, setSeriesBackTarget] = useState<GymClass | null>(null);
 
   // ─── Week range ──────────────────────────────────────────────────────────
   const mondayDate = getMondayOfWeek(weekOffset);
@@ -223,6 +224,16 @@ export default function AdminClassesPage() {
     setShowSeriesModal(false);
     setSeriesTarget(null);
     setSeriesDetail(null);
+    setSeriesBackTarget(null);
+  };
+
+  const backToScopeSelector = () => {
+    const back = seriesBackTarget;
+    if (!back) return;
+    setSeriesBackTarget(null);
+    closeSeriesModal();
+    setScopeTarget(back);
+    setShowScopeSelector(true);
   };
 
   // ─── Actions launched from the series panel ──────────────────────────────
@@ -705,7 +716,7 @@ export default function AdminClassesPage() {
 
                 {/* Option: Ver sesiones de la serie (read-only) */}
                 <button
-                  onClick={() => openSeries(scopeTarget)}
+                  onClick={() => { setSeriesBackTarget(scopeTarget); openSeries(scopeTarget); }}
                   className="w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors hover:bg-white/5 border"
                   style={{ borderColor: "#a78bfa40", background: "#a78bfa10" }}
                 >
@@ -930,6 +941,15 @@ export default function AdminClassesPage() {
             >
               <div className="flex items-center justify-between p-6 sticky top-0 border-b z-10" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                 <div>
+                  {seriesBackTarget && (
+                    <button
+                      onClick={backToScopeSelector}
+                      className="flex items-center gap-1 text-xs font-medium mb-2 transition-opacity hover:opacity-70"
+                      style={{ color: "#4fc3f7" }}
+                    >
+                      ← Volver a opciones
+                    </button>
+                  )}
                   <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#a78bfa" }}>Serie recurrente</p>
                   <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
                     {seriesTarget.name}

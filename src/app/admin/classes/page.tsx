@@ -103,6 +103,9 @@ export default function AdminClassesPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cancelled">("all");
+  const [searchText, setSearchText] = useState("");
+  const [coachFilter, setCoachFilter] = useState("");
+  const [serviceFilter, setServiceFilter] = useState<ServiceType | "">("");
   const [showScopeSelector, setShowScopeSelector] = useState(false);
   const [editScope, setEditScope] = useState<"this" | "future" | null>(null);
   const [scopeTarget, setScopeTarget] = useState<GymClass | null>(null);
@@ -147,7 +150,26 @@ export default function AdminClassesPage() {
   }, [toast]);
 
   // ─── Filtered & grouped ──────────────────────────────────────────────────
-  const filteredClasses = statusFilter === "all" ? classes : classes.filter(c => c.status === statusFilter);
+  const hasActiveFilters = Boolean(searchText.trim()) || Boolean(coachFilter) || Boolean(serviceFilter) || statusFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchText("");
+    setCoachFilter("");
+    setServiceFilter("");
+    setStatusFilter("all");
+  };
+
+  const filteredClasses = classes.filter(c => {
+    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (coachFilter && c.coach !== coachFilter) return false;
+    if (serviceFilter && c.serviceType !== serviceFilter) return false;
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      if (!c.name.toLowerCase().includes(q) && !c.coach.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
   const groupedDates = Array.from(
     new Set(filteredClasses.map(c => c.sessionDate ?? ""))
   ).filter(Boolean).sort();
@@ -493,7 +515,8 @@ export default function AdminClassesPage() {
       </div>
 
       {/* ─── Filter bar ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 mb-6 px-4 py-3 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+      <div className="space-y-2 mb-6">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
         {/* Week navigation */}
         <div className="flex items-center gap-1">
           <button
@@ -542,20 +565,75 @@ export default function AdminClassesPage() {
         </div>
       </div>
 
+      {/* Search + coach + service type */}
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+        <input
+          type="text"
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          placeholder="Buscar por clase o coach..."
+          className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40 flex-1 min-w-[180px]"
+          style={{ background: "var(--card-border)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}
+        />
+        <select
+          value={coachFilter}
+          onChange={e => setCoachFilter(e.target.value)}
+          className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
+          style={{ background: "var(--card-border)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+        >
+          <option value="">Todos los coaches</option>
+          {coaches.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        <select
+          value={serviceFilter}
+          onChange={e => setServiceFilter(e.target.value as ServiceType | "")}
+          className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
+          style={{ background: "var(--card-border)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+        >
+          <option value="">Todos los tipos</option>
+          <option value="group">Grupal</option>
+          <option value="personal_training">Entrenamiento personal</option>
+          <option value="kinesiology">Kinesiología</option>
+          <option value="blocked_time">Bloqueo de horario</option>
+        </select>
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-white/5"
+            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+      </div>
+
       {loading ? (
         <div className="text-center py-20" style={{ color: "var(--text-secondary)" }}>Cargando clases...</div>
       ) : groupedDates.length === 0 ? (
         <div className="text-center py-16 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
-          <p className="text-sm font-medium">No hay clases para esta semana</p>
-          {(weekOffset !== 0 || statusFilter !== "all") && (
+          <p className="text-sm font-medium">
+            {hasActiveFilters
+              ? "No encontramos clases con esos filtros en esta semana."
+              : "No hay clases para esta semana"}
+          </p>
+          {hasActiveFilters ? (
             <button
-              onClick={() => { setWeekOffset(0); setStatusFilter("all"); }}
+              onClick={clearFilters}
+              className="mt-3 text-xs font-medium"
+              style={{ color: "#4fc3f7" }}
+            >
+              Limpiar filtros
+            </button>
+          ) : weekOffset !== 0 ? (
+            <button
+              onClick={() => setWeekOffset(0)}
               className="mt-3 text-xs font-medium"
               style={{ color: "#4fc3f7" }}
             >
               Ver semana actual
             </button>
-          )}
+          ) : null}
         </div>
       ) : (
         <div className="space-y-8">

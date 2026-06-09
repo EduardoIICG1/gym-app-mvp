@@ -38,6 +38,7 @@ async function fetchSessions(from: Date, to?: Date) {
       _count: {
         select: {
           bookings: { where: { status: { notIn: ["CANCELLED", "WAITLISTED"] } } },
+          invitations: { where: { status: "PENDING" } },
         },
       },
     },
@@ -99,6 +100,7 @@ function toGymClass(s: SessionRow): GymClassResponse {
     sessionDate: s.startsAt.toISOString().slice(0, 10),
     programId: prog.id,
     seriesCount: prog._count.sessions,
+    pendingInvitationsCount: s._count.invitations,
     // Backward compat for /classes page (uses capacity/reserved field names)
     capacity: maxCapacity,
     reserved: reservedCount,
@@ -211,6 +213,7 @@ export async function POST(request: Request) {
         _count: {
           select: {
             bookings: { where: { status: { notIn: ["CANCELLED", "WAITLISTED"] } } },
+            invitations: { where: { status: "PENDING" } },
           },
         },
       },

@@ -32,6 +32,7 @@ export interface GymClass {
   sessionDate?: string;             // YYYY-MM-DD — exact session date returned by API
   programId?: string;               // Program this session belongs to
   seriesCount?: number;             // Non-cancelled sibling sessions count (>1 = recurring)
+  pendingInvitationsCount?: number; // ADMIN/COACH: members with a PENDING invitation
 }
 
 export interface Reservation {

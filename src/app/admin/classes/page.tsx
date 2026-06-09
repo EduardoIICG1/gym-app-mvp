@@ -885,6 +885,16 @@ export default function AdminClassesPage() {
                             {cls.status === "active" ? "Activa" : "Cancelada"}
                           </span>
 
+                          {(cls.pendingInvitationsCount ?? 0) > 0 && (
+                            <span
+                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                              style={{ background: "#a78bfa20", color: "#a78bfa" }}
+                              title={`${cls.pendingInvitationsCount} invitación${cls.pendingInvitationsCount !== 1 ? "es" : ""} pendiente${cls.pendingInvitationsCount !== 1 ? "s" : ""}`}
+                            >
+                              {cls.pendingInvitationsCount} inv.
+                            </span>
+                          )}
+
                           <div className="flex items-center gap-1 shrink-0">
                             {!isBlocked && (
                               <Link

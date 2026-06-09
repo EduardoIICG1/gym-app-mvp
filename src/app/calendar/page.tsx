@@ -1113,6 +1113,15 @@ export default function CalendarPage() {
           {!reserved && !IS_ADMIN_OR_COACH && pendingInvitedSessions.has(cls.id) && (
             <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#f59e0b20", color: "#f59e0b" }}>Invitado</span>
           )}
+          {IS_ADMIN_OR_COACH && (cls.pendingInvitationsCount ?? 0) > 0 && (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded font-semibold"
+              style={{ background: "#a78bfa20", color: "#a78bfa" }}
+              title={`${cls.pendingInvitationsCount} invitación${cls.pendingInvitationsCount !== 1 ? "es" : ""} pendiente${cls.pendingInvitationsCount !== 1 ? "s" : ""}`}
+            >
+              {cls.pendingInvitationsCount} inv.
+            </span>
+          )}
           {IS_ADMIN_OR_COACH ? null : <BookingStatusChip status={bookingStatus} />}
         </div>
         <Link

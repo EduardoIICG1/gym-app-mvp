@@ -26,16 +26,16 @@ export function Navbar() {
       className="sticky top-0 z-40 border-b backdrop-blur-sm"
       style={{ borderColor: "var(--card-border)", background: "var(--navbar-bg)" }}
     >
-      <div className="px-4 sm:px-6 h-14 flex items-center justify-between">
+      <div className="px-2 sm:px-6 h-14 flex items-center justify-between gap-1">
         {/* Logo — visible on mobile only (desktop uses sidebar logo) */}
-        <Link href="/" className="flex items-center gap-2.5 shrink-0 lg:hidden">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0 min-w-0 lg:hidden">
           <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
+            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
             style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e, #f97316)" }}
           >
             <span className="text-white font-bold text-sm" style={{ fontFamily: "var(--font-display)" }}>P</span>
           </div>
-          <span className="font-bold text-sm" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
+          <span className="font-bold text-sm hidden sm:block truncate" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
             Primary Performance
           </span>
         </Link>
@@ -43,7 +43,7 @@ export function Navbar() {
         {/* Spacer on desktop */}
         <div className="hidden lg:block" />
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
           {/* Font size controls */}
           <button
             onClick={decrease}
@@ -80,7 +80,7 @@ export function Navbar() {
           {/* Profile avatar */}
           <Link
             href={["admin", "coach", "kinesiologist"].includes(activeUser.role) ? "/staff-profile" : "/profile"}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg nav-icon-btn"
+            className="flex items-center gap-2 px-1.5 sm:px-2.5 py-1.5 rounded-lg nav-icon-btn"
             style={pathname.startsWith("/profile") || pathname.startsWith("/staff-profile") ? { background: "rgba(255,255,255,0.06)" } : {}}
           >
             <div
@@ -98,7 +98,7 @@ export function Navbar() {
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
             title="Cerrar sesión"
-            className="flex items-center justify-center w-8 h-8 rounded-lg nav-icon-btn"
+            className="flex items-center justify-center w-8 h-8 rounded-lg nav-icon-btn shrink-0"
             style={{ color: "var(--text-secondary)" }}
           >
             <LogOut className="w-4 h-4" />

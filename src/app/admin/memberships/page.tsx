@@ -386,17 +386,19 @@ export default function MembershipsPage() {
               transition={{ duration: 0.25 }}
             >
               {/* Group header */}
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
                   style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
                 >
                   {initials(group.studentName)}
                 </div>
-                <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{group.studentName}</span>
-                <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>{group.studentEmail}</span>
+                <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+                  <span className="font-semibold text-sm truncate min-w-0" style={{ color: "var(--text-primary)" }}>{group.studentName}</span>
+                  <span className="text-xs truncate min-w-0 hidden sm:inline" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>{group.studentEmail}</span>
+                </div>
                 {group.memberships.length > 1 && (
-                  <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                  <span className="text-xs px-1.5 py-0.5 rounded font-medium shrink-0" style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
                     {group.memberships.length} servicios
                   </span>
                 )}

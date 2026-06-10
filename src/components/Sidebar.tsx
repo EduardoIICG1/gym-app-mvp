@@ -158,8 +158,8 @@ export function Sidebar() {
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
       <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-sm"
-        style={{ borderColor: "var(--card-border)", background: "rgba(17,17,20,0.95)" }}
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-sm w-full"
+        style={{ borderColor: "var(--card-border)", background: "rgba(17,17,20,0.95)", paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="flex items-center justify-around px-1 h-16">
           {visibleItems.slice(0, 5).map((item) => {
@@ -169,11 +169,11 @@ export function Sidebar() {
               <Link
                 key={item.path}
                 href={item.path}
-                className="flex flex-col items-center gap-0.5 px-3 py-1"
+                className="flex flex-col items-center gap-0.5 px-3 py-1 min-w-0"
               >
-                <Icon className="w-5 h-5" style={{ color: active ? accentColor : "var(--text-secondary)" }} />
+                <Icon className="w-5 h-5 shrink-0" style={{ color: active ? accentColor : "var(--text-secondary)" }} />
                 <span
-                  className="text-[10px] font-medium"
+                  className="text-[10px] font-medium truncate max-w-[4.5rem]"
                   style={{ color: active ? accentColor : "var(--text-secondary)" }}
                 >
                   {item.label}

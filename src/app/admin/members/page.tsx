@@ -288,7 +288,7 @@ export default function MembersPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
-                    className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-white/[0.02]"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-5 py-4 transition-colors hover:bg-white/[0.02]"
                     style={{ borderBottom: "1px solid var(--card-border)" }}
                   >
                     {/* Avatar */}

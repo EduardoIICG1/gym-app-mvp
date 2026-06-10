@@ -791,7 +791,7 @@ export default function Home() {
                 </p>
               ) : announcements.length === 0 ? (
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  No hay comunicados publicados
+                  Aún no hay comunicados publicados
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -1049,7 +1049,7 @@ export default function Home() {
                   </p>
                 ) : todaysClasses.length === 0 ? (
                   <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>
-                    No hay clases programadas para hoy
+                    Hoy no hay clases programadas
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -1280,7 +1280,7 @@ export default function Home() {
                 </h3>
                 {upcomingReservations.length === 0 ? (
                   <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                    Sin próximas reservas
+                    No tienes reservas próximas
                   </p>
                 ) : (
                   <div className="space-y-2">

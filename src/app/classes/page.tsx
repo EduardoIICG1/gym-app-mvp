@@ -69,7 +69,7 @@ export default function ClassesPage() {
       try {
         setLoading(true);
         const classesRes = await fetch("/api/classes");
-        if (!classesRes.ok) throw new Error("Failed to fetch classes");
+        if (!classesRes.ok) throw new Error("No pudimos cargar las clases. Intenta nuevamente.");
         const classesData = await classesRes.json();
         setClasses(classesData);
 
@@ -99,7 +99,7 @@ export default function ClassesPage() {
         }
         setError("");
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Error loading data");
+        setError(err instanceof Error ? err.message : "No pudimos cargar la información. Intenta nuevamente.");
       } finally {
         setLoading(false);
       }
@@ -128,7 +128,7 @@ export default function ClassesPage() {
       const classesData = await classesRes.json();
       setClasses(classesData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reserve");
+      setError(err instanceof Error ? err.message : "No pudimos completar la reserva. Intenta nuevamente.");
     } finally {
       setActionLoading(false);
     }
@@ -159,7 +159,7 @@ export default function ClassesPage() {
         setCancelNotice("Cancelación realizada. La sesión no será recuperada.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to cancel");
+      setError(err instanceof Error ? err.message : "No pudimos cancelar la reserva. Intenta nuevamente.");
     } finally {
       setActionLoading(false);
     }
@@ -200,7 +200,7 @@ export default function ClassesPage() {
         {/* Empty state */}
         {!loading && classes.length === 0 && !error && (
           <div className="text-center py-12">
-            <p className="text-lg" style={{ color: "var(--text-secondary)" }}>No hay clases disponibles.</p>
+            <p className="text-lg" style={{ color: "var(--text-secondary)" }}>Todavía no hay clases disponibles.</p>
           </div>
         )}
 

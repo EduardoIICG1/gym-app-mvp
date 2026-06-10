@@ -389,17 +389,48 @@ export default function MembershipsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25 }}
             >
-              {/* Group header */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+              {/* Group header — mobile: nombre prioritario + servicios como metadata secundaria */}
+              <div className="sm:hidden flex items-center gap-3 mb-3">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
+                  style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+                >
+                  {initials(group.studentName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{group.studentName}</p>
+                  <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                    {group.memberships.length} servicio{group.memberships.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => openAddServiceForGroup(group.studentId)}
+                    className="p-2 rounded-lg transition-opacity hover:opacity-80"
+                    style={{ background: "#22c55e10", color: "#22c55e", border: "1px solid #22c55e20" }}
+                    title="Añadir servicio"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <Link href={`/profile?userId=${group.studentId}`}
+                    className="text-xs px-2.5 py-2 rounded-lg transition-colors hover:bg-white/5 font-medium"
+                    style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                    Perfil
+                  </Link>
+                </div>
+              </div>
+
+              {/* Group header — desktop */}
+              <div className="hidden sm:flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
                   style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
                 >
                   {initials(group.studentName)}
                 </div>
-                <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-initial">
+                <div className="flex items-center gap-2 min-w-0 flex-initial">
                   <span className="font-semibold text-sm truncate min-w-0" style={{ color: "var(--text-primary)" }}>{group.studentName}</span>
-                  <span className="text-xs truncate min-w-0 hidden sm:inline" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>{group.studentEmail}</span>
+                  <span className="text-xs truncate min-w-0" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>{group.studentEmail}</span>
                 </div>
                 {group.memberships.length > 1 && (
                   <span className="text-xs px-1.5 py-0.5 rounded font-medium shrink-0" style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
@@ -409,18 +440,16 @@ export default function MembershipsPage() {
                 <div className="ml-auto flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => openAddServiceForGroup(group.studentId)}
-                    className="text-xs px-2 sm:px-3 py-1 rounded-lg transition-opacity hover:opacity-80 font-medium"
+                    className="text-xs px-3 py-1 rounded-lg transition-opacity hover:opacity-80 font-medium"
                     style={{ background: "#22c55e10", color: "#22c55e", border: "1px solid #22c55e20" }}
                     title="Añadir servicio"
                   >
-                    <Plus className="w-3.5 h-3.5 sm:hidden" />
-                    <span className="hidden sm:inline">+ Añadir servicio</span>
+                    + Añadir servicio
                   </button>
                   <Link href={`/profile?userId=${group.studentId}`}
                     className="text-xs transition-colors hover:opacity-80"
                     style={{ color: "#4fc3f7" }}>
-                    <span className="sm:hidden">Perfil</span>
-                    <span className="hidden sm:inline">Ver perfil →</span>
+                    Ver perfil →
                   </Link>
                 </div>
               </div>
@@ -438,87 +467,131 @@ export default function MembershipsPage() {
                   return (
                     <div
                       key={m.id}
-                      className="rounded-xl p-4 border transition-colors"
+                      onClick={() => openEdit(m)}
+                      className="rounded-xl p-4 border transition-colors cursor-pointer hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                       style={{
                         background: "var(--card)",
                         borderColor: isExpiringSoon ? "#f59e0b50" : "var(--card-border)",
                       }}
                     >
-                      {/* Header: servicio + plan + estado */}
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                          <ServiceBadge type={m.serviceType} />
-                          <span className="text-xs font-medium truncate" style={{ color: "var(--text-secondary)" }}>
-                            {PLAN_LABELS[m.plan]}
-                          </span>
-                          {m.grantType && m.grantType !== "purchased" && GRANT_BADGE[m.grantType] && (
-                            <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
-                              style={{ background: GRANT_BADGE[m.grantType].bg, color: GRANT_BADGE[m.grantType].color }}>
-                              {GRANT_TYPE_LABELS[m.grantType] ?? m.grantType}
+                      {/* Desktop: header servicio+plan+estado + detalle completo */}
+                      <div className="hidden sm:block">
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <ServiceBadge type={m.serviceType} />
+                            <span className="text-xs font-medium truncate" style={{ color: "var(--text-secondary)" }}>
+                              {PLAN_LABELS[m.plan]}
                             </span>
-                          )}
-                        </div>
-                        <MembershipBadge status={m.membershipStatus} />
-                      </div>
-
-                      <div className="space-y-2 text-xs mb-3">
-                        {/* Vigencia */}
-                        <div>
-                          <div className="flex justify-between items-center gap-2">
-                            <span style={{ color: "var(--text-primary)" }}>{formatDate(m.startDate)} – {formatDate(m.endDate)}</span>
-                            {m.membershipStatus === "active" && days >= 0 && (
-                              <span className="font-medium shrink-0" style={{ color: isExpiringSoon ? "#f59e0b" : "var(--text-secondary)" }}>
-                                {days === 0 ? "Vence hoy" : `${days}d restantes`}
-                              </span>
-                            )}
-                            {m.membershipStatus === "expired" && (
-                              <span className="font-medium shrink-0" style={{ color: "#ef4444" }}>
-                                Venció hace {Math.abs(days)}d
+                            {m.grantType && m.grantType !== "purchased" && GRANT_BADGE[m.grantType] && (
+                              <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                                style={{ background: GRANT_BADGE[m.grantType].bg, color: GRANT_BADGE[m.grantType].color }}>
+                                {GRANT_TYPE_LABELS[m.grantType] ?? m.grantType}
                               </span>
                             )}
                           </div>
-                          {m.membershipStatus === "active" && days > 0 && (
-                            <div className="w-full rounded-full h-1.5 overflow-hidden mt-1.5" style={{ background: "var(--card-border)" }}>
-                              <motion.div
-                                className="h-full rounded-full"
-                                style={{ backgroundColor: isExpiringSoon ? "#f59e0b" : "#22c55e" }}
-                                initial={{ width: 0 }}
-                                animate={{ width: `${pct}%` }}
-                                transition={{ duration: 0.6, ease: "easeOut" }}
-                              />
+                          <MembershipBadge status={m.membershipStatus} />
+                        </div>
+
+                        <div className="space-y-2 text-xs mb-3">
+                          {/* Vigencia */}
+                          <div>
+                            <div className="flex justify-between items-center gap-2">
+                              <span style={{ color: "var(--text-primary)" }}>{formatDate(m.startDate)} – {formatDate(m.endDate)}</span>
+                              {m.membershipStatus === "active" && days >= 0 && (
+                                <span className="font-medium shrink-0" style={{ color: isExpiringSoon ? "#f59e0b" : "var(--text-secondary)" }}>
+                                  {days === 0 ? "Vence hoy" : `${days}d restantes`}
+                                </span>
+                              )}
+                              {m.membershipStatus === "expired" && (
+                                <span className="font-medium shrink-0" style={{ color: "#ef4444" }}>
+                                  Venció hace {Math.abs(days)}d
+                                </span>
+                              )}
+                            </div>
+                            {m.membershipStatus === "active" && days > 0 && (
+                              <div className="w-full rounded-full h-1.5 overflow-hidden mt-1.5" style={{ background: "var(--card-border)" }}>
+                                <motion.div
+                                  className="h-full rounded-full"
+                                  style={{ backgroundColor: isExpiringSoon ? "#f59e0b" : "#22c55e" }}
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${pct}%` }}
+                                  transition={{ duration: 0.6, ease: "easeOut" }}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Sesiones */}
+                          {m.totalSessions != null && (
+                            <div className="flex justify-between">
+                              <span style={{ color: "var(--text-secondary)" }}>Sesiones</span>
+                              <span style={{ color: (m.usedSessions ?? 0) >= m.totalSessions ? "#ef4444" : "var(--text-primary)" }}>
+                                {m.usedSessions ?? 0} / {m.totalSessions} usadas
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Pago */}
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold" style={{ color: "var(--text-primary)" }}>${m.amount.toLocaleString()}</span>
+                            <PaymentBadge status={m.paymentStatus} />
+                          </div>
+
+                          {m.coachName && (
+                            <div className="flex justify-between">
+                              <span style={{ color: "var(--text-secondary)" }}>Profesional</span>
+                              <span className="truncate ml-2" style={{ color: "var(--text-primary)" }}>{m.coachName}</span>
                             </div>
                           )}
                         </div>
+                      </div>
 
-                        {/* Sesiones */}
-                        {m.totalSessions != null && (
-                          <div className="flex justify-between">
-                            <span style={{ color: "var(--text-secondary)" }}>Sesiones</span>
-                            <span style={{ color: (m.usedSessions ?? 0) >= m.totalSessions ? "#ef4444" : "var(--text-primary)" }}>
-                              {m.usedSessions ?? 0} / {m.totalSessions} usadas
-                            </span>
+                      {/* Mobile: jerarquía compacta — servicio/estado → vigencia → sesiones → pago */}
+                      <div className="sm:hidden space-y-1.5 mb-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <ServiceBadge type={m.serviceType} />
+                            {m.grantType && m.grantType !== "purchased" && GRANT_BADGE[m.grantType] && (
+                              <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                                style={{ background: GRANT_BADGE[m.grantType].bg, color: GRANT_BADGE[m.grantType].color }}>
+                                {GRANT_TYPE_LABELS[m.grantType] ?? m.grantType}
+                              </span>
+                            )}
                           </div>
-                        )}
-
-                        {/* Pago */}
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold" style={{ color: "var(--text-primary)" }}>${m.amount.toLocaleString()}</span>
-                          <PaymentBadge status={m.paymentStatus} />
+                          <MembershipBadge status={m.membershipStatus} />
                         </div>
 
-                        {m.coachName && (
-                          <div className="flex justify-between">
-                            <span style={{ color: "var(--text-secondary)" }}>Profesional</span>
-                            <span className="truncate ml-2" style={{ color: "var(--text-primary)" }}>{m.coachName}</span>
-                          </div>
+                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                          {formatDate(m.startDate)}–{formatDate(m.endDate)}
+                          {m.membershipStatus === "active" && days >= 0 && (
+                            <span className="font-medium" style={{ color: isExpiringSoon ? "#f59e0b" : "var(--text-secondary)" }}>
+                              {" · "}{days === 0 ? "Vence hoy" : `${days}d restantes`}
+                            </span>
+                          )}
+                          {m.membershipStatus === "expired" && (
+                            <span className="font-medium" style={{ color: "#ef4444" }}>
+                              {" · "}Venció hace {Math.abs(days)}d
+                            </span>
+                          )}
+                        </p>
+
+                        {m.totalSessions != null && (
+                          <p className="text-xs" style={{ color: (m.usedSessions ?? 0) >= m.totalSessions ? "#ef4444" : "var(--text-secondary)" }}>
+                            {m.usedSessions ?? 0}/{m.totalSessions} usadas
+                          </p>
                         )}
+
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>${m.amount.toLocaleString()}</span>
+                          <PaymentBadge status={m.paymentStatus} />
+                        </div>
                       </div>
 
                       {m.notes && <p className="text-xs mb-3 italic" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{m.notes}</p>}
                       {m.grantReason && <p className="text-xs mb-3 italic" style={{ color: "var(--text-muted)" }}>Motivo: {m.grantReason}</p>}
 
                       {renewableIds.has(m.id) ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => openRenew(m)}
                             className="flex-1 text-xs py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
@@ -537,7 +610,7 @@ export default function MembershipsPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => openEdit(m)}
+                          onClick={(e) => { e.stopPropagation(); openEdit(m); }}
                           className="w-full text-xs py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
                           style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
                         >

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { Plus, Search, UserPlus } from "lucide-react";
+import { Plus, Search, UserPlus, ClipboardCheck } from "lucide-react";
 import {
   Member, MemberRole, MemberStatus, ServiceType,
   MembershipPlan, MembershipStatus, PaymentStatus,
@@ -72,6 +72,7 @@ export default function MembersPage() {
   const currentUser = useCurrentUser();
   const [members, setMembers] = useState<Member[]>([]);
   const [activeCountMap, setActiveCountMap] = useState<Record<string, number>>({});
+  const [healthRecordIds, setHealthRecordIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<MemberRole | "all">("all");
@@ -113,6 +114,16 @@ export default function MembersPage() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    if (currentUser.role !== "admin" && currentUser.role !== "kinesiologist") return;
+    fetch("/api/health/patients")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((patients: { id: string; hasRecord?: boolean }[]) => {
+        setHealthRecordIds(new Set(patients.filter((p) => p.hasRecord).map((p) => p.id)));
+      })
+      .catch(() => {});
+  }, [currentUser.role]);
 
   const filtered = members.filter((m) => {
     if (filterRole !== "all" && !m.roles.includes(filterRole)) return false;
@@ -310,7 +321,12 @@ export default function MembersPage() {
 
                       {/* Name + email */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</p>
+                        <p className="text-sm font-semibold truncate flex items-center gap-1.5" style={{ color: "var(--text-primary)" }}>
+                          {m.name}
+                          {healthRecordIds.has(m.id) && (
+                            <ClipboardCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#10b981" }} aria-label="Tiene ficha clínica" />
+                          )}
+                        </p>
                         <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{m.email}</p>
                       </div>
 
@@ -379,7 +395,12 @@ export default function MembersPage() {
                     {/* Mobile card (below sm) — name-first hierarchy, whole card tappable */}
                     <div className="sm:hidden flex flex-col gap-2 px-4 py-3">
                       {/* Línea 1: nombre */}
-                      <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{m.name}</p>
+                      <p className="text-sm font-semibold leading-snug flex items-center gap-1.5" style={{ color: "var(--text-primary)" }}>
+                        {m.name}
+                        {healthRecordIds.has(m.id) && (
+                          <ClipboardCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#10b981" }} aria-label="Tiene ficha clínica" />
+                        )}
+                      </p>
 
                       {/* Línea 2: email */}
                       <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{m.email}</p>

@@ -1059,7 +1059,7 @@ export default function Home() {
                       return (
                         <div
                           key={cls.id}
-                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          onClick={() => router.push(`/classes/${cls.id}?from=home`)}
                           className="p-3 rounded-xl border cursor-pointer transition-colors hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                           style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
                         >
@@ -1102,7 +1102,7 @@ export default function Home() {
                       {upcomingClasses.map(cls => (
                         <div
                           key={cls.id}
-                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          onClick={() => router.push(`/classes/${cls.id}?from=home`)}
                           className="flex items-center gap-2 -mx-2 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.05]"
                         >
                           <div
@@ -1391,7 +1391,7 @@ export default function Home() {
                       return (
                         <div
                           key={cls.id}
-                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          onClick={() => router.push(`/classes/${cls.id}?from=home`)}
                           className="p-3 rounded-xl border cursor-pointer transition-colors hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                           style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
                         >
@@ -1420,7 +1420,7 @@ export default function Home() {
                           </div>
                           <div className="mt-2 text-right">
                             <Link
-                              href={`/classes/${cls.id}?from=classes`}
+                              href={`/classes/${cls.id}?from=home`}
                               onClick={(e) => e.stopPropagation()}
                               className="text-xs hover:underline font-medium"
                               style={{ color: "#4fc3f7" }}
@@ -1443,7 +1443,7 @@ export default function Home() {
                       {coachUpcomingClasses.map(cls => (
                         <div
                           key={cls.id}
-                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          onClick={() => router.push(`/classes/${cls.id}?from=home`)}
                           className="flex items-center justify-between gap-2 p-2.5 rounded-xl border cursor-pointer transition-colors hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                           style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
                         >

@@ -50,6 +50,15 @@ export async function GET(request: Request) {
       })
     : [];
 
+  // Get patients that already have a HealthRecord (clinical file)
+  const records = patientIds.length
+    ? await prisma.healthRecord.findMany({
+        where: { patientId: { in: patientIds } },
+        select: { patientId: true },
+      })
+    : [];
+  const recordPatientIds = new Set(records.map((r) => r.patientId));
+
   // Get active KINESIOLOGY memberships
   const memberships = patientIds.length
     ? await prisma.membership.findMany({
@@ -74,6 +83,7 @@ export async function GET(request: Request) {
       rut: r.member.rut ?? null,
       kinesiologistId: r.coachId,
       kinesiologistName: r.coach.name ?? "",
+      hasRecord: recordPatientIds.has(r.memberId),
       activeRestrictions: patientRestrictions.map((x) => ({ label: x.label, severity: x.severity.toLowerCase() })),
       lastSessionDate: lastSession?.sessionDate?.toISOString().slice(0, 10) ?? null,
       membership: membership

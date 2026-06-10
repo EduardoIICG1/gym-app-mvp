@@ -295,82 +295,146 @@ export default function MembersPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
                     onClick={() => router.push(`/profile?userId=${m.id}`)}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-5 py-4 transition-colors hover:bg-white/[0.02] active:bg-white/[0.04] cursor-pointer"
+                    className="transition-colors hover:bg-white/[0.02] active:bg-white/[0.04] cursor-pointer"
                     style={{ borderBottom: "1px solid var(--card-border)" }}
                   >
-                    {/* Avatar */}
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
-                      style={{ background: `${accentColor}30`, color: accentColor }}
-                    >
-                      {initials(m.name)}
-                    </div>
-
-                    {/* Name + email */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</p>
-                      <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{m.email}</p>
-                    </div>
-
-                    {/* Role + Status */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <RoleBadge role={m.roles[0]} />
-                      <span
-                        className="text-xs px-2 py-0.5 rounded font-semibold"
-                        style={m.status === "active"
-                          ? { background: "#22c55e20", color: "#22c55e" }
-                          : { background: "#71717a20", color: "#71717a" }}
+                    {/* Desktop row (sm and up) — unchanged layout */}
+                    <div className="hidden sm:flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-4">
+                      {/* Avatar */}
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0"
+                        style={{ background: `${accentColor}30`, color: accentColor }}
                       >
-                        {m.status === "active" ? "Activo" : "Inactivo"}
-                      </span>
+                        {initials(m.name)}
+                      </div>
+
+                      {/* Name + email */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</p>
+                        <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{m.email}</p>
+                      </div>
+
+                      {/* Role + Status */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <RoleBadge role={m.roles[0]} />
+                        <span
+                          className="text-xs px-2 py-0.5 rounded font-semibold"
+                          style={m.status === "active"
+                            ? { background: "#22c55e20", color: "#22c55e" }
+                            : { background: "#71717a20", color: "#71717a" }}
+                        >
+                          {m.status === "active" ? "Activo" : "Inactivo"}
+                        </span>
+                      </div>
+
+                      {/* Active services */}
+                      {!m.roles.includes("coach") ? (
+                        <div className="hidden md:flex flex-col gap-0.5 shrink-0 min-w-[120px]">
+                          {activeCount > 0 ? (
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium w-fit" style={{ background: "#22c55e15", color: "#22c55e" }}>
+                              {activeCount} activo{activeCount !== 1 ? "s" : ""}
+                            </span>
+                          ) : (
+                            <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>Sin servicios activos</span>
+                          )}
+                          {m.assignedCoachName && (
+                            <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Coach: {m.assignedCoachName}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="hidden md:block min-w-[120px] shrink-0" />
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/profile?userId=${m.id}`}
+                          className="text-xs px-2 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+                          style={{ color: "var(--text-secondary)" }}>
+                          Perfil
+                        </Link>
+                        {m.contractedServices.includes("kinesiology") && (
+                          <Link href={`/health/patients/${m.id}`}
+                            className="text-xs px-2 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+                            style={{ color: "#10b981" }}>
+                            Ficha
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => openAddService(m)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80 font-medium"
+                          style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e20" }}
+                        >
+                          <Plus className="w-3 h-3 inline mr-1" />Servicio
+                        </button>
+                        <button
+                          onClick={() => openEdit(m)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
+                          style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                        >
+                          Editar
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Active services */}
-                    {!m.roles.includes("coach") ? (
-                      <div className="hidden md:flex flex-col gap-0.5 shrink-0 min-w-[120px]">
-                        {activeCount > 0 ? (
-                          <span className="text-xs px-1.5 py-0.5 rounded font-medium w-fit" style={{ background: "#22c55e15", color: "#22c55e" }}>
-                            {activeCount} activo{activeCount !== 1 ? "s" : ""}
-                          </span>
-                        ) : (
-                          <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>Sin servicios activos</span>
-                        )}
-                        {m.assignedCoachName && (
-                          <p className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>Coach: {m.assignedCoachName}</p>
+                    {/* Mobile card (below sm) — name-first hierarchy, whole card tappable */}
+                    <div className="sm:hidden flex flex-col gap-2 px-4 py-3">
+                      {/* Línea 1: nombre */}
+                      <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{m.name}</p>
+
+                      {/* Línea 2: email */}
+                      <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{m.email}</p>
+
+                      {/* Línea 3: rol + estado + servicios activos como chips */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <RoleBadge role={m.roles[0]} />
+                        <span
+                          className="text-xs px-2 py-0.5 rounded font-semibold"
+                          style={m.status === "active"
+                            ? { background: "#22c55e20", color: "#22c55e" }
+                            : { background: "#71717a20", color: "#71717a" }}
+                        >
+                          {m.status === "active" ? "Activo" : "Inactivo"}
+                        </span>
+                        {!m.roles.includes("coach") && (
+                          activeCount > 0 ? (
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: "#22c55e15", color: "#22c55e" }}>
+                              {activeCount} servicio{activeCount !== 1 ? "s" : ""} activo{activeCount !== 1 ? "s" : ""}
+                            </span>
+                          ) : (
+                            <span className="text-xs" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>Sin servicios activos</span>
+                          )
                         )}
                       </div>
-                    ) : (
-                      <div className="hidden md:block min-w-[120px] shrink-0" />
-                    )}
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/profile?userId=${m.id}`}
-                        className="text-xs px-2 py-1.5 rounded-lg transition-colors hover:bg-white/5"
-                        style={{ color: "var(--text-secondary)" }}>
-                        Perfil
-                      </Link>
-                      {m.contractedServices.includes("kinesiology") && (
-                        <Link href={`/health/patients/${m.id}`}
-                          className="text-xs px-2 py-1.5 rounded-lg transition-colors hover:bg-white/5"
-                          style={{ color: "#10b981" }}>
-                          Ficha
+                      {/* Línea 4: acciones */}
+                      <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/profile?userId=${m.id}`}
+                          className="text-xs px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+                          style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}>
+                          Perfil
                         </Link>
-                      )}
-                      <button
-                        onClick={() => openAddService(m)}
-                        className="text-xs px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80 font-medium"
-                        style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e20" }}
-                      >
-                        <Plus className="w-3 h-3 inline mr-1" />Servicio
-                      </button>
-                      <button
-                        onClick={() => openEdit(m)}
-                        className="text-xs px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
-                        style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
-                      >
-                        Editar
-                      </button>
+                        {m.contractedServices.includes("kinesiology") && (
+                          <Link href={`/health/patients/${m.id}`}
+                            className="text-xs px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+                            style={{ background: "#10b98115", color: "#10b981" }}>
+                            Ficha
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => openAddService(m)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80 font-medium"
+                          style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e20" }}
+                        >
+                          <Plus className="w-3 h-3 inline mr-1" />Servicio
+                        </button>
+                        <button
+                          onClick={() => openEdit(m)}
+                          className="text-xs px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
+                          style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                        >
+                          Editar
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );

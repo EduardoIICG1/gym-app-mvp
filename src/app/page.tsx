@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { Users, TrendingUp, BookOpen, Clock } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
@@ -260,6 +261,7 @@ function formatAnnDate(iso: string): string {
 }
 
 export default function Home() {
+  const router = useRouter();
   const activeUser = useCurrentUser();
   const [mounted, setMounted] = useState(false);
   const [classes, setClasses] = useState<HomeClass[]>([]);
@@ -1057,7 +1059,8 @@ export default function Home() {
                       return (
                         <div
                           key={cls.id}
-                          className="p-3 rounded-xl border"
+                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          className="p-3 rounded-xl border cursor-pointer transition-colors hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                           style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
                         >
                           <div className="flex items-start justify-between mb-2">
@@ -1097,7 +1100,11 @@ export default function Home() {
                     </p>
                     <div className="space-y-2">
                       {upcomingClasses.map(cls => (
-                        <div key={cls.id} className="flex items-center gap-2">
+                        <div
+                          key={cls.id}
+                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          className="flex items-center gap-2 -mx-2 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.05]"
+                        >
                           <div
                             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
                             style={{ background: "#4fc3f720", color: "#4fc3f7" }}
@@ -1384,7 +1391,8 @@ export default function Home() {
                       return (
                         <div
                           key={cls.id}
-                          className="p-3 rounded-xl border"
+                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          className="p-3 rounded-xl border cursor-pointer transition-colors hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                           style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
                         >
                           <div className="flex items-start justify-between mb-2">
@@ -1413,6 +1421,7 @@ export default function Home() {
                           <div className="mt-2 text-right">
                             <Link
                               href={`/classes/${cls.id}?from=classes`}
+                              onClick={(e) => e.stopPropagation()}
                               className="text-xs hover:underline font-medium"
                               style={{ color: "#4fc3f7" }}
                             >
@@ -1434,11 +1443,12 @@ export default function Home() {
                       {coachUpcomingClasses.map(cls => (
                         <div
                           key={cls.id}
-                          className="flex items-center justify-between p-2.5 rounded-xl border"
+                          onClick={() => router.push(`/classes/${cls.id}?from=classes`)}
+                          className="flex items-center justify-between gap-2 p-2.5 rounded-xl border cursor-pointer transition-colors hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                           style={{ background: "var(--background)", borderColor: "var(--card-border)" }}
                         >
-                          <div>
-                            <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{cls.name}</p>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold truncate" style={{ color: "var(--text-primary)" }}>{cls.name}</p>
                             <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                               {cls.sessionDate} · {cls.startTime}
                             </p>
@@ -1446,13 +1456,6 @@ export default function Home() {
                           <span className="text-xs shrink-0" style={{ color: "var(--text-secondary)" }}>
                             {cls.reserved}/{cls.capacity}
                           </span>
-                          <Link
-                            href={`/classes/${cls.id}?from=classes`}
-                            className="text-xs hover:underline font-medium shrink-0"
-                            style={{ color: "#4fc3f7" }}
-                          >
-                            Ver →
-                          </Link>
                         </div>
                       ))}
                     </div>

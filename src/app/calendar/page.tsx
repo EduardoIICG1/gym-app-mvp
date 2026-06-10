@@ -439,7 +439,7 @@ function ManageModal({
           {enrolledLoading ? (
             <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>Cargando...</p>
           ) : enrolled.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>Sin reservas para este día</p>
+            <p className="text-sm text-center py-4" style={{ color: "var(--text-secondary)" }}>Aún no hay reservas para este día</p>
           ) : (
             <div className="space-y-2">
               {enrolled.map(r => {
@@ -1285,8 +1285,8 @@ export default function CalendarPage() {
         </div>
       ) : memberHasNoMemberships ? (
         <div className="rounded-xl p-8 text-center border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-          <p className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Sin membresías activas</p>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>No tienes membresías activas. Contacta a administración.</p>
+          <p className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Aún no tienes membresías activas</p>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Contacta a administración para activar tu membresía.</p>
         </div>
       ) : (
         <>
@@ -1321,7 +1321,7 @@ export default function CalendarPage() {
                   </button>
                 ) : (
                   <p className="text-center py-8 text-sm" style={{ color: "var(--text-secondary)" }}>
-                    {hasActiveFilters ? "Sin resultados" : "Sin clases este día"}
+                    {hasActiveFilters ? "Sin resultados para estos filtros" : "No hay clases programadas este día"}
                   </p>
                 )
               ) : (

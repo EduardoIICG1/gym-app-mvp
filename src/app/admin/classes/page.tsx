@@ -852,7 +852,7 @@ export default function AdminClassesPage() {
           <p className="text-sm font-medium">
             {hasActiveFilters
               ? "No encontramos clases con esos filtros en esta semana."
-              : "No hay clases para esta semana"}
+              : "Todavía no hay clases programadas para esta semana"}
           </p>
           {hasActiveFilters ? (
             <button
@@ -1580,7 +1580,7 @@ export default function AdminClassesPage() {
                               {sessionInvitationsLoading[s.id] ? (
                                 <p className="text-xs py-2" style={{ color: "var(--text-secondary)" }}>Cargando invitados...</p>
                               ) : (sessionInvitations[s.id]?.length ?? 0) === 0 ? (
-                                <p className="text-xs py-2" style={{ color: "var(--text-secondary)" }}>Sin invitaciones registradas</p>
+                                <p className="text-xs py-2" style={{ color: "var(--text-secondary)" }}>Aún no hay invitaciones registradas</p>
                               ) : (
                                 <div className="space-y-1 pt-2">
                                   {sessionInvitations[s.id].map((inv) => (

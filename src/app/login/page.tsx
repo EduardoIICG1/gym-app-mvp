@@ -17,21 +17,6 @@ function SportCurve() {
   );
 }
 
-function FeaturePill({ label }: { label: string }) {
-  return (
-    <span
-      className="text-[11px] font-semibold tracking-wide px-3.5 py-1 rounded-full"
-      style={{
-        background: "rgba(74,159,213,0.09)",
-        border: "1px solid rgba(74,159,213,0.2)",
-        color: BRAND.accent,
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
 export default async function LoginPage({
   searchParams,
 }: {
@@ -113,12 +98,6 @@ export default async function LoginPage({
           <p className="text-[13px] sm:text-sm leading-relaxed" style={{ color: "#7e8fa4" }}>
             {BRAND.loginSubtitle}
           </p>
-        </div>
-
-        <div className="flex gap-2 flex-wrap justify-center">
-          {BRAND.loginPills.map((label) => (
-            <FeaturePill key={label} label={label} />
-          ))}
         </div>
 
         <div className="w-full h-px" style={{ background: "rgba(255,255,255,0.08)" }} />

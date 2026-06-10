@@ -118,6 +118,10 @@ function getDayNameFromISO(isoDate: string): string {
 
 const MONTHS_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 
+function coachInitials(name: string): string {
+  return name.trim().split(/\s+/).map(p => p[0] ?? "").join("").toUpperCase().slice(0, 2) || "?";
+}
+
 function invStatusStyle(status: string): React.CSSProperties {
   switch (status) {
     case "PENDING":   return { background: "#a78bfa20", color: "#a78bfa" };
@@ -1355,27 +1359,41 @@ export default function AdminClassesPage() {
                             opacity: s.status === "cancelled" ? 0.6 : 1,
                           }}
                         >
-                          <div className="flex items-center gap-3 px-3 py-2.5">
-                            <span className="w-24 shrink-0 font-medium" style={{ color: "var(--text-primary)" }}>{toDisplayDate(s.sessionDate)}</span>
-                            <span className="w-28 shrink-0" style={{ color: "var(--text-secondary)" }}>{s.startTime}–{s.endTime}</span>
-                            <span className="flex-1 min-w-0 truncate" style={{ color: "var(--text-secondary)" }}>{s.coachName}</span>
+                          <div className="flex items-center gap-2 px-3 py-2">
+                            {/* Estado — punto de color compacto */}
                             <span
-                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
-                              style={s.status === "active"
-                                ? { background: "#22c55e20", color: "#22c55e" }
-                                : { background: "#ef444420", color: "#ef4444" }}
-                            >
-                              {s.status === "active" ? "Activa" : "Cancelada"}
-                            </span>
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ background: s.status === "active" ? "#22c55e" : "#ef4444" }}
+                              title={s.status === "active" ? "Activa" : "Cancelada"}
+                            />
+                            {/* Fecha + hora en 2 líneas */}
+                            <div className="shrink-0 w-24">
+                              <p className="text-xs font-medium leading-tight" style={{ color: "var(--text-primary)" }}>{toDisplayDate(s.sessionDate)}</p>
+                              <p className="text-xs leading-tight" style={{ color: "var(--text-secondary)" }}>{s.startTime}–{s.endTime}</p>
+                            </div>
+                            {/* Coach: solo si varía en la serie → iniciales con tooltip */}
+                            {seriesDetail.coachVaries && (
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded font-semibold shrink-0"
+                                style={{ background: "var(--card-border)", color: "var(--text-secondary)", fontFamily: "monospace" }}
+                                title={s.coachName}
+                              >
+                                {coachInitials(s.coachName)}
+                              </span>
+                            )}
+                            {/* Flex spacer */}
+                            <span className="flex-1" />
+                            {/* Confirmados */}
                             <span
                               className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
                               style={s.hasActiveBookings
                                 ? { background: "#f9731620", color: "#f97316" }
                                 : { background: "var(--card-border)", color: "var(--text-secondary)" }}
-                              title={s.hasActiveBookings ? "Tiene reservas activas" : "Sin reservas activas"}
+                              title={`${s.reservedCount} confirmados de ${s.capacity} cupos`}
                             >
-                              {s.reservedCount}/{s.capacity}
+                              {s.reservedCount}/{s.capacity} conf.
                             </span>
+                            {/* Pendientes */}
                             {s.pendingCount > 0 && (
                               <button
                                 onClick={() => toggleInviteDetail(s.id)}
@@ -1384,9 +1402,9 @@ export default function AdminClassesPage() {
                                   ? { background: "#a78bfa40", color: "#a78bfa" }
                                   : { background: "#a78bfa20", color: "#a78bfa" }
                                 }
-                                title={expandedInviteSessionId === s.id ? "Ocultar invitados" : "Ver invitados"}
+                                title={expandedInviteSessionId === s.id ? "Ocultar invitados" : `${s.pendingCount} invitación${s.pendingCount !== 1 ? "es" : ""} pendiente${s.pendingCount !== 1 ? "s" : ""}`}
                               >
-                                {s.pendingCount} inv.
+                                {s.pendingCount} pend.
                               </button>
                             )}
                             {s.status === "active" && (

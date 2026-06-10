@@ -108,6 +108,8 @@ const invStatusStyle = (s: string): React.CSSProperties => {
 const BACK_MAP: Record<string, { href: string; label: string }> = {
   "admin-classes": { href: "/admin/classes", label: "← Volver a gestión" },
   "calendar":      { href: "/calendar",      label: "← Volver al calendario" },
+  "home":          { href: "/",              label: "← Volver al inicio" },
+  "classes":       { href: "/classes",       label: "← Volver a clases" },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────

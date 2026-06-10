@@ -29,6 +29,27 @@ export function ServiceBadge({ type }: { type: ServiceType | string }) {
   );
 }
 
+// ── Compact service type indicator (dot + short label) ─────────────────────
+// Lightweight alternative to ServiceBadge for contexts where the service
+// type is secondary metadata and shouldn't compete visually with a title.
+const SERVICE_SHORT: Record<string, string> = {
+  group: "Grupal",
+  personal_training: "Personal",
+  kinesiology: "Kine",
+  blocked_time: "Bloqueo",
+};
+
+export function ServiceDot({ type }: { type: ServiceType | string }) {
+  const cfg = SERVICE_CFG[type] ?? { bg: "#71717a20", text: "#71717a", label: type };
+  const short = SERVICE_SHORT[type] ?? cfg.label;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold shrink-0" style={{ color: cfg.text }}>
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.text }} />
+      {short}
+    </span>
+  );
+}
+
 // ── Occupancy / availability badge ─────────────────────────────────────────
 export function OccupancyBadge({ reserved, capacity }: { reserved: number; capacity: number }) {
   const pct = capacity > 0 ? (reserved / capacity) * 100 : 0;

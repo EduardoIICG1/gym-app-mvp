@@ -218,6 +218,7 @@ export default function ClassesPage() {
                 endTime={cls.endTime}
                 capacity={cls.capacity}
                 reserved={cls.reserved}
+                serviceType={cls.serviceType}
                 isReserved={reservations.includes(cls.id)}
                 isLoading={actionLoading}
                 membershipBlocked={currentUser.role === "member" && !validServiceTypes.has(cls.serviceType)}

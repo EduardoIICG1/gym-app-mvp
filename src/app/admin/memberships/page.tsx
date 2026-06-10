@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Pencil } from "lucide-react";
 import {
   Membership, MembershipStatus, MembershipPlan, PaymentStatus, ServiceType, Member, GrantType,
 } from "@/lib/types";
 import { ServiceBadge, MembershipBadge, PaymentBadge } from "@/components/Badge";
+import { GestionTabs } from "@/components/GestionTabs";
 import {
   SERVICE_LABELS,
   MEMBERSHIP_STATUS_LABELS as STATUS_LABELS,
@@ -314,30 +315,33 @@ export default function MembershipsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
+      {/* Mobile Gestión tabs (Miembros / Membresías) */}
+      <GestionTabs />
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Membresías</h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>Gestiona planes, pagos y servicios contratados</p>
+      <div className="flex items-center justify-between gap-3 mb-5 sm:mb-8">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Membresías</h1>
+          <p className="text-xs sm:text-sm mt-0.5 hidden sm:block" style={{ color: "var(--text-secondary)" }}>Gestiona planes, pagos y servicios contratados</p>
         </div>
         <button
           onClick={openAddServiceGeneral}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 shrink-0"
           style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
         >
           <Plus className="w-4 h-4" />
-          Añadir servicio
+          <span className="hidden sm:inline">Añadir servicio</span>
         </button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-5 sm:mb-8">
         {kpis.map(({ label, value, sub, accent }) => (
-          <div key={label} className="rounded-xl p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-            <p className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</p>
-            <p className="text-2xl font-bold" style={{ color: accent }}>{value}</p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
+          <div key={label} className="rounded-xl p-3 sm:p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+            <p className="text-[11px] sm:text-xs mb-1 truncate" style={{ color: "var(--text-secondary)" }}>{label}</p>
+            <p className="text-xl sm:text-2xl font-bold" style={{ color: accent }}>{value}</p>
+            <p className="text-[11px] sm:text-xs mt-0.5 truncate" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
           </div>
         ))}
       </div>
@@ -402,24 +406,27 @@ export default function MembershipsPage() {
                     {group.memberships.length} servicios
                   </span>
                 )}
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => openAddServiceForGroup(group.studentId)}
-                    className="text-xs px-3 py-1 rounded-lg transition-opacity hover:opacity-80 font-medium"
+                    className="text-xs px-2 sm:px-3 py-1 rounded-lg transition-opacity hover:opacity-80 font-medium"
                     style={{ background: "#22c55e10", color: "#22c55e", border: "1px solid #22c55e20" }}
+                    title="Añadir servicio"
                   >
-                    + Añadir servicio
+                    <Plus className="w-3.5 h-3.5 sm:hidden" />
+                    <span className="hidden sm:inline">+ Añadir servicio</span>
                   </button>
                   <Link href={`/profile?userId=${group.studentId}`}
                     className="text-xs transition-colors hover:opacity-80"
                     style={{ color: "#4fc3f7" }}>
-                    Ver perfil →
+                    <span className="sm:hidden">Perfil</span>
+                    <span className="hidden sm:inline">Ver perfil →</span>
                   </Link>
                 </div>
               </div>
 
               {/* Membership cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {group.memberships.map((m) => {
                   const days = daysUntil(m.endDate);
                   const isExpiringSoon = m.membershipStatus === "active" && days >= 0 && days <= 7;
@@ -431,20 +438,21 @@ export default function MembershipsPage() {
                   return (
                     <div
                       key={m.id}
-                      className="rounded-xl p-5 border transition-colors"
+                      className="rounded-xl p-4 border transition-colors"
                       style={{
                         background: "var(--card)",
                         borderColor: isExpiringSoon ? "#f59e0b50" : "var(--card-border)",
                       }}
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Header: servicio + plan + estado */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                           <ServiceBadge type={m.serviceType} />
-                          <span className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: "#4fc3f715", color: "#4fc3f7" }}>
+                          <span className="text-xs font-medium truncate" style={{ color: "var(--text-secondary)" }}>
                             {PLAN_LABELS[m.plan]}
                           </span>
                           {m.grantType && m.grantType !== "purchased" && GRANT_BADGE[m.grantType] && (
-                            <span className="text-xs px-2 py-0.5 rounded font-semibold"
+                            <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
                               style={{ background: GRANT_BADGE[m.grantType].bg, color: GRANT_BADGE[m.grantType].color }}>
                               {GRANT_TYPE_LABELS[m.grantType] ?? m.grantType}
                             </span>
@@ -453,87 +461,78 @@ export default function MembershipsPage() {
                         <MembershipBadge status={m.membershipStatus} />
                       </div>
 
-                      <div className="space-y-1.5 text-xs mb-3">
-                        <div className="flex justify-between">
-                          <span style={{ color: "var(--text-secondary)" }}>Monto</span>
-                          <span className="font-semibold" style={{ color: "var(--text-primary)" }}>${m.amount.toLocaleString()}</span>
+                      <div className="space-y-2 text-xs mb-3">
+                        {/* Vigencia */}
+                        <div>
+                          <div className="flex justify-between items-center gap-2">
+                            <span style={{ color: "var(--text-primary)" }}>{formatDate(m.startDate)} – {formatDate(m.endDate)}</span>
+                            {m.membershipStatus === "active" && days >= 0 && (
+                              <span className="font-medium shrink-0" style={{ color: isExpiringSoon ? "#f59e0b" : "var(--text-secondary)" }}>
+                                {days === 0 ? "Vence hoy" : `${days}d restantes`}
+                              </span>
+                            )}
+                            {m.membershipStatus === "expired" && (
+                              <span className="font-medium shrink-0" style={{ color: "#ef4444" }}>
+                                Venció hace {Math.abs(days)}d
+                              </span>
+                            )}
+                          </div>
+                          {m.membershipStatus === "active" && days > 0 && (
+                            <div className="w-full rounded-full h-1.5 overflow-hidden mt-1.5" style={{ background: "var(--card-border)" }}>
+                              <motion.div
+                                className="h-full rounded-full"
+                                style={{ backgroundColor: isExpiringSoon ? "#f59e0b" : "#22c55e" }}
+                                initial={{ width: 0 }}
+                                animate={{ width: `${pct}%` }}
+                                transition={{ duration: 0.6, ease: "easeOut" }}
+                              />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex justify-between">
-                          <span style={{ color: "var(--text-secondary)" }}>Pago</span>
+
+                        {/* Sesiones */}
+                        {m.totalSessions != null && (
+                          <div className="flex justify-between">
+                            <span style={{ color: "var(--text-secondary)" }}>Sesiones</span>
+                            <span style={{ color: (m.usedSessions ?? 0) >= m.totalSessions ? "#ef4444" : "var(--text-primary)" }}>
+                              {m.usedSessions ?? 0} / {m.totalSessions} usadas
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Pago */}
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold" style={{ color: "var(--text-primary)" }}>${m.amount.toLocaleString()}</span>
                           <PaymentBadge status={m.paymentStatus} />
                         </div>
+
                         {m.coachName && (
                           <div className="flex justify-between">
                             <span style={{ color: "var(--text-secondary)" }}>Profesional</span>
-                            <span style={{ color: "var(--text-primary)" }}>{m.coachName}</span>
+                            <span className="truncate ml-2" style={{ color: "var(--text-primary)" }}>{m.coachName}</span>
                           </div>
                         )}
-                        <div className="flex justify-between">
-                          <span style={{ color: "var(--text-secondary)" }}>Inicio</span>
-                          <span style={{ color: "var(--text-primary)" }}>{formatDate(m.startDate)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span style={{ color: "var(--text-secondary)" }}>Vencimiento</span>
-                          <span style={{ color: "var(--text-primary)" }}>{formatDate(m.endDate)}</span>
-                        </div>
                       </div>
-
-                      {isExpiringSoon && (
-                        <p className="text-xs font-medium mb-3" style={{ color: "#f59e0b" }}>
-                          ⚠ Vence en {days === 0 ? "hoy" : `${days} día${days !== 1 ? "s" : ""}`}
-                        </p>
-                      )}
-                      {m.membershipStatus === "expired" && (
-                        <p className="text-xs font-medium mb-3" style={{ color: "#ef4444" }}>
-                          Venció hace {Math.abs(days)} día{Math.abs(days) !== 1 ? "s" : ""}
-                        </p>
-                      )}
-
-                      {m.membershipStatus === "active" && days > 0 && (
-                        <div className="mb-3">
-                          <div className="flex justify-between text-xs mb-1">
-                            <span style={{ color: "var(--text-secondary)" }}>Vigencia</span>
-                            <span style={{ color: isExpiringSoon ? "#f59e0b" : "var(--text-secondary)" }}>{days}d restantes</span>
-                          </div>
-                          <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ background: "var(--card-border)" }}>
-                            <motion.div
-                              className="h-full rounded-full"
-                              style={{ backgroundColor: isExpiringSoon ? "#f59e0b" : "#22c55e" }}
-                              initial={{ width: 0 }}
-                              animate={{ width: `${pct}%` }}
-                              transition={{ duration: 0.6, ease: "easeOut" }}
-                            />
-                          </div>
-                        </div>
-                      )}
 
                       {m.notes && <p className="text-xs mb-3 italic" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{m.notes}</p>}
                       {m.grantReason && <p className="text-xs mb-3 italic" style={{ color: "var(--text-muted)" }}>Motivo: {m.grantReason}</p>}
 
-                      {m.totalSessions != null && (
-                        <div className="flex justify-between text-xs mb-3">
-                          <span style={{ color: "var(--text-secondary)" }}>Sesiones</span>
-                          <span style={{ color: (m.usedSessions ?? 0) >= m.totalSessions ? "#ef4444" : "var(--text-primary)" }}>
-                            {m.usedSessions ?? 0} / {m.totalSessions} usadas
-                          </span>
-                        </div>
-                      )}
-
                       {renewableIds.has(m.id) ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => openEdit(m)}
-                            className="flex-1 text-xs py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
-                            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
-                          >
-                            Editar
-                          </button>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => openRenew(m)}
-                            className="flex-1 text-xs py-1.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
-                            style={{ background: "#4fc3f715", color: "#4fc3f7", border: "1px solid #4fc3f730" }}
+                            className="flex-1 text-xs py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+                            style={{ background: "#4fc3f7", color: "#0a0a0c" }}
                           >
                             ↻ Renovar
+                          </button>
+                          <button
+                            onClick={() => openEdit(m)}
+                            className="p-2 rounded-lg transition-colors hover:bg-white/5"
+                            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+                            title="Editar"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ) : (

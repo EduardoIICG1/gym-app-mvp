@@ -719,32 +719,32 @@ export default function AdminClassesPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+      <div className="flex items-center justify-between gap-3 mb-5 sm:mb-8">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
             Gestión de Clases
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>Administra horarios, cupos y asistencia</p>
+          <p className="text-xs sm:text-sm mt-0.5 hidden sm:block" style={{ color: "var(--text-secondary)" }}>Administra horarios, cupos y asistencia</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 shrink-0"
           style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
         >
           <Plus className="w-4 h-4" />
-          Nueva Clase
+          <span className="hidden sm:inline">Nueva Clase</span>
         </button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-5 sm:mb-8">
         {kpis.map(({ label, value, sub, accent }) => (
-          <div key={label} className="rounded-xl p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-            <p className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</p>
-            <p className="text-2xl font-bold" style={{ color: accent }}>{value}</p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
+          <div key={label} className="rounded-xl p-3 sm:p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+            <p className="text-[11px] sm:text-xs mb-1 truncate" style={{ color: "var(--text-secondary)" }}>{label}</p>
+            <p className="text-xl sm:text-2xl font-bold" style={{ color: accent }}>{value}</p>
+            <p className="text-[11px] sm:text-xs mt-0.5 truncate" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
           </div>
         ))}
       </div>
@@ -900,15 +900,18 @@ export default function AdminClassesPage() {
                           opacity: isBlocked ? 0.9 : 1,
                         }}
                       >
-                        <div className="flex items-center gap-3 p-4">
+                        <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
                           {isBlocked
-                            ? <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0" style={{ background: "#71717a30", color: "#71717a" }}>Bloqueado</span>
+                            ? <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded font-semibold shrink-0" style={{ background: "#71717a30", color: "#71717a" }}>Bloqueado</span>
                             : <ServiceBadge type={cls.serviceType} />
                           }
 
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>{cls.name}</p>
-                            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{cls.startTime}–{cls.endTime} · {cls.coach}</p>
+                            <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
+                              {cls.startTime}–{cls.endTime}
+                              <span className="opacity-70"> · {cls.coach}</span>
+                            </p>
                           </div>
 
                           {!isBlocked && (
@@ -929,18 +932,18 @@ export default function AdminClassesPage() {
                             </div>
                           )}
 
-                          <span
-                            className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
-                            style={cls.status === "active"
-                              ? { background: "#22c55e20", color: "#22c55e" }
-                              : { background: "#ef444420", color: "#ef4444" }}
-                          >
-                            {cls.status === "active" ? "Activa" : "Cancelada"}
-                          </span>
+                          {cls.status !== "active" && (
+                            <span
+                              className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded font-semibold shrink-0"
+                              style={{ background: "#ef444420", color: "#ef4444" }}
+                            >
+                              Cancelada
+                            </span>
+                          )}
 
                           {(cls.pendingInvitationsCount ?? 0) > 0 && (
                             <span
-                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
+                              className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded font-semibold shrink-0"
                               style={{ background: "#a78bfa20", color: "#a78bfa" }}
                               title={`${cls.pendingInvitationsCount} invitación${cls.pendingInvitationsCount !== 1 ? "es" : ""} pendiente${cls.pendingInvitationsCount !== 1 ? "s" : ""}`}
                             >
@@ -948,25 +951,25 @@ export default function AdminClassesPage() {
                             </span>
                           )}
 
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                             {!isBlocked && (
                               <Link
                                 href={`/classes/${cls.id}?from=admin-classes`}
-                                className="p-1.5 rounded-lg transition-colors hover:bg-white/5 text-xs font-medium"
+                                className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5 text-xs font-medium"
                                 style={{ color: "#4fc3f7" }}
                                 title="Ver inscritos"
                               >
                                 Ver
                               </Link>
                             )}
-                            <button onClick={() => openEdit(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
-                              <Pencil className="w-4 h-4" />
+                            <button onClick={() => openEdit(cls)} className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
+                              <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </button>
-                            <button onClick={() => handleToggleStatus(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
-                              {cls.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                            <button onClick={() => handleToggleStatus(cls)} className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
+                              {cls.status === "active" ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                             </button>
-                            <button onClick={() => handleDelete(cls.id)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
-                              <Trash2 className="w-4 h-4" />
+                            <button onClick={() => handleDelete(cls.id)} className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
+                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </button>
                           </div>
                         </div>

@@ -10,6 +10,7 @@ import {
 } from "@/lib/types";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { RoleBadge } from "@/components/Badge";
+import { GestionTabs } from "@/components/GestionTabs";
 import {
   SERVICE_LABELS,
   MEMBERSHIP_STATUS_LABELS as MS_STATUS_LABELS,
@@ -210,30 +211,33 @@ export default function MembersPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
+      {/* Mobile Gestión tabs (Miembros / Membresías) */}
+      <GestionTabs />
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Miembros</h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>Gestiona roles, servicios y asignaciones</p>
+      <div className="flex items-center justify-between gap-3 mb-5 sm:mb-8">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Miembros</h1>
+          <p className="text-xs sm:text-sm mt-0.5 hidden sm:block" style={{ color: "var(--text-secondary)" }}>Gestiona roles, servicios y asignaciones</p>
         </div>
         <button
           onClick={() => { setShowNewMember(true); setNewMemberForm(defaultNewMember()); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 shrink-0"
           style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
         >
           <UserPlus className="w-4 h-4" />
-          Nuevo miembro
+          <span className="hidden sm:inline">Nuevo miembro</span>
         </button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5 sm:mb-8">
         {kpis.map(({ label, value, sub, accent }) => (
-          <div key={label} className="rounded-xl p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-            <p className="text-xs mb-1" style={{ color: "var(--text-secondary)" }}>{label}</p>
-            <p className="text-2xl font-bold" style={{ color: accent }}>{value}</p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
+          <div key={label} className="rounded-xl p-3 sm:p-4 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+            <p className="text-[11px] sm:text-xs mb-1 truncate" style={{ color: "var(--text-secondary)" }}>{label}</p>
+            <p className="text-xl sm:text-2xl font-bold" style={{ color: accent }}>{value}</p>
+            <p className="text-[11px] sm:text-xs mt-0.5 truncate" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>{sub}</p>
           </div>
         ))}
       </div>

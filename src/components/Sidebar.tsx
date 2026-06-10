@@ -51,6 +51,30 @@ export function Sidebar() {
   const isActive = (path: string) =>
     path === "/" ? pathname === "/" : pathname.startsWith(path);
 
+  // Bottom nav: merge "Miembros" + "Membresías" into a single "Gestión" entry
+  // so the limited mobile slots stay free for other sections.
+  const MERGED_GESTION_PATHS = ["/admin/members", "/admin/memberships"];
+  const bottomNavItems = (() => {
+    const result: typeof visibleItems = [];
+    let mergedAdded = false;
+    for (const item of visibleItems) {
+      if (MERGED_GESTION_PATHS.includes(item.path)) {
+        if (!mergedAdded) {
+          result.push({ ...item, path: "/admin/members", label: "Gestión" });
+          mergedAdded = true;
+        }
+        continue;
+      }
+      result.push(item);
+    }
+    return result.slice(0, 5);
+  })();
+
+  const isBottomActive = (item: (typeof bottomNavItems)[number]) =>
+    item.label === "Gestión"
+      ? MERGED_GESTION_PATHS.some(p => pathname.startsWith(p))
+      : isActive(item.path);
+
   return (
     <>
       {/* ── Desktop sidebar ──────────────────────────────────────────── */}
@@ -162,9 +186,9 @@ export function Sidebar() {
         style={{ borderColor: "var(--card-border)", background: "rgba(17,17,20,0.95)", paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="flex items-center justify-around px-1 h-16">
-          {visibleItems.slice(0, 5).map((item) => {
+          {bottomNavItems.map((item) => {
             const Icon = item.icon;
-            const active = isActive(item.path);
+            const active = isBottomActive(item);
             return (
               <Link
                 key={item.path}

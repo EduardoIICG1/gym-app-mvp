@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Play, Pause, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Pencil, Trash2, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { GymClass, Reservation, ServiceType, DayOfWeek, EventType, Member } from "@/lib/types";
 import { ServiceBadge, ServiceDot } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
@@ -151,6 +152,7 @@ const inputStyle = {
 };
 
 export default function AdminClassesPage() {
+  const router = useRouter();
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
@@ -975,30 +977,23 @@ export default function AdminClassesPage() {
                           </div>
                         </div>
 
-                        {/* Mobile row (below sm) — name-first hierarchy */}
-                        <div className="sm:hidden flex flex-col gap-1.5 p-3">
+                        {/* Mobile row (below sm) — name-first hierarchy, whole row tappable */}
+                        <div
+                          className={`sm:hidden flex flex-col gap-1.5 p-3 transition-colors ${!isBlocked ? "cursor-pointer active:bg-white/[0.03]" : ""}`}
+                          onClick={() => { if (!isBlocked) router.push(`/classes/${cls.id}?from=admin-classes`); }}
+                        >
                           <div className="flex items-start justify-between gap-2">
                             <p className="font-semibold text-sm leading-snug flex-1 min-w-0" style={{ color: "var(--text-primary)" }}>
                               {cls.name}
                             </p>
                             <div className="flex items-center gap-0.5 shrink-0">
-                              {!isBlocked && (
-                                <Link
-                                  href={`/classes/${cls.id}?from=admin-classes`}
-                                  className="p-1 rounded-lg transition-colors hover:bg-white/5"
-                                  style={{ color: "#4fc3f7" }}
-                                  title="Ver inscritos"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Link>
-                              )}
-                              <button onClick={() => openEdit(cls)} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
+                              <button onClick={(e) => { e.stopPropagation(); openEdit(cls); }} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => handleToggleStatus(cls)} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
+                              <button onClick={(e) => { e.stopPropagation(); handleToggleStatus(cls); }} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
                                 {cls.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                               </button>
-                              <button onClick={() => handleDelete(cls.id)} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
+                              <button onClick={(e) => { e.stopPropagation(); handleDelete(cls.id); }} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>

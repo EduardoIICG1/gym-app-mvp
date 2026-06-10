@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DAY_NAMES } from "@/lib/labels";
 import { ServiceDot } from "@/components/Badge";
 
@@ -41,13 +42,15 @@ export function ClassCard({
   onReserve,
   onCancel,
 }: ClassCardProps) {
+  const router = useRouter();
   const occupancy = (reserved / capacity) * 100;
   const isFull = occupancy >= 100;
   const isAlmostFull = occupancy >= 70;
 
   return (
     <div
-      className="rounded-lg shadow-md hover:shadow-lg transition overflow-hidden flex flex-col"
+      onClick={() => router.push(`/classes/${id}?from=classes`)}
+      className="rounded-lg shadow-md hover:shadow-lg active:bg-white/[0.02] transition overflow-hidden flex flex-col cursor-pointer"
       style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
     >
       {/* Header color bar */}
@@ -105,7 +108,7 @@ export function ClassCard({
 
         {/* Reserve/Cancel Button */}
         <button
-          onClick={() => (isReserved ? onCancel(id) : onReserve(id))}
+          onClick={(e) => { e.stopPropagation(); if (isReserved) onCancel(id); else onReserve(id); }}
           disabled={isLoading || (isFull && !isReserved) || (membershipBlocked && !isReserved)}
           className="w-full py-2 px-4 rounded-lg font-semibold text-sm transition-all mt-auto disabled:opacity-40 disabled:cursor-not-allowed"
           style={
@@ -150,6 +153,7 @@ export function ClassCard({
 
         <Link
           href={`/classes/${id}?from=classes`}
+          onClick={(e) => e.stopPropagation()}
           className="text-xs text-center block mt-3 hover:underline font-medium"
           style={{ color: "#4fc3f7" }}
         >

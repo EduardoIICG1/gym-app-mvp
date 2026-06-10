@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Plus, Search, UserPlus } from "lucide-react";
 import {
@@ -67,6 +68,7 @@ const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:r
 const inputStyle = { background: "var(--card-border)", border: "1px solid var(--card-border)", color: "var(--text-primary)" };
 
 export default function MembersPage() {
+  const router = useRouter();
   const currentUser = useCurrentUser();
   const [members, setMembers] = useState<Member[]>([]);
   const [activeCountMap, setActiveCountMap] = useState<Record<string, number>>({});
@@ -292,7 +294,8 @@ export default function MembersPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-5 py-4 transition-colors hover:bg-white/[0.02]"
+                    onClick={() => router.push(`/profile?userId=${m.id}`)}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-5 py-4 transition-colors hover:bg-white/[0.02] active:bg-white/[0.04] cursor-pointer"
                     style={{ borderBottom: "1px solid var(--card-border)" }}
                   >
                     {/* Avatar */}
@@ -341,7 +344,7 @@ export default function MembersPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <Link href={`/profile?userId=${m.id}`}
                         className="text-xs px-2 py-1.5 rounded-lg transition-colors hover:bg-white/5"
                         style={{ color: "var(--text-secondary)" }}>

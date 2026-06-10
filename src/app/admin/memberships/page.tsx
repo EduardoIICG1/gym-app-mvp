@@ -438,7 +438,8 @@ export default function MembershipsPage() {
                   return (
                     <div
                       key={m.id}
-                      className="rounded-xl p-4 border transition-colors"
+                      onClick={() => openEdit(m)}
+                      className="rounded-xl p-4 border transition-colors cursor-pointer hover:border-[var(--text-secondary)] active:bg-white/[0.02]"
                       style={{
                         background: "var(--card)",
                         borderColor: isExpiringSoon ? "#f59e0b50" : "var(--card-border)",
@@ -518,7 +519,7 @@ export default function MembershipsPage() {
                       {m.grantReason && <p className="text-xs mb-3 italic" style={{ color: "var(--text-muted)" }}>Motivo: {m.grantReason}</p>}
 
                       {renewableIds.has(m.id) ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => openRenew(m)}
                             className="flex-1 text-xs py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
@@ -537,7 +538,7 @@ export default function MembershipsPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => openEdit(m)}
+                          onClick={(e) => { e.stopPropagation(); openEdit(m); }}
                           className="w-full text-xs py-1.5 rounded-lg transition-colors hover:bg-white/5 font-medium"
                           style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
                         >

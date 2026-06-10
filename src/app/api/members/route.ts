@@ -68,7 +68,11 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const includesRole = searchParams.get("includesRole") as MemberRole | null;
+  // Supports comma-separated values, e.g. includesRole=coach,kinesiologist
+  const includesRoleParam = searchParams.get("includesRole");
+  const includesRoles = includesRoleParam
+    ? (includesRoleParam.split(",").filter(Boolean) as MemberRole[])
+    : null;
   const status = searchParams.get("status");
   const search = searchParams.get("search")?.toLowerCase();
 
@@ -95,7 +99,7 @@ export async function GET(request: Request) {
 
   let result = users.map(toMember);
 
-  if (includesRole) result = result.filter((m) => m.roles.includes(includesRole));
+  if (includesRoles) result = result.filter((m) => m.roles.some((r) => includesRoles.includes(r)));
   if (status === "active")   result = result.filter((m) => m.status === "active");
   if (status === "inactive") result = result.filter((m) => m.status === "inactive");
   if (search) result = result.filter(

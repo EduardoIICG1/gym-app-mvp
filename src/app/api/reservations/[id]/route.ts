@@ -39,7 +39,7 @@ function canManage(
   sessionCoachId: string
 ): boolean {
   if (role === "ADMIN") return true;
-  if (role === "COACH") return sessionCoachId === authUserId;
+  if (role === "COACH" || role === "KINESIOLOGIST") return sessionCoachId === authUserId;
   return false; // MEMBER cannot manage other bookings
 }
 

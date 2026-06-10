@@ -98,13 +98,13 @@ interface FormState {
   bookingMode: "regular" | "makeup_only";
 }
 
-function defaultForm(dayOfWeek: number, isKine: boolean, coachName: string): FormState {
+function defaultForm(dayOfWeek: number, isKine: boolean, coachName: string, lockInstructor: boolean): FormState {
   return {
     name: "", eventType: "class",
     serviceType: isKine ? "kinesiology" : "group",
     dayOfWeek,
     startTime: "09:00", endTime: "10:00",
-    coach: isKine ? coachName : "",
+    coach: (isKine || lockInstructor) ? coachName : "",
     maxCapacity: 20, note: "",
     hasBookingCutoff: true, bookingCutoffValue: 3, bookingCutoffUnit: "hours",
     bookingMode: "regular",
@@ -121,6 +121,8 @@ export interface CreateClassModalProps {
   initialDayOfWeek?: number;
   isKine?: boolean;
   currentUserName?: string;
+  /** Hide the instructor selector and auto-assign the current user as instructor (COACH/KINESIOLOGIST). */
+  lockInstructor?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -133,9 +135,10 @@ export function CreateClassModal({
   initialDayOfWeek = 0,
   isKine = false,
   currentUserName = "",
+  lockInstructor = false,
 }: CreateClassModalProps) {
   const [form, setForm] = useState<FormState>(() =>
-    defaultForm(initialDayOfWeek, isKine, currentUserName),
+    defaultForm(initialDayOfWeek, isKine, currentUserName, lockInstructor),
   );
   const [recurMode, setRecurMode] = useState<"none" | "weekly">("none");
   const [recur, setRecur] = useState({
@@ -157,9 +160,11 @@ export function CreateClassModal({
   const isWeeklyCreate    = recurMode === "weekly" && form.eventType !== "blocked_time";
   const cannotSubmitWeekly = isWeeklyCreate && occurrenceCount === 0;
 
+  const requiresCoachSelection = !isKine && !lockInstructor;
+
   // ── Single class ────────────────────────────────────────────────────────────
   const handleSingle = async () => {
-    if (!form.name || (!isKine && !form.coach)) return;
+    if (!form.name || (requiresCoachSelection && !form.coach)) return;
     setSaving(true);
     const res = await fetch("/api/classes", {
       method: "POST",
@@ -179,7 +184,7 @@ export function CreateClassModal({
 
   // ── Batch (weekly recurrence) ───────────────────────────────────────────────
   const handleBatch = async () => {
-    if (!form.name || (!isKine && !form.coach)) return;
+    if (!form.name || (requiresCoachSelection && !form.coach)) return;
     if (recur.weekdays.length === 0) {
       onToast("Selecciona al menos un día de la semana", false); return;
     }
@@ -291,8 +296,8 @@ export function CreateClassModal({
                   className={inputCls} style={inputStyle} />
               </div>
 
-              {/* Instructor — hidden when KINESIOLOGIST (auto-assigned) */}
-              {!isKine && (
+              {/* Instructor — hidden when auto-assigned (KINESIOLOGIST or COACH self-creation) */}
+              {!isKine && !lockInstructor && (
                 <div>
                   <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor *</label>
                   <select value={form.coach} onChange={e => setF({ coach: e.target.value })}
@@ -499,7 +504,7 @@ export function CreateClassModal({
               <motion.button
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 onClick={handleSubmit}
-                disabled={saving || !form.name || (!isKine && !form.coach) || cannotSubmitWeekly}
+                disabled={saving || !form.name || (requiresCoachSelection && !form.coach) || cannotSubmitWeekly}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
                 style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}>
                 {saving

@@ -107,6 +107,15 @@ export async function POST(request: Request) {
     }
     const memberId = session.user.id;
 
+    // COACH/KINESIOLOGIST cannot book themselves into classes — they manage attendance,
+    // not reserve as members. Members are added via invitations/convocatoria.
+    if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
+      return Response.json(
+        { error: "Los coaches y kinesiólogos no pueden reservar clases para sí mismos." },
+        { status: 403 }
+      );
+    }
+
     const { classId } = await request.json();
     if (!classId) {
       return Response.json({ error: "classId requerido" }, { status: 400 });

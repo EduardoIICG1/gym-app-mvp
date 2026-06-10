@@ -60,12 +60,13 @@ export async function GET(
     return Response.json({ error: "Sesión no encontrada" }, { status: 404 });
   }
 
-  const role = authSession.user.role; // "ADMIN" | "COACH" | "MEMBER"
+  const role = authSession.user.role; // "ADMIN" | "COACH" | "KINESIOLOGIST" | "MEMBER"
   const isAdmin = role === "ADMIN";
-  const isAuthorizedCoach = role === "COACH" && gymSession.coachId === authSession.user.id;
+  const isAuthorizedCoach =
+    (role === "COACH" || role === "KINESIOLOGIST") && gymSession.coachId === authSession.user.id;
 
-  // COACH attempting to view another coach's session
-  if (role === "COACH" && !isAuthorizedCoach) {
+  // COACH/KINESIOLOGIST attempting to view another instructor's session
+  if ((role === "COACH" || role === "KINESIOLOGIST") && !isAuthorizedCoach) {
     return Response.json({ error: "Acceso denegado" }, { status: 403 });
   }
 
@@ -145,7 +146,7 @@ export async function PUT(
     });
     if (!existing) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
 
-    if (role === "COACH" && existing.coachId !== authSession.user.id) {
+    if ((role === "COACH" || role === "KINESIOLOGIST") && existing.coachId !== authSession.user.id) {
       return Response.json({ error: "Sin permisos" }, { status: 403 });
     }
 
@@ -190,10 +191,10 @@ export async function PUT(
     let coachId = existing.coachId;
     if (body.coach) {
       const coachUser = await prisma.user.findFirst({
-        where: { name: body.coach, role: { in: ["COACH", "ADMIN"] } },
+        where: { name: body.coach, role: { in: ["COACH", "ADMIN", "KINESIOLOGIST"] } },
       });
       if (coachUser) {
-        if (role === "COACH" && coachUser.id !== authSession.user.id) {
+        if ((role === "COACH" || role === "KINESIOLOGIST") && coachUser.id !== authSession.user.id) {
           return Response.json({ error: "Sin permisos" }, { status: 403 });
         }
         coachId = coachUser.id;
@@ -325,7 +326,7 @@ export async function DELETE(
     const existing = await prisma.session.findUnique({ where: { id } });
     if (!existing) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
 
-    if (role === "COACH" && existing.coachId !== authSession.user.id) {
+    if ((role === "COACH" || role === "KINESIOLOGIST") && existing.coachId !== authSession.user.id) {
       return Response.json({ error: "Sin permisos" }, { status: 403 });
     }
 

@@ -606,14 +606,14 @@ export default function Home() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
 
           {/* ── MAIN column: Novedades + Comunicados ─────────────── */}
-          <div className="space-y-5">
+          <div className="space-y-3 sm:space-y-5">
 
             {/* Novedades destacadas */}
             {!announcementsLoading && pinnedAnnouncements.length > 0 && currentPinned && (
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl p-5 border"
+                className="rounded-2xl p-4 sm:p-5 border"
                 style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
               >
                 {/* Header: título + nav cuando hay más de 1 */}
@@ -746,7 +746,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="rounded-2xl p-6 border"
+              className="rounded-2xl p-4 sm:p-6 border"
               style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
             >
               <h3 className="font-bold text-lg mb-4" style={{ color: "var(--text-primary)" }}>
@@ -1019,7 +1019,7 @@ export default function Home() {
           </div>{/* end main column */}
 
           {/* ── ASIDE column: paneles operativos ─────────────────── */}
-          <div className="space-y-5">
+          <div className="space-y-3 sm:space-y-5">
 
             {/* ADMIN / MEMBER: Clases de hoy */}
             {activeUser.role !== "coach" && (
@@ -1027,7 +1027,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="rounded-2xl p-6 border"
+                className="rounded-2xl p-4 sm:p-6 border"
                 style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
               >
                 <div className="flex items-center justify-between mb-4">
@@ -1173,7 +1173,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.13 }}
-                className="rounded-2xl p-6 border"
+                className="rounded-2xl p-4 sm:p-6 border"
                 style={{ background: "var(--card)", borderColor: "#4fc3f740" }}
               >
                 <h3 className="font-bold text-lg mb-1" style={{ color: "var(--text-primary)" }}>
@@ -1265,7 +1265,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="rounded-2xl p-6 border"
+                className="rounded-2xl p-4 sm:p-6 border"
                 style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
               >
                 <h3 className="font-bold text-lg mb-4" style={{ color: "var(--text-primary)" }}>
@@ -1306,7 +1306,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="rounded-2xl p-6 border"
+                className="rounded-2xl p-4 sm:p-6 border"
                 style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
               >
                 <h3 className="font-bold text-lg mb-4" style={{ color: "var(--text-primary)" }}>
@@ -1358,7 +1358,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="rounded-2xl p-6 border"
+                className="rounded-2xl p-4 sm:p-6 border"
                 style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
               >
                 <div className="flex items-center justify-between mb-4">
@@ -1467,7 +1467,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="rounded-2xl p-6 border"
+                className="rounded-2xl p-4 sm:p-6 border"
                 style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
               >
                 <h3 className="font-bold text-lg mb-4" style={{ color: "var(--text-primary)" }}>

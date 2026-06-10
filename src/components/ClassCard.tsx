@@ -54,39 +54,39 @@ export function ClassCard({
         }`}
       ></div>
 
-      <div className="p-6 flex-1 flex flex-col">
-        {/* Title */}
-        <h3 className="text-xl font-bold mb-4" style={{ color: "var(--text-primary)" }}>{name}</h3>
-
-        {/* Info grid */}
-        <div className="space-y-2 mb-4 text-sm">
-          <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Instructor</span>
-            <span className="font-medium" style={{ color: "var(--text-primary)" }}>{coach}</span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Día</span>
-            <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-              {DAY_NAMES[dayOfWeek]}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Horario</span>
-            <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-              {startTime} - {endTime}
-            </span>
-          </div>
+      <div className="p-4 sm:p-6 flex-1 flex flex-col">
+        {/* Title + status */}
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-base sm:text-xl font-bold leading-snug" style={{ color: "var(--text-primary)" }}>{name}</h3>
+          <span
+            className="text-xs font-semibold px-2 py-1 rounded shrink-0"
+            style={isFull
+              ? { background: "#ef444420", color: "#ef4444" }
+              : isAlmostFull
+              ? { background: "#f59e0b20", color: "#f59e0b" }
+              : { background: "#22c55e20", color: "#22c55e" }}
+          >
+            {isFull ? "Sin cupos" : isAlmostFull ? "Pocos cupos" : "Disponible"}
+          </span>
         </div>
+
+        {/* Coach + día/horario */}
+        <p className="text-sm mb-0.5" style={{ color: "var(--text-primary)" }}>
+          <span style={{ color: "var(--text-secondary)" }}>Coach: </span>{coach}
+        </p>
+        <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+          {DAY_NAMES[dayOfWeek]} · {startTime} - {endTime}
+        </p>
 
         {/* Capacity bar */}
         <div className="mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>CUPOS</span>
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Cupos</span>
             <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>
               {reserved} / {capacity}
             </span>
           </div>
-          <div className="w-full rounded-full h-2 overflow-hidden" style={{ background: "var(--card-border)" }}>
+          <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ background: "var(--card-border)" }}>
             <div
               className={`h-full transition-all ${
                 isFull
@@ -98,18 +98,6 @@ export function ClassCard({
               style={{ width: `${Math.min(occupancy, 100)}%` }}
             ></div>
           </div>
-        </div>
-
-        {/* Status badge */}
-        <div
-          className="text-sm font-semibold py-2 px-3 rounded text-center mb-4"
-          style={isFull
-            ? { background: "#ef444420", color: "#ef4444" }
-            : isAlmostFull
-            ? { background: "#f59e0b20", color: "#f59e0b" }
-            : { background: "#22c55e20", color: "#22c55e" }}
-        >
-          {isFull ? "Sin cupos" : isAlmostFull ? "Pocos cupos" : "Disponible"}
         </div>
 
         {/* Reserve/Cancel Button */}

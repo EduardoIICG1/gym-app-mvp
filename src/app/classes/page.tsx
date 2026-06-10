@@ -167,11 +167,11 @@ export default function ClassesPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--background)" }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12">
         {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>Clases</h1>
-          <p style={{ color: "var(--text-secondary)" }}>
+        <div className="mb-6 sm:mb-12">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2" style={{ color: "var(--text-primary)" }}>Clases</h1>
+          <p className="text-sm sm:text-base" style={{ color: "var(--text-secondary)" }}>
             Explora y reserva tus clases
           </p>
         </div>
@@ -206,7 +206,7 @@ export default function ClassesPage() {
 
         {/* Classes grid */}
         {!loading && classes.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {classes.map((cls) => (
               <ClassCard
                 key={cls.id}

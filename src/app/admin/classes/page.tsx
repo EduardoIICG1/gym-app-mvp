@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Play, Pause, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { GymClass, Reservation, ServiceType, DayOfWeek, EventType, Member } from "@/lib/types";
-import { ServiceBadge } from "@/components/Badge";
+import { ServiceBadge, ServiceDot } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
 import { CreateClassModal } from "@/components/classes/CreateClassModal";
 
@@ -900,9 +900,10 @@ export default function AdminClassesPage() {
                           opacity: isBlocked ? 0.9 : 1,
                         }}
                       >
-                        <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
+                        {/* Desktop row (sm and up) — preserved as before */}
+                        <div className="hidden sm:flex items-center gap-3 p-4">
                           {isBlocked
-                            ? <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded font-semibold shrink-0" style={{ background: "#71717a30", color: "#71717a" }}>Bloqueado</span>
+                            ? <span className="text-xs px-2 py-0.5 rounded font-semibold shrink-0" style={{ background: "#71717a30", color: "#71717a" }}>Bloqueado</span>
                             : <ServiceBadge type={cls.serviceType} />
                           }
 
@@ -915,7 +916,7 @@ export default function AdminClassesPage() {
                           </div>
 
                           {!isBlocked && (
-                            <div className="hidden sm:flex flex-col items-end gap-1 w-32 shrink-0">
+                            <div className="flex flex-col items-end gap-1 w-32 shrink-0">
                               <div className="flex items-center gap-2 w-full">
                                 <div className="flex-1 rounded-full h-1.5 overflow-hidden" style={{ background: "var(--card-border)" }}>
                                   <motion.div
@@ -934,7 +935,7 @@ export default function AdminClassesPage() {
 
                           {cls.status !== "active" && (
                             <span
-                              className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded font-semibold shrink-0"
+                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
                               style={{ background: "#ef444420", color: "#ef4444" }}
                             >
                               Cancelada
@@ -943,7 +944,7 @@ export default function AdminClassesPage() {
 
                           {(cls.pendingInvitationsCount ?? 0) > 0 && (
                             <span
-                              className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded font-semibold shrink-0"
+                              className="text-xs px-2 py-0.5 rounded font-semibold shrink-0"
                               style={{ background: "#a78bfa20", color: "#a78bfa" }}
                               title={`${cls.pendingInvitationsCount} invitación${cls.pendingInvitationsCount !== 1 ? "es" : ""} pendiente${cls.pendingInvitationsCount !== 1 ? "s" : ""}`}
                             >
@@ -951,26 +952,90 @@ export default function AdminClassesPage() {
                             </span>
                           )}
 
-                          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0">
                             {!isBlocked && (
                               <Link
                                 href={`/classes/${cls.id}?from=admin-classes`}
-                                className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5 text-xs font-medium"
+                                className="p-1.5 rounded-lg transition-colors hover:bg-white/5 text-xs font-medium"
                                 style={{ color: "#4fc3f7" }}
                                 title="Ver inscritos"
                               >
                                 Ver
                               </Link>
                             )}
-                            <button onClick={() => openEdit(cls)} className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
-                              <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            <button onClick={() => openEdit(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
+                              <Pencil className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleToggleStatus(cls)} className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
-                              {cls.status === "active" ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                            <button onClick={() => handleToggleStatus(cls)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
+                              {cls.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                             </button>
-                            <button onClick={() => handleDelete(cls.id)} className="p-1 sm:p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
-                              <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            <button onClick={() => handleDelete(cls.id)} className="p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
+                              <Trash2 className="w-4 h-4" />
                             </button>
+                          </div>
+                        </div>
+
+                        {/* Mobile row (below sm) — name-first hierarchy */}
+                        <div className="sm:hidden flex flex-col gap-1.5 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-semibold text-sm leading-snug flex-1 min-w-0" style={{ color: "var(--text-primary)" }}>
+                              {cls.name}
+                            </p>
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              {!isBlocked && (
+                                <Link
+                                  href={`/classes/${cls.id}?from=admin-classes`}
+                                  className="p-1 rounded-lg transition-colors hover:bg-white/5"
+                                  style={{ color: "#4fc3f7" }}
+                                  title="Ver inscritos"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </Link>
+                              )}
+                              <button onClick={() => openEdit(cls)} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }} title="Editar">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleToggleStatus(cls)} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "var(--text-secondary)" }}>
+                                {cls.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => handleDelete(cls.id)} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#ef4444" }}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
+                            {cls.startTime}–{cls.endTime}
+                            <span className="opacity-70"> · {cls.coach}</span>
+                          </p>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {isBlocked
+                              ? <span className="text-[11px] font-semibold" style={{ color: "#71717a" }}>Bloqueado</span>
+                              : <ServiceDot type={cls.serviceType} />
+                            }
+                            {!isBlocked && (
+                              <span className="text-[11px]" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
+                                {cls.reservedCount}/{cls.maxCapacity}
+                              </span>
+                            )}
+                            {cls.status !== "active" && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                                style={{ background: "#ef444420", color: "#ef4444" }}
+                              >
+                                Cancelada
+                              </span>
+                            )}
+                            {(cls.pendingInvitationsCount ?? 0) > 0 && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                                style={{ background: "#a78bfa20", color: "#a78bfa" }}
+                                title={`${cls.pendingInvitationsCount} invitación${cls.pendingInvitationsCount !== 1 ? "es" : ""} pendiente${cls.pendingInvitationsCount !== 1 ? "s" : ""}`}
+                              >
+                                {cls.pendingInvitationsCount} inv.
+                              </span>
+                            )}
                           </div>
                         </div>
                       </motion.div>

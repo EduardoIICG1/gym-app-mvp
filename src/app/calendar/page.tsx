@@ -1144,40 +1144,76 @@ export default function CalendarPage() {
     <div className="p-6 pb-24 lg:pb-6" style={{ maxWidth: "1400px", margin: "0 auto" }}>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-4xl font-bold" style={{ color: "var(--text-primary)" }}>Calendario</h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            {IS_ADMIN_OR_COACH ? "Gestiona y administra las clases de la semana" : "Reserva y gestiona tus clases"}
-          </p>
+      <div className="flex flex-col gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold" style={{ color: "var(--text-primary)" }}>Calendario</h1>
+            <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+              {IS_ADMIN_OR_COACH ? "Gestiona y administra las clases de la semana" : "Reserva y gestiona tus clases"}
+            </p>
+          </div>
+
+          {/* Desktop controls */}
+          <div className="hidden sm:flex items-center gap-2 flex-wrap justify-end">
+            {IS_ADMIN_OR_COACH && (
+              <button
+                onClick={() => setCreateModalDay(selectedDay)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Nueva clase
+              </button>
+            )}
+            <button onClick={() => setWeekOffset(w => w - 1)} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--text-secondary)" }}>
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="text-center px-3 py-2 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Semana</p>
+              <p className="font-semibold text-sm min-w-[140px] sm:min-w-[170px]" style={{ color: "var(--text-primary)" }}>{weekLabel}</p>
+            </div>
+            <button onClick={() => setWeekOffset(w => w + 1)} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--text-secondary)" }}>
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            {weekOffset !== 0 && (
+              <button onClick={() => setWeekOffset(0)} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: "#4fc3f7" }}>
+                Hoy
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {IS_ADMIN_OR_COACH && (
-            <button
-              onClick={() => setCreateModalDay(selectedDay)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Nueva clase
+        {/* Mobile controls */}
+        <div className="flex sm:hidden flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWeekOffset(w => w - 1)} className="p-2.5 rounded-lg shrink-0 hover:bg-white/5 transition-colors" style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}>
+              <ChevronLeft className="w-5 h-5" />
             </button>
-          )}
-          <button onClick={() => setWeekOffset(w => w - 1)} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--text-secondary)" }}>
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <div className="text-center px-3 py-2 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
-            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Semana</p>
-            <p className="font-semibold text-sm min-w-[140px] sm:min-w-[170px]" style={{ color: "var(--text-primary)" }}>{weekLabel}</p>
+            <div className="flex-1 text-center px-3 py-2 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Semana</p>
+              <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{weekLabel}</p>
+            </div>
+            <button onClick={() => setWeekOffset(w => w + 1)} className="p-2.5 rounded-lg shrink-0 hover:bg-white/5 transition-colors" style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}>
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={() => setWeekOffset(w => w + 1)} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--text-secondary)" }}>
-            <ChevronRight className="w-5 h-5" />
-          </button>
-          {weekOffset !== 0 && (
-            <button onClick={() => setWeekOffset(0)} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: "#4fc3f7" }}>
-              Hoy
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {weekOffset !== 0 && (
+              <button onClick={() => setWeekOffset(0)} className="px-3 py-2 rounded-lg text-xs font-semibold shrink-0" style={{ color: "#4fc3f7", border: "1px solid #4fc3f750" }}>
+                Hoy
+              </button>
+            )}
+            {IS_ADMIN_OR_COACH && (
+              <button
+                onClick={() => setCreateModalDay(selectedDay)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+              >
+                <Plus className="w-4 h-4" />
+                Nueva clase
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1199,36 +1235,38 @@ export default function CalendarPage() {
           </div>
         </div>
         {/* Search + service type */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
           <input
             type="text"
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
             placeholder="Buscar por clase o coach..."
-            className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40 flex-1 min-w-[180px]"
+            className="rounded-lg px-3 py-2 sm:py-1.5 text-sm sm:text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40 w-full sm:flex-1 sm:min-w-[180px]"
             style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}
           />
-          <select
-            value={serviceFilter}
-            onChange={e => setServiceFilter(e.target.value as ServiceType | "")}
-            className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
-            style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
-          >
-            <option value="">Todos los tipos</option>
-            <option value="group">Grupal</option>
-            <option value="personal_training">Entrenamiento personal</option>
-            <option value="kinesiology">Kinesiología</option>
-            {IS_ADMIN_OR_COACH && <option value="blocked_time">Bloqueo de horario</option>}
-          </select>
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-white/5"
+          <div className="flex items-center gap-2">
+            <select
+              value={serviceFilter}
+              onChange={e => setServiceFilter(e.target.value as ServiceType | "")}
+              className="flex-1 sm:flex-initial rounded-lg px-3 py-2 sm:py-1.5 text-sm sm:text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
               style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
             >
-              Limpiar filtros
-            </button>
-          )}
+              <option value="">Todos los tipos</option>
+              <option value="group">Grupal</option>
+              <option value="personal_training">Entrenamiento personal</option>
+              <option value="kinesiology">Kinesiología</option>
+              {IS_ADMIN_OR_COACH && <option value="blocked_time">Bloqueo de horario</option>}
+            </select>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="shrink-0 px-3 py-2 sm:py-1.5 rounded-lg text-sm sm:text-xs font-semibold transition-colors hover:bg-white/5"
+                style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

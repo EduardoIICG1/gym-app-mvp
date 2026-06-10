@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DAY_NAMES } from "@/lib/labels";
+import { ServiceDot } from "@/components/Badge";
 
 interface ClassCardProps {
   id: string;
@@ -14,6 +15,7 @@ interface ClassCardProps {
   reserved: number;
   isReserved: boolean;
   isLoading: boolean;
+  serviceType?: string;
   membershipBlocked?: boolean;
   cancelHint?: { isLate: boolean; deadline: string };
   sessionBalance?: number;
@@ -32,6 +34,7 @@ export function ClassCard({
   reserved,
   isReserved,
   isLoading,
+  serviceType,
   membershipBlocked = false,
   cancelHint,
   sessionBalance,
@@ -56,26 +59,14 @@ export function ClassCard({
 
       <div className="p-6 flex-1 flex flex-col">
         {/* Title */}
-        <h3 className="text-xl font-bold mb-4" style={{ color: "var(--text-primary)" }}>{name}</h3>
+        <h3 className="text-lg sm:text-xl font-bold leading-snug mb-1" style={{ color: "var(--text-primary)" }}>{name}</h3>
 
-        {/* Info grid */}
-        <div className="space-y-2 mb-4 text-sm">
-          <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Instructor</span>
-            <span className="font-medium" style={{ color: "var(--text-primary)" }}>{coach}</span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Día</span>
-            <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-              {DAY_NAMES[dayOfWeek]}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: "var(--text-secondary)" }}>Horario</span>
-            <span className="font-medium" style={{ color: "var(--text-primary)" }}>
-              {startTime} - {endTime}
-            </span>
-          </div>
+        {/* Coach + day/time + service type (compact metadata) */}
+        <div className="flex items-center justify-between gap-2 mb-4 text-xs">
+          <span className="truncate" style={{ color: "var(--text-secondary)" }}>
+            {coach} · {DAY_NAMES[dayOfWeek]} · {startTime} - {endTime}
+          </span>
+          {serviceType && <ServiceDot type={serviceType} />}
         </div>
 
         {/* Capacity bar */}

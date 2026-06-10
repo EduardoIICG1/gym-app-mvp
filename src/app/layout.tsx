@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Sora, DM_Sans } from "next/font/google";
-import { Navbar } from "@/components/Navbar";
-import { Sidebar } from "@/components/Sidebar";
-import { DevPanel } from "@/components/DevPanel";
+import { AppShell } from "@/components/AppShell";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
@@ -35,14 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen antialiased overflow-x-hidden" style={{ background: "var(--background)", color: "var(--text-primary)" }}>
         <Providers>
-          <Navbar />
-          <div className="flex">
-            <Sidebar />
-            <div className="flex-1 min-w-0 overflow-x-hidden pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
-              {children}
-            </div>
-          </div>
-          {process.env.NODE_ENV === "development" && <DevPanel />}
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>

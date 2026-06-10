@@ -839,7 +839,7 @@ function BookingStatusChip({ status }: { status: ClassBookingStatus }) {
   if (status === "available" || status === "open_for_booking") return null;
   const cfg = STATUS_CONFIG[status];
   return (
-    <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: cfg.bg, color: cfg.color }}>
+    <span className="text-xs px-1.5 py-1 lg:py-0.5 rounded font-semibold" style={{ background: cfg.bg, color: cfg.color }}>
       {cfg.label}
     </span>
   );
@@ -1090,9 +1090,13 @@ export default function CalendarPage() {
           <ServiceBadge type={cls.serviceType} />
           <OccupancyBadge reserved={cls.reservedCount} capacity={cls.maxCapacity} />
         </div>
-        <p className="font-bold text-xs mb-0.5 leading-tight" style={{ color: "var(--text-primary)" }}>{cls.name}</p>
-        <p className="text-xs mb-0.5" style={{ color: "var(--text-secondary)" }}>{cls.startTime}</p>
-        <p className="text-xs mb-2 truncate" style={{ color: "var(--text-secondary)" }}>{cls.coach}</p>
+        <p className="font-bold text-sm lg:text-xs mb-1 lg:mb-0.5 leading-snug lg:leading-tight" style={{ color: "var(--text-primary)" }}>{cls.name}</p>
+        {/* Hora + coach: una línea en mobile, dos líneas en desktop */}
+        <p className="text-xs mb-1.5 lg:mb-0.5 lg:hidden truncate" style={{ color: "var(--text-secondary)" }}>
+          {cls.startTime} · {cls.coach}
+        </p>
+        <p className="hidden lg:block text-xs mb-0.5" style={{ color: "var(--text-secondary)" }}>{cls.startTime}</p>
+        <p className="hidden lg:block text-xs mb-2 truncate" style={{ color: "var(--text-secondary)" }}>{cls.coach}</p>
         <div className="h-1.5 rounded-full overflow-hidden mb-1.5" style={{ background: "var(--card-border)" }}>
           <motion.div
             initial={{ width: 0 }}
@@ -1103,19 +1107,19 @@ export default function CalendarPage() {
           />
         </div>
         {/* Status/role chips */}
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5 lg:gap-1">
           {isMakeup && (
-            <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#a78bfa20", color: "#a78bfa" }}>Recup.</span>
+            <span className="text-xs px-1.5 py-1 lg:py-0.5 rounded font-semibold" style={{ background: "#a78bfa20", color: "#a78bfa" }}>Recup.</span>
           )}
           {reserved && (
-            <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>Reservada</span>
+            <span className="text-xs px-1.5 py-1 lg:py-0.5 rounded font-semibold" style={{ background: "#4fc3f720", color: "#4fc3f7" }}>Reservada</span>
           )}
           {!reserved && !IS_ADMIN_OR_COACH && pendingInvitedSessions.has(cls.id) && (
-            <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: "#f59e0b20", color: "#f59e0b" }}>Invitado</span>
+            <span className="text-xs px-1.5 py-1 lg:py-0.5 rounded font-semibold" style={{ background: "#f59e0b20", color: "#f59e0b" }}>Invitado</span>
           )}
           {IS_ADMIN_OR_COACH && (cls.pendingInvitationsCount ?? 0) > 0 && (
             <span
-              className="text-xs px-1.5 py-0.5 rounded font-semibold"
+              className="text-xs px-1.5 py-1 lg:py-0.5 rounded font-semibold"
               style={{ background: "#a78bfa20", color: "#a78bfa" }}
               title={`${cls.pendingInvitationsCount} invitación${cls.pendingInvitationsCount !== 1 ? "es" : ""} pendiente${cls.pendingInvitationsCount !== 1 ? "s" : ""}`}
             >
@@ -1127,7 +1131,7 @@ export default function CalendarPage() {
         <Link
           href={`/classes/${cls.id}?from=calendar`}
           onClick={e => e.stopPropagation()}
-          className="text-xs hover:underline font-medium mt-2 block text-right"
+          className="text-xs hover:underline font-medium mt-2.5 lg:mt-2 py-1 lg:py-0 block text-right"
           style={{ color: "#4fc3f7" }}
         >
           Ver detalle →

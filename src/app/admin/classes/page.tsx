@@ -753,6 +753,8 @@ export default function AdminClassesPage() {
 
       {/* ─── Filter bar ───────────────────────────────────────────────────────── */}
       <div className="space-y-2 mb-6">
+      {/* Desktop */}
+      <div className="hidden sm:block space-y-2">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
         {/* Week navigation */}
         <div className="flex items-center gap-1">
@@ -837,6 +839,105 @@ export default function AdminClassesPage() {
           <button
             onClick={clearFilters}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:bg-white/5"
+            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+      </div>
+
+      {/* Mobile */}
+      <div className="sm:hidden space-y-2">
+        {/* Week selector */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setWeekOffset(w => w - 1)}
+            className="p-2.5 rounded-lg shrink-0 hover:bg-white/5 transition-colors"
+            style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+            title="Semana anterior"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1 text-center px-3 py-2 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Semana</p>
+            <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{weekLabel}</p>
+          </div>
+          <button
+            onClick={() => setWeekOffset(w => w + 1)}
+            className="p-2.5 rounded-lg shrink-0 hover:bg-white/5 transition-colors"
+            style={{ color: "var(--text-secondary)", border: "1px solid var(--card-border)" }}
+            title="Semana siguiente"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+
+        {weekOffset !== 0 && (
+          <button
+            onClick={() => setWeekOffset(0)}
+            className="w-full text-xs px-3 py-2 rounded-lg font-medium transition-colors hover:bg-white/5"
+            style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
+          >
+            Esta semana
+          </button>
+        )}
+
+        {/* Status tabs */}
+        <div className="grid grid-cols-3 gap-2">
+          {(["all", "active", "cancelled"] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className="px-2 py-2 rounded-lg text-xs font-semibold text-center transition-all"
+              style={statusFilter === s
+                ? { background: s === "cancelled" ? "#ef444420" : "#4fc3f720", color: s === "cancelled" ? "#ef4444" : "#4fc3f7" }
+                : { background: "var(--card-border)", color: "var(--text-secondary)" }}
+            >
+              {s === "all" ? "Todas" : s === "active" ? "Activas" : "Canceladas"}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <input
+          type="text"
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          placeholder="Buscar por clase o coach..."
+          className="w-full rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
+          style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}
+        />
+
+        {/* Coach + service type */}
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={coachFilter}
+            onChange={e => setCoachFilter(e.target.value)}
+            className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+          >
+            <option value="">Todos los coaches</option>
+            {coaches.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+          <select
+            value={serviceFilter}
+            onChange={e => setServiceFilter(e.target.value as ServiceType | "")}
+            className="w-full rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-secondary)" }}
+          >
+            <option value="">Todos los tipos</option>
+            <option value="group">Grupal</option>
+            <option value="personal_training">Entrenamiento personal</option>
+            <option value="kinesiology">Kinesiología</option>
+            <option value="blocked_time">Bloqueo de horario</option>
+          </select>
+        </div>
+
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors hover:bg-white/5"
             style={{ background: "var(--card-border)", color: "var(--text-secondary)" }}
           >
             Limpiar filtros

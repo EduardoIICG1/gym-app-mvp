@@ -1359,7 +1359,8 @@ export default function AdminClassesPage() {
                             opacity: s.status === "cancelled" ? 0.6 : 1,
                           }}
                         >
-                          <div className="flex items-center gap-2 px-3 py-2">
+                          {/* Desktop: fila compacta */}
+                          <div className="hidden sm:flex items-center gap-2 px-3 py-2">
                             {/* Estado — punto de color compacto */}
                             <span
                               className="w-2 h-2 rounded-full shrink-0"
@@ -1432,6 +1433,76 @@ export default function AdminClassesPage() {
                                   className="text-xs px-2 py-0.5 rounded font-medium transition-colors hover:bg-white/10"
                                   style={{ color: "#f97316" }}
                                   title="Acortar serie desde esta fecha"
+                                >
+                                  Acortar
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Mobile: card vertical */}
+                          <div className="flex sm:hidden flex-col gap-2 px-3 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ background: s.status === "active" ? "#22c55e" : "#ef4444" }}
+                                title={s.status === "active" ? "Activa" : "Cancelada"}
+                              />
+                              <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                                {toDisplayDate(s.sessionDate)} · {s.startTime}–{s.endTime}
+                              </p>
+                              {seriesDetail.coachVaries && (
+                                <span
+                                  className="ml-auto text-xs px-1.5 py-0.5 rounded font-semibold shrink-0"
+                                  style={{ background: "var(--card-border)", color: "var(--text-secondary)", fontFamily: "monospace" }}
+                                  title={s.coachName}
+                                >
+                                  {coachInitials(s.coachName)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className="text-xs px-2 py-1 rounded font-semibold"
+                                style={s.hasActiveBookings
+                                  ? { background: "#f9731620", color: "#f97316" }
+                                  : { background: "var(--card-border)", color: "var(--text-secondary)" }}
+                              >
+                                {s.reservedCount}/{s.capacity} conf.
+                              </span>
+                              {s.pendingCount > 0 && (
+                                <button
+                                  onClick={() => toggleInviteDetail(s.id)}
+                                  className="text-xs px-2 py-1 rounded font-semibold transition-colors"
+                                  style={expandedInviteSessionId === s.id
+                                    ? { background: "#a78bfa40", color: "#a78bfa" }
+                                    : { background: "#a78bfa20", color: "#a78bfa" }
+                                  }
+                                >
+                                  {s.pendingCount} pend.
+                                </button>
+                              )}
+                            </div>
+                            {s.status === "active" && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => editFromSeries(s)}
+                                  className="flex-1 text-xs px-2 py-1.5 rounded-lg font-medium text-center transition-colors"
+                                  style={{ color: "#4fc3f7", background: "#4fc3f715" }}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => editFutureFromSeries(s)}
+                                  className="flex-1 text-xs px-2 py-1.5 rounded-lg font-medium text-center transition-colors"
+                                  style={{ color: "#22c55e", background: "#22c55e15" }}
+                                >
+                                  Futuras
+                                </button>
+                                <button
+                                  onClick={() => trimFromSeries(s)}
+                                  className="flex-1 text-xs px-2 py-1.5 rounded-lg font-medium text-center transition-colors"
+                                  style={{ color: "#f97316", background: "#f9731615" }}
                                 >
                                   Acortar
                                 </button>

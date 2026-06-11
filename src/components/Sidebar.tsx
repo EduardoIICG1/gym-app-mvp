@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { path: "/calendar",          label: "Calendario",   icon: Calendar,     roles: ["admin", "coach", "member", "owner", "kinesiologist"] },
   { path: "/solicitudes",       label: "Solicitudes",  icon: Inbox,        roles: ["member"] },
   { path: "/health",            label: "Kinesiología", icon: Stethoscope,  roles: ["admin", "kinesiologist"] },
-  { path: "/admin/classes",     label: "Clases",       icon: BookOpen,     roles: ["admin", "coach"] },
+  { path: "/admin/classes",     label: "Clases",       icon: BookOpen,     roles: ["admin", "coach", "kinesiologist"] },
   { path: "/admin/members",     label: "Miembros",     icon: Users,        roles: ["admin", "coach", "kinesiologist"] },
   { path: "/admin/memberships", label: "Membresías",   icon: CreditCard,   roles: ["admin", "coach", "kinesiologist"] },
   { path: "/profile",            label: "Mi Perfil",    icon: User,         roles: ["member", "owner"] },

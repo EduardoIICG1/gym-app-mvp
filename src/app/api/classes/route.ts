@@ -22,11 +22,12 @@ function jsDayToFrontend(jsDay: number): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
-async function fetchSessions(from: Date, to?: Date) {
+async function fetchSessions(from: Date, to: Date | undefined, roleFilter?: { coachId: string; serviceTypes: DbServiceType[] }) {
   return prisma.session.findMany({
     where: {
       status: { not: "CANCELLED" },
       startsAt: to ? { gte: from, lt: to } : { gte: from },
+      ...(roleFilter ? { coachId: roleFilter.coachId, program: { serviceType: { in: roleFilter.serviceTypes } } } : {}),
     },
     include: {
       program: {
@@ -115,7 +116,20 @@ export async function GET(request: Request) {
   const from = weekStart ? new Date(weekStart + "T00:00:00") : new Date();
   const to = weekStart ? new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000) : undefined;
 
-  const sessions = await fetchSessions(from, to);
+  // Role-based visibility: KINESIOLOGIST sees only their own KINESIOLOGY (and blocked) sessions;
+  // COACH sees only their own non-KINESIOLOGY sessions. ADMIN/MEMBER see everything (existing behavior).
+  const authSession = await auth();
+  const role = authSession?.user?.role;
+  const userId = authSession?.user?.id;
+
+  let roleFilter: { coachId: string; serviceTypes: DbServiceType[] } | undefined;
+  if (role === "KINESIOLOGIST" && userId) {
+    roleFilter = { coachId: userId, serviceTypes: ["KINESIOLOGY", "OTHER"] };
+  } else if (role === "COACH" && userId) {
+    roleFilter = { coachId: userId, serviceTypes: ["GROUP", "PERSONAL_TRAINING", "OTHER"] };
+  }
+
+  const sessions = await fetchSessions(from, to, roleFilter);
   return Response.json(sessions.map(toGymClass));
 }
 
@@ -132,11 +146,11 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const {
-      name, serviceType, dayOfWeek, startTime, endTime,
-      coach, maxCapacity, note, eventType,
+      name, serviceType, startTime, endTime,
+      coach, maxCapacity, note, eventType, date,
     } = body;
 
-    if (!name || !startTime || !endTime) {
+    if (!name || !startTime || !endTime || !date) {
       return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
     }
 
@@ -151,6 +165,12 @@ export async function POST(request: Request) {
     const [sh, sm] = String(startTime).split(":").map(Number);
     const [eh, em] = String(endTime).split(":").map(Number);
     const durationMin = Math.max(1, (eh * 60 + em) - (sh * 60 + sm));
+
+    // Session date is the date chosen by the user — not derived from "today"
+    const sessionDate = new Date(String(date) + "T00:00:00");
+    sessionDate.setHours(sh, sm, 0, 0);
+    const sessionEnd = new Date(sessionDate.getTime() + durationMin * 60_000);
+    const effectiveDayOfWeek = jsDayToFrontend(sessionDate.getDay());
 
     // Resolve coach by name (includes KINESIOLOGIST so they can find themselves)
     let coachUser = coach
@@ -173,22 +193,13 @@ export async function POST(request: Request) {
         serviceType: dbSvcType,
         durationMin,
         maxCapacity: isBlocked ? 0 : (Number(maxCapacity) || 20),
-        dayOfWeek: Number(dayOfWeek),
+        dayOfWeek: effectiveDayOfWeek,
         startTime: String(startTime),
         defaultCoachId: coachUser?.id ?? undefined,
         isActive: true,
         description: note ? String(note) : undefined,
       },
     });
-
-    // Create Session for the current week's date of this dayOfWeek
-    const today = new Date();
-    const todayFrontend = jsDayToFrontend(today.getDay());
-    const diffDays = Number(dayOfWeek) - todayFrontend;
-    const sessionDate = new Date(today);
-    sessionDate.setDate(today.getDate() + diffDays);
-    sessionDate.setHours(sh, sm, 0, 0);
-    const sessionEnd = new Date(sessionDate.getTime() + durationMin * 60_000);
 
     const session = await prisma.session.create({
       data: {

@@ -155,8 +155,9 @@ const inputStyle = {
 export default function AdminClassesPage() {
   const router = useRouter();
   const currentUser = useCurrentUser();
-  // COACH self-creates classes — instructor is auto-assigned, ADMIN keeps a free selector
-  const lockInstructor = currentUser.hasRole("coach") && !currentUser.hasRole("admin");
+  // COACH/KINESIOLOGIST self-create classes — instructor is auto-assigned, ADMIN keeps a free selector
+  const lockInstructor = (currentUser.hasRole("coach") || currentUser.hasRole("kinesiologist")) && !currentUser.hasRole("admin");
+  const isKine = currentUser.hasRole("kinesiologist") && !currentUser.hasRole("admin");
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
@@ -1162,6 +1163,7 @@ export default function AdminClassesPage() {
         <CreateClassModal
           coaches={coaches}
           lockInstructor={lockInstructor}
+          isKine={isKine}
           currentUserName={currentUser.name}
           onClose={() => setShowCreateModal(false)}
           onSuccess={fetchData}

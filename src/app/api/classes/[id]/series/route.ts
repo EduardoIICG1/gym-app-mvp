@@ -40,7 +40,7 @@ export async function GET(
   });
   if (!existing) return Response.json({ error: "Clase no encontrada" }, { status: 404 });
 
-  if (role === "COACH" && existing.coachId !== authSession.user.id) {
+  if ((role === "COACH" || role === "KINESIOLOGIST") && existing.coachId !== authSession.user.id) {
     return Response.json({ error: "Sin permisos" }, { status: 403 });
   }
 

@@ -71,12 +71,12 @@ interface CalendarPendingInvitation {
 // ── Member Class Modal ──────────────────────────────────────────────────────
 function ClassModal({
   cls, dateStr, reserved, canBook, bookingStatus, loading, membershipBlocked,
-  hasPendingInvitation, confirmed,
+  hasPendingInvitation, confirmed, isStaffViewer,
   onClose, onReserve, onCancel,
 }: {
   cls: GymClass; dateStr: string; reserved: boolean; canBook: boolean;
   bookingStatus: ClassBookingStatus; loading: boolean; membershipBlocked?: boolean;
-  hasPendingInvitation?: boolean; confirmed?: boolean;
+  hasPendingInvitation?: boolean; confirmed?: boolean; isStaffViewer?: boolean;
   onClose: () => void; onReserve: () => void; onCancel: () => void;
 }) {
   const pct = cls.maxCapacity > 0 ? Math.min((cls.reservedCount / cls.maxCapacity) * 100, 100) : 0;
@@ -263,7 +263,7 @@ function ClassModal({
               style={{ background: "#71717a20", color: "#71717a" }}>
               Sin membresía para esta clase
             </button>
-          ) : (
+          ) : isStaffViewer ? null : (
             <motion.button
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               onClick={onReserve} disabled={loading}
@@ -851,6 +851,9 @@ export default function CalendarPage() {
   const CURRENT_USER_ID = currentUser.id;
   const IS_ADMIN_OR_COACH = currentUser.hasRole("admin") || currentUser.hasRole("coach") || currentUser.hasRole("kinesiologist");
   const isKine = currentUser.hasRole("kinesiologist") && !currentUser.hasRole("admin");
+  const isCoachOnly = currentUser.hasRole("coach") && !currentUser.hasRole("admin");
+  // COACH and KINESIOLOGIST self-create classes — instructor is auto-assigned, ADMIN keeps a free selector
+  const lockInstructor = isKine || isCoachOnly;
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [classes, setClasses] = useState<GymClass[]>([]);
@@ -890,7 +893,7 @@ export default function CalendarPage() {
       fetch(`/api/classes?weekStart=${weekStart}`),
       fetch(`/api/reservations?userId=${CURRENT_USER_ID}`),
       fetch("/api/members"),
-      fetch("/api/members?includesRole=coach"),
+      fetch("/api/members?includesRole=coach,kinesiologist"),
     ]);
     // Ignore stale responses — a newer weekOffset fetch may have completed first
     if (fetchVersionRef.current !== version) return;
@@ -957,7 +960,7 @@ export default function CalendarPage() {
   const handleCardClick = (cls: GymClass, dateStr: string) => {
     const canManage =
       currentUser.role === "admin" ||
-      (currentUser.role === "coach" && cls.coachId === CURRENT_USER_ID);
+      ((currentUser.role === "coach" || currentUser.role === "kinesiologist") && cls.coachId === CURRENT_USER_ID);
     if (canManage) {
       setManageModal({ cls, dateStr });
     } else {
@@ -1399,6 +1402,7 @@ export default function CalendarPage() {
               membershipBlocked={validServiceTypes !== null && !validServiceTypes.has(modal.cls.serviceType)}
               hasPendingInvitation={!IS_ADMIN_OR_COACH && pendingInvitedSessions.has(modal.cls.id)}
               confirmed={modal.confirmed}
+              isStaffViewer={currentUser.role === "coach" || currentUser.role === "kinesiologist"}
               onClose={() => setModal(null)}
               onReserve={() => handleReserve(modal.cls.id, modal.dateStr)}
               onCancel={() => handleCancel(modal.cls.id, modal.dateStr)}
@@ -1428,6 +1432,7 @@ export default function CalendarPage() {
           coaches={coaches}
           initialDayOfWeek={createModalDay}
           isKine={isKine}
+          lockInstructor={lockInstructor}
           currentUserName={currentUser.name}
           onClose={() => setCreateModalDay(null)}
           onSuccess={fetchData}

@@ -9,6 +9,7 @@ import { GymClass, Reservation, ServiceType, DayOfWeek, EventType, Member } from
 import { ServiceBadge, ServiceDot } from "@/components/Badge";
 import { DAY_NAMES } from "@/lib/labels";
 import { CreateClassModal } from "@/components/classes/CreateClassModal";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 interface SeriesSession {
   id: string;
@@ -153,6 +154,10 @@ const inputStyle = {
 
 export default function AdminClassesPage() {
   const router = useRouter();
+  const currentUser = useCurrentUser();
+  // COACH/KINESIOLOGIST self-create classes — instructor is auto-assigned, ADMIN keeps a free selector
+  const lockInstructor = (currentUser.hasRole("coach") || currentUser.hasRole("kinesiologist")) && !currentUser.hasRole("admin");
+  const isKine = currentUser.hasRole("kinesiologist") && !currentUser.hasRole("admin");
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
@@ -211,7 +216,7 @@ export default function AdminClassesPage() {
     const [cRes, rRes, coachRes] = await Promise.all([
       fetch(`/api/classes?weekStart=${weekStartStr}`),
       fetch("/api/reservations"),
-      fetch("/api/members?includesRole=coach"),
+      fetch("/api/members?includesRole=coach,kinesiologist"),
     ]);
     setClasses(await cRes.json());
     setReservations(await rRes.json());
@@ -720,6 +725,15 @@ export default function AdminClassesPage() {
     { label: "Canceladas", value: classes.filter((c) => c.status === "cancelled").length, sub: "esta semana", accent: "#ef4444" },
   ];
 
+  if (currentUser.isLoading) return null;
+  if (!currentUser.hasRole("admin") && !currentUser.hasRole("coach") && !currentUser.hasRole("kinesiologist")) {
+    return (
+      <div className="flex items-center justify-center h-64" style={{ color: "var(--text-secondary)" }}>
+        Sin acceso a este módulo.
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
       {/* Header */}
@@ -1148,6 +1162,9 @@ export default function AdminClassesPage() {
       {showCreateModal && (
         <CreateClassModal
           coaches={coaches}
+          lockInstructor={lockInstructor}
+          isKine={isKine}
+          currentUserName={currentUser.name}
           onClose={() => setShowCreateModal(false)}
           onSuccess={fetchData}
           onToast={(msg, ok) => setToast({ msg, ok })}

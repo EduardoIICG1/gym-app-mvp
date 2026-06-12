@@ -72,6 +72,14 @@ export async function PUT(
       return Response.json({ error: "Membresía no encontrada" }, { status: 404 });
     }
 
+    // Domain separation: COACH never manages KINESIOLOGY; KINESIOLOGIST only manages KINESIOLOGY
+    if (session.user.role === "COACH" && existing.serviceType === "KINESIOLOGY") {
+      return Response.json({ error: "No tienes permiso para editar esta membresía" }, { status: 403 });
+    }
+    if (session.user.role === "KINESIOLOGIST" && existing.serviceType !== "KINESIOLOGY") {
+      return Response.json({ error: "No tienes permiso para editar esta membresía" }, { status: 403 });
+    }
+
     // COACH / KINESIOLOGIST: must have an active MemberCoach relation for this member+service
     if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
       const relation = await prisma.memberCoach.findFirst({

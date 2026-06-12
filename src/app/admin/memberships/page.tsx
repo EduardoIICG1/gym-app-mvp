@@ -20,10 +20,23 @@ import {
 // ─── Constants ─────────────────────────────────────────────────────────────
 const PLAN_LABELS: Record<MembershipPlan, string> = {
   mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
+  evaluacion: "Evaluación Kinésica", plan_5: "Plan 5 sesiones", plan_10: "Plan 10 sesiones",
+  plan_15: "Plan 15 sesiones", plan_20: "Plan 20 sesiones",
 };
 const PLAN_DAYS: Record<MembershipPlan, number> = {
   mensual: 30, trimestral: 90, semestral: 180, anual: 365,
+  evaluacion: 15, plan_5: 45, plan_10: 90, plan_15: 120, plan_20: 150,
 };
+// Packs with a fixed number of included sessions — auto-fill "Sesiones totales" when selected
+const PLAN_SESSIONS: Partial<Record<MembershipPlan, number>> = {
+  evaluacion: 1, plan_5: 5, plan_10: 10, plan_15: 15, plan_20: 20,
+};
+const STANDARD_PLANS: MembershipPlan[] = ["mensual", "trimestral", "semestral", "anual"];
+const KINE_PLANS: MembershipPlan[] = ["evaluacion", "plan_5", "plan_10", "plan_15", "plan_20", "mensual"];
+const ALL_PLANS: MembershipPlan[] = [...STANDARD_PLANS, "evaluacion", "plan_5", "plan_10", "plan_15", "plan_20"];
+function plansForService(svc: ServiceType): MembershipPlan[] {
+  return svc === "kinesiology" ? KINE_PLANS : STANDARD_PLANS;
+}
 const ALL_SERVICES: ServiceType[] = ["group", "personal_training", "kinesiology"];
 
 const NON_COMMERCIAL = new Set<GrantType>(["gift", "compensation", "trial"]);
@@ -106,13 +119,17 @@ interface AddServiceForm {
   grantType: GrantType; grantReason: string;
 }
 
-const defaultAddService = (studentId = ""): AddServiceForm => ({
-  studentId, serviceType: "group", plan: "mensual",
-  membershipStatus: "active", paymentStatus: "pending",
-  amount: "1200", startDate: todayStr(), endDate: addDays(todayStr(), 30),
-  coachId: "", notes: "", totalSessions: "",
-  grantType: "purchased", grantReason: "",
-});
+const defaultAddService = (studentId = "", serviceType: ServiceType = "group", coachId = ""): AddServiceForm => {
+  const plan = plansForService(serviceType)[0];
+  return {
+    studentId, serviceType, plan,
+    membershipStatus: "active", paymentStatus: "pending",
+    amount: "1200", startDate: todayStr(), endDate: addDays(todayStr(), PLAN_DAYS[plan]),
+    coachId, notes: "",
+    totalSessions: PLAN_SESSIONS[plan] != null ? String(PLAN_SESSIONS[plan]) : "",
+    grantType: "purchased", grantReason: "",
+  };
+};
 
 const inputCls = "w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#4fc3f7]/40";
 const inputStyle = { background: "var(--card-border)", border: "1px solid var(--card-border)", color: "var(--text-primary)" };
@@ -141,8 +158,20 @@ export default function MembershipsPage() {
   const [renewing,    setRenewing]    = useState(false);
   const [renewError,  setRenewError]  = useState<string | null>(null);
 
-  const coaches = allMembers.filter((m) => m.roles.includes("coach"));
-  const memberOptions = allMembers.filter((m) => !m.roles.includes("coach"));
+  const coaches = allMembers.filter((m) => m.roles.includes("coach") || m.roles.includes("kinesiologist"));
+  const memberOptions = allMembers.filter((m) => !m.roles.includes("coach") && !m.roles.includes("kinesiologist"));
+
+  // Domain separation: COACH manages GROUP/PT, KINESIOLOGIST manages KINESIOLOGY only
+  const availableServices: ServiceType[] =
+    activeUser.role === "kinesiologist" ? ["kinesiology"] :
+    activeUser.role === "coach"         ? ["group", "personal_training"] :
+    ALL_SERVICES;
+  const defaultServiceType: ServiceType = availableServices[0];
+
+  // Auto-assign the current professional when they create a service in their own domain
+  const isProfessionalLocked = (svc: ServiceType): boolean =>
+    (activeUser.role === "coach" && svc === "personal_training") ||
+    (activeUser.role === "kinesiologist" && svc === "kinesiology");
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
@@ -289,8 +318,16 @@ export default function MembershipsPage() {
     setRenewing(false);
   };
 
-  const openAddServiceForGroup = (studentId: string) => { setAddServiceForm(defaultAddService(studentId)); setShowAddService(true); };
-  const openAddServiceGeneral = () => { setAddServiceForm(defaultAddService("")); setShowAddService(true); };
+  const openAddServiceForGroup = (studentId: string) => {
+    const coachId = isProfessionalLocked(defaultServiceType) ? activeUser.id : "";
+    setAddServiceForm(defaultAddService(studentId, defaultServiceType, coachId));
+    setShowAddService(true);
+  };
+  const openAddServiceGeneral = () => {
+    const coachId = isProfessionalLocked(defaultServiceType) ? activeUser.id : "";
+    setAddServiceForm(defaultAddService("", defaultServiceType, coachId));
+    setShowAddService(true);
+  };
   const handleAddService = async () => {
     if (!addServiceForm.studentId) { showToast("Selecciona un miembro", false); return; }
     if (addServiceForm.totalSessions !== "" && Number(addServiceForm.totalSessions) === 0) {
@@ -374,7 +411,7 @@ export default function MembershipsPage() {
         <select value={filterPlan} onChange={(e) => setFilterPlan(e.target.value as MembershipPlan | "all")}
           className="rounded-lg px-3 py-2 text-sm focus:outline-none"
           style={{ background: "var(--card)", border: "1px solid var(--card-border)", color: "var(--text-primary)" }}>
-          {(["all", "mensual", "trimestral", "semestral", "anual"] as const).map((v) => (
+          {(["all", ...ALL_PLANS] as const).map((v) => (
             <option key={v} value={v}>{v === "all" ? "Todos los planes" : PLAN_LABELS[v]}</option>
           ))}
         </select>
@@ -668,18 +705,33 @@ export default function MembershipsPage() {
                   </div>
                   <div>
                     <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Tipo de servicio</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {ALL_SERVICES.map((svc) => (
-                        <button key={svc} type="button"
-                          onClick={() => setAddServiceForm((f) => ({ ...f, serviceType: svc }))}
-                          className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
-                          style={addServiceForm.serviceType === svc
-                            ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
-                            : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
-                          {SERVICE_LABELS[svc]}
-                        </button>
-                      ))}
-                    </div>
+                    {availableServices.length > 1 ? (
+                      <div className="flex gap-2 flex-wrap">
+                        {availableServices.map((svc) => (
+                          <button key={svc} type="button"
+                            onClick={() => setAddServiceForm((f) => {
+                              const plan = plansForService(svc)[0];
+                              return {
+                                ...f, serviceType: svc, plan,
+                                endDate: addDays(f.startDate || todayStr(), PLAN_DAYS[plan]),
+                                totalSessions: PLAN_SESSIONS[plan] != null ? String(PLAN_SESSIONS[plan]) : "",
+                                coachId: isProfessionalLocked(svc) ? activeUser.id : "",
+                              };
+                            })}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                            style={addServiceForm.serviceType === svc
+                              ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
+                              : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                            {SERVICE_LABELS[svc]}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs px-3 py-1.5 rounded-lg font-medium border inline-block"
+                        style={{ background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }}>
+                        {SERVICE_LABELS[availableServices[0]]}
+                      </div>
+                    )}
                   </div>
                   {/* Grant type selector */}
                   <div>
@@ -733,9 +785,16 @@ export default function MembershipsPage() {
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Plan</label>
                       <select value={addServiceForm.plan}
-                        onChange={(e) => { const plan = e.target.value as MembershipPlan; setAddServiceForm((f) => ({ ...f, plan, endDate: addDays(f.startDate || todayStr(), PLAN_DAYS[plan]) })); }}
+                        onChange={(e) => {
+                          const plan = e.target.value as MembershipPlan;
+                          setAddServiceForm((f) => ({
+                            ...f, plan,
+                            endDate: addDays(f.startDate || todayStr(), PLAN_DAYS[plan]),
+                            totalSessions: PLAN_SESSIONS[plan] != null ? String(PLAN_SESSIONS[plan]) : f.totalSessions,
+                          }));
+                        }}
                         className={inputCls} style={inputStyle}>
-                        {(["mensual", "trimestral", "semestral", "anual"] as const).map((v) => <option key={v} value={v}>{PLAN_LABELS[v]}</option>)}
+                        {plansForService(addServiceForm.serviceType).map((v) => <option key={v} value={v}>{PLAN_LABELS[v]}</option>)}
                       </select>
                     </div>
                     <div>
@@ -796,12 +855,19 @@ export default function MembershipsPage() {
                   {(addServiceForm.serviceType === "personal_training" || addServiceForm.serviceType === "kinesiology") && (
                     <div>
                       <label className="text-xs font-medium block mb-1.5" style={{ color: "var(--text-secondary)" }}>Coach / Profesional</label>
-                      <select value={addServiceForm.coachId}
-                        onChange={(e) => setAddServiceForm((f) => ({ ...f, coachId: e.target.value }))}
-                        className={inputCls} style={inputStyle}>
-                        <option value="">Sin asignar</option>
-                        {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                      {isProfessionalLocked(addServiceForm.serviceType) ? (
+                        <div className="text-xs px-3 py-2 rounded-lg font-medium border"
+                          style={{ background: "#22c55e15", borderColor: "#22c55e40", color: "#22c55e" }}>
+                          Autoasignado: {activeUser.name}
+                        </div>
+                      ) : (
+                        <select value={addServiceForm.coachId}
+                          onChange={(e) => setAddServiceForm((f) => ({ ...f, coachId: e.target.value }))}
+                          className={inputCls} style={inputStyle}>
+                          <option value="">Sin asignar</option>
+                          {coaches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      )}
                     </div>
                   )}
                   <div>
@@ -879,7 +945,7 @@ export default function MembershipsPage() {
                       <select value={editState.plan}
                         onChange={(e) => setEditState({ ...editState, plan: e.target.value as MembershipPlan })}
                         className={inputCls} style={inputStyle}>
-                        {(["mensual", "trimestral", "semestral", "anual"] as const).map((v) => <option key={v} value={v}>{PLAN_LABELS[v]}</option>)}
+                        {plansForService(editing.serviceType).map((v) => <option key={v} value={v}>{PLAN_LABELS[v]}</option>)}
                       </select>
                     </div>
                     <div>

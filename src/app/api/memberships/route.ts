@@ -72,6 +72,7 @@ async function fetchMemberships(filter: {
   status?: DbStatus;
   memberId?: string;
   planContains?: string;
+  serviceType?: DbServiceType | DbServiceType[];
 }) {
   return prisma.membership.findMany({
     where: {
@@ -79,6 +80,9 @@ async function fetchMemberships(filter: {
       ...(filter.memberId ? { memberId: filter.memberId } : {}),
       ...(filter.planContains
         ? { planName: { contains: filter.planContains, mode: "insensitive" } }
+        : {}),
+      ...(filter.serviceType
+        ? { serviceType: Array.isArray(filter.serviceType) ? { in: filter.serviceType } : filter.serviceType }
         : {}),
     },
     include: {
@@ -129,10 +133,16 @@ export async function GET(request: Request) {
   if (status && status in STATUS_REVERSE) filter.status = STATUS_REVERSE[status];
   if (plan) filter.planContains = plan;
 
-  if (role === "ADMIN" || role === "COACH" || role === "KINESIOLOGIST") {
-    // All gym staff can view memberships operationally (pack status, sessions left, payment state).
-    // Write operations remain scoped by MemberCoach relations (see POST).
+  if (role === "ADMIN") {
     if (studentId) filter.memberId = studentId;
+  } else if (role === "COACH") {
+    // COACH manages GROUP and PERSONAL_TRAINING — never KINESIOLOGY (separate clinical domain)
+    if (studentId) filter.memberId = studentId;
+    filter.serviceType = ["GROUP", "PERSONAL_TRAINING"];
+  } else if (role === "KINESIOLOGIST") {
+    // KINESIOLOGIST manages only KINESIOLOGY memberships for their patients
+    if (studentId) filter.memberId = studentId;
+    filter.serviceType = "KINESIOLOGY";
   } else {
     // MEMBER: own memberships only — ignore any studentId param
     filter.memberId = session.user.id;
@@ -172,13 +182,26 @@ export async function POST(request: Request) {
 
     const dbSvcType: DbServiceType = SVC_REVERSE[serviceType] ?? "GROUP";
 
+    // Domain separation: COACH never manages KINESIOLOGY; KINESIOLOGIST only manages KINESIOLOGY
+    if (session.user.role === "COACH" && dbSvcType === "KINESIOLOGY") {
+      return Response.json({ error: "Los coaches no administran membresías de kinesiología" }, { status: 403 });
+    }
+    if (session.user.role === "KINESIOLOGIST" && dbSvcType !== "KINESIOLOGY") {
+      return Response.json({ error: "Los kinesiólogos solo administran membresías de kinesiología" }, { status: 403 });
+    }
+
     // COACH / KINESIOLOGIST: must have an active MemberCoach relation for this member+service
     if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
       const relation = await prisma.memberCoach.findFirst({
         where: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType, isActive: true },
       });
       if (!relation) {
-        return Response.json({ error: "No tienes permiso para agregar servicios a este miembro" }, { status: 403 });
+        // First membership of this serviceType for this member under this professional — create the relation automatically
+        await prisma.memberCoach.upsert({
+          where: { memberId_coachId_serviceType: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType } },
+          update: { isActive: true },
+          create: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType, isActive: true },
+        });
       }
       // COACH/KINESIOLOGIST can only create GIFT for own members; COMPENSATION and TRIAL require ADMIN
       if (grantTypeRaw === "compensation" || grantTypeRaw === "trial") {

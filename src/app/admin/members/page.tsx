@@ -21,10 +21,18 @@ import {
 // ─── Constants ─────────────────────────────────────────────────────────────
 const PLAN_LABELS: Record<MembershipPlan, string> = {
   mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual",
+  evaluacion: "Evaluación Kinésica", plan_5: "Plan 5 sesiones", plan_10: "Plan 10 sesiones",
+  plan_15: "Plan 15 sesiones", plan_20: "Plan 20 sesiones",
 };
 const PLAN_DAYS: Record<MembershipPlan, number> = {
   mensual: 30, trimestral: 90, semestral: 180, anual: 365,
+  evaluacion: 15, plan_5: 45, plan_10: 90, plan_15: 120, plan_20: 150,
 };
+const STANDARD_PLANS: MembershipPlan[] = ["mensual", "trimestral", "semestral", "anual"];
+const KINE_PLANS: MembershipPlan[] = ["evaluacion", "plan_5", "plan_10", "plan_15", "plan_20", "mensual"];
+function plansForService(svc: ServiceType): MembershipPlan[] {
+  return svc === "kinesiology" ? KINE_PLANS : STANDARD_PLANS;
+}
 const ALL_SERVICES: ServiceType[] = ["group", "personal_training", "kinesiology"];
 
 const ROLE_COLOR: Record<MemberRole, string> = {
@@ -626,7 +634,10 @@ export default function MembersPage() {
                     <div className="flex gap-2 flex-wrap">
                       {ALL_SERVICES.map((svc) => (
                         <button key={svc} type="button"
-                          onClick={() => setAddServiceForm((f) => ({ ...f, serviceType: svc }))}
+                          onClick={() => setAddServiceForm((f) => {
+                            const plan = plansForService(svc)[0];
+                            return { ...f, serviceType: svc, plan, endDate: addDays(f.startDate || todayStr(), PLAN_DAYS[plan]) };
+                          })}
                           className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
                           style={addServiceForm.serviceType === svc
                             ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
@@ -646,7 +657,7 @@ export default function MembersPage() {
                           setAddServiceForm((f) => ({ ...f, plan, endDate }));
                         }}
                         className={inputCls} style={inputStyle}>
-                        {(["mensual", "trimestral", "semestral", "anual"] as const).map((v) => (
+                        {plansForService(addServiceForm.serviceType).map((v) => (
                           <option key={v} value={v}>{PLAN_LABELS[v]}</option>
                         ))}
                       </select>

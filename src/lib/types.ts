@@ -8,7 +8,7 @@ export type AttendanceStatus = "pending_attendance" | "attended" | "absent";
 export type ReservationStatus = "reserved" | "attended" | "absent" | "cancelled";
 export type MembershipStatus = "active" | "expired" | "cancelled" | "pending";
 export type PaymentStatus = "paid" | "pending" | "overdue" | "waived";
-export type MembershipPlan = "mensual" | "trimestral" | "semestral" | "anual";
+export type MembershipPlan = "mensual" | "trimestral" | "semestral" | "anual" | "evaluacion" | "plan_5" | "plan_10" | "plan_15" | "plan_20";
 export type GrantType = "purchased" | "renewal" | "reactivation" | "gift" | "compensation" | "trial";
 
 export interface GymClass {

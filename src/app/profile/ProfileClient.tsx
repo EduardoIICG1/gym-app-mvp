@@ -51,6 +51,7 @@ function MemberProfileContent({
   const [healthSessions, setHealthSessions] = useState<{ id: string; sessionDate: string; status: string; patientNotes: string | null }[]>([]);
   const [healthRestrictions, setHealthRestrictions] = useState<{ id: string; label: string; severity: string; isActive: boolean }[]>([]);
   const [fetchError, setFetchError] = useState(false);
+  const [showAllPast, setShowAllPast] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!viewUserId) return;
@@ -112,7 +113,9 @@ function MemberProfileContent({
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const upcoming = safeReservations.filter((r) => r.status === "reserved" && new Date(r.classDate) >= today).sort((a, b) => a.classDate.localeCompare(b.classDate));
-  const past = safeReservations.filter((r) => r.status !== "reserved" || new Date(r.classDate) < today).sort((a, b) => b.classDate.localeCompare(a.classDate)).slice(0, 8);
+  const past = safeReservations.filter((r) => r.status !== "reserved" || new Date(r.classDate) < today).sort((a, b) => b.classDate.localeCompare(a.classDate));
+  const PAST_PAGE_SIZE = 5;
+  const visiblePast = showAllPast ? past : past.slice(0, PAST_PAGE_SIZE);
   const activeMemberships = safeMemberships.filter((m) => m.membershipStatus === "active");
   const activeServiceTypes = [...new Set(activeMemberships.map((m) => m.serviceType).filter((s): s is ServiceType => !!s && s !== "blocked_time"))];
 
@@ -407,7 +410,7 @@ function MemberProfileContent({
               className="rounded-xl p-5 border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
               <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--text-secondary)" }}>Historial Reciente</p>
               <div className="space-y-0">
-                {past.map((r) => (
+                {visiblePast.map((r) => (
                   <div key={r.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--card-border)" }}>
                     <div>
                       <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{r.className}</p>
@@ -422,6 +425,15 @@ function MemberProfileContent({
                   </div>
                 ))}
               </div>
+              {past.length > PAST_PAGE_SIZE && (
+                <button
+                  onClick={() => setShowAllPast((v) => !v)}
+                  className="mt-3 text-xs font-medium hover:underline"
+                  style={{ color: "#4fc3f7" }}
+                >
+                  {showAllPast ? "Ver menos" : `Ver más (${past.length - PAST_PAGE_SIZE})`}
+                </button>
+              )}
             </motion.div>
           )}
 

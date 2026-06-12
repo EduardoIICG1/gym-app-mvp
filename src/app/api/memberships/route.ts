@@ -196,16 +196,12 @@ export async function POST(request: Request) {
         where: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType, isActive: true },
       });
       if (!relation) {
-        if (session.user.role === "KINESIOLOGIST") {
-          // First KINESIOLOGY membership for this patient — create the relation automatically
-          await prisma.memberCoach.upsert({
-            where: { memberId_coachId_serviceType: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType } },
-            update: { isActive: true },
-            create: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType, isActive: true },
-          });
-        } else {
-          return Response.json({ error: "No tienes permiso para agregar servicios a este miembro" }, { status: 403 });
-        }
+        // First membership of this serviceType for this member under this professional — create the relation automatically
+        await prisma.memberCoach.upsert({
+          where: { memberId_coachId_serviceType: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType } },
+          update: { isActive: true },
+          create: { memberId: studentId, coachId: session.user.id, serviceType: dbSvcType, isActive: true },
+        });
       }
       // COACH/KINESIOLOGIST can only create GIFT for own members; COMPENSATION and TRIAL require ADMIN
       if (grantTypeRaw === "compensation" || grantTypeRaw === "trial") {

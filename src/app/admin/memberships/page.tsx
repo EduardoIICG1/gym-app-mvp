@@ -106,8 +106,8 @@ interface AddServiceForm {
   grantType: GrantType; grantReason: string;
 }
 
-const defaultAddService = (studentId = ""): AddServiceForm => ({
-  studentId, serviceType: "group", plan: "mensual",
+const defaultAddService = (studentId = "", serviceType: ServiceType = "group"): AddServiceForm => ({
+  studentId, serviceType, plan: "mensual",
   membershipStatus: "active", paymentStatus: "pending",
   amount: "1200", startDate: todayStr(), endDate: addDays(todayStr(), 30),
   coachId: "", notes: "", totalSessions: "",
@@ -141,8 +141,15 @@ export default function MembershipsPage() {
   const [renewing,    setRenewing]    = useState(false);
   const [renewError,  setRenewError]  = useState<string | null>(null);
 
-  const coaches = allMembers.filter((m) => m.roles.includes("coach"));
-  const memberOptions = allMembers.filter((m) => !m.roles.includes("coach"));
+  const coaches = allMembers.filter((m) => m.roles.includes("coach") || m.roles.includes("kinesiologist"));
+  const memberOptions = allMembers.filter((m) => !m.roles.includes("coach") && !m.roles.includes("kinesiologist"));
+
+  // Domain separation: COACH manages GROUP/PT, KINESIOLOGIST manages KINESIOLOGY only
+  const availableServices: ServiceType[] =
+    activeUser.role === "kinesiologist" ? ["kinesiology"] :
+    activeUser.role === "coach"         ? ["group", "personal_training"] :
+    ALL_SERVICES;
+  const defaultServiceType: ServiceType = availableServices[0];
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
@@ -289,8 +296,8 @@ export default function MembershipsPage() {
     setRenewing(false);
   };
 
-  const openAddServiceForGroup = (studentId: string) => { setAddServiceForm(defaultAddService(studentId)); setShowAddService(true); };
-  const openAddServiceGeneral = () => { setAddServiceForm(defaultAddService("")); setShowAddService(true); };
+  const openAddServiceForGroup = (studentId: string) => { setAddServiceForm(defaultAddService(studentId, defaultServiceType)); setShowAddService(true); };
+  const openAddServiceGeneral = () => { setAddServiceForm(defaultAddService("", defaultServiceType)); setShowAddService(true); };
   const handleAddService = async () => {
     if (!addServiceForm.studentId) { showToast("Selecciona un miembro", false); return; }
     if (addServiceForm.totalSessions !== "" && Number(addServiceForm.totalSessions) === 0) {
@@ -659,18 +666,25 @@ export default function MembershipsPage() {
                   </div>
                   <div>
                     <label className="text-xs font-medium block mb-2" style={{ color: "var(--text-secondary)" }}>Tipo de servicio</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {ALL_SERVICES.map((svc) => (
-                        <button key={svc} type="button"
-                          onClick={() => setAddServiceForm((f) => ({ ...f, serviceType: svc }))}
-                          className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
-                          style={addServiceForm.serviceType === svc
-                            ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
-                            : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
-                          {SERVICE_LABELS[svc]}
-                        </button>
-                      ))}
-                    </div>
+                    {availableServices.length > 1 ? (
+                      <div className="flex gap-2 flex-wrap">
+                        {availableServices.map((svc) => (
+                          <button key={svc} type="button"
+                            onClick={() => setAddServiceForm((f) => ({ ...f, serviceType: svc }))}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors"
+                            style={addServiceForm.serviceType === svc
+                              ? { background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }
+                              : { background: "var(--card-border)", borderColor: "var(--card-border)", color: "var(--text-secondary)" }}>
+                            {SERVICE_LABELS[svc]}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs px-3 py-1.5 rounded-lg font-medium border inline-block"
+                        style={{ background: "#4fc3f720", borderColor: "#4fc3f750", color: "#4fc3f7" }}>
+                        {SERVICE_LABELS[availableServices[0]]}
+                      </div>
+                    )}
                   </div>
                   {/* Grant type selector */}
                   <div>

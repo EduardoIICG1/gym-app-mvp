@@ -262,6 +262,26 @@ Este bloque queda como mejora operativa progresiva. No es requisito de lanzamien
 - [ ] Historial de pagos.
 - [ ] Dashboard simple: activas, vencidas, pendientes, renovaciones próximas.
 
+### 8.1 Lógica de consumo de sesiones — regla de negocio objetivo (post-demo)
+
+QA detectó (PR #38) que `POST /api/reservations` elige qué `Membership` consumir
+ordenando por `createdAt DESC` y tomando la primera que cumpla
+`status === ACTIVE` + ventana de fechas + sesiones disponibles — **sin considerar
+`paymentStatus` en ningún momento**. Esto puede llevar a consumir sesiones de una
+membresía `PENDING`/`OVERDUE` antes que una `PAID` vigente, si la `PENDING` fue
+creada más recientemente y tiene fechas vigentes.
+
+Regla objetivo acordada (NO implementar en PR #38 — requiere PR dedicado):
+
+- [ ] Solo membresías `ACTIVE` + `paymentStatus = PAID` pueden consumir sesiones.
+- [ ] Membresías `PENDING`, `OVERDUE` (u otros estados de pago no liquidados) no
+      participan en el consumo aunque estén `ACTIVE` y vigentes por fecha.
+- [ ] Entre varias membresías `ACTIVE`+`PAID` elegibles, priorizar la que vence antes
+      (`endDate` ascendente) para agotar primero los packs próximos a vencer.
+- [ ] Revisar por separado el problema de membresías vencidas que permanecen con
+      `status = ACTIVE` pese a tener `endDate` pasado, y definir una estrategia de
+      transición automática a `EXPIRED` (job/cron o chequeo on-read).
+
 ---
 
 ## 9. Backlog técnico para producción (45%)

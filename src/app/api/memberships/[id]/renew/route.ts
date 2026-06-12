@@ -113,7 +113,7 @@ export async function POST(
   if (!session?.user?.id) {
     return Response.json({ error: "No autenticado" }, { status: 401 });
   }
-  if (session.user.role !== "ADMIN" && session.user.role !== "COACH") {
+  if (session.user.role !== "ADMIN" && session.user.role !== "COACH" && session.user.role !== "KINESIOLOGIST") {
     return Response.json({ error: "Sin permisos" }, { status: 403 });
   }
 
@@ -129,8 +129,16 @@ export async function POST(
       return Response.json({ error: "Membresía no encontrada" }, { status: 404 });
     }
 
-    // ── COACH: verify MemberCoach relation ───────────────────────────────────
-    if (session.user.role === "COACH") {
+    // Domain separation: COACH never manages KINESIOLOGY; KINESIOLOGIST only manages KINESIOLOGY
+    if (session.user.role === "COACH" && source.serviceType === "KINESIOLOGY") {
+      return Response.json({ error: "No tienes permiso para renovar esta membresía" }, { status: 403 });
+    }
+    if (session.user.role === "KINESIOLOGIST" && source.serviceType !== "KINESIOLOGY") {
+      return Response.json({ error: "No tienes permiso para renovar esta membresía" }, { status: 403 });
+    }
+
+    // ── COACH / KINESIOLOGIST: verify MemberCoach relation ────────────────────
+    if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
       const relation = await prisma.memberCoach.findFirst({
         where: {
           memberId:    source.memberId,
@@ -150,11 +158,11 @@ export async function POST(
     // ── Parse body (optional overrides) ─────────────────────────────────────
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
 
-    // COACH cannot set amount or paymentStatus
-    if (session.user.role === "COACH") {
+    // COACH / KINESIOLOGIST cannot set amount or paymentStatus
+    if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
       if (body.amount !== undefined || body.paymentStatus !== undefined) {
         return Response.json(
-          { error: "El coach no puede modificar el monto ni el estado de pago" },
+          { error: "No puedes modificar el monto ni el estado de pago" },
           { status: 403 },
         );
       }
@@ -168,8 +176,8 @@ export async function POST(
     const dbGrantType: DbGrantType = GRANT_REVERSE[grantTypeRaw];
     const isNonCommercial = NON_COMMERCIAL_GRANTS.has(grantTypeRaw);
 
-    // COACH cannot create compensation or trial
-    if (session.user.role === "COACH" && (grantTypeRaw === "compensation" || grantTypeRaw === "trial")) {
+    // COACH / KINESIOLOGIST cannot create compensation or trial
+    if ((session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") && (grantTypeRaw === "compensation" || grantTypeRaw === "trial")) {
       return Response.json({ error: "Solo ADMIN puede crear compensaciones o trials" }, { status: 403 });
     }
 

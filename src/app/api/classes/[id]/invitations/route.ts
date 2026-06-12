@@ -16,7 +16,7 @@ export async function GET(
 
   const { id } = await params;
 
-  if (role === "COACH") {
+  if (role === "COACH" || role === "KINESIOLOGIST") {
     const session = await prisma.session.findUnique({
       where: { id },
       select: { coachId: true },

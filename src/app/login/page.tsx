@@ -20,9 +20,9 @@ function SportCurve() {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
-  const { callbackUrl } = await searchParams;
+  const { callbackUrl, error } = await searchParams;
 
   return (
     <div
@@ -99,6 +99,15 @@ export default async function LoginPage({
             {BRAND.loginSubtitle}
           </p>
         </div>
+
+        {error && (
+          <div
+            className="rounded-xl px-4 py-3 text-center text-[13px] sm:text-sm"
+            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+          >
+            No pudimos completar el inicio de sesión. Inténtalo nuevamente.
+          </div>
+        )}
 
         <div className="w-full h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
 

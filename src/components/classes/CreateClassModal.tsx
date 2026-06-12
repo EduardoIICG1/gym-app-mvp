@@ -7,7 +7,6 @@ import type { ServiceType, EventType } from "@/lib/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DAY_NAMES  = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const DAY_INITIALS = ["L", "M", "X", "J", "V", "S"];
 
 function countOccurrences(
@@ -86,7 +85,7 @@ interface FormState {
   name: string;
   eventType: EventType;
   serviceType: ServiceType;
-  dayOfWeek: number;
+  date: string;
   startTime: string;
   endTime: string;
   coach: string;
@@ -98,13 +97,23 @@ interface FormState {
   bookingMode: "regular" | "makeup_only";
 }
 
-function defaultForm(dayOfWeek: number, isKine: boolean, coachName: string): FormState {
+// Find the next date (today or later) that falls on the given frontend day-of-week (0=Mon...5=Sat)
+function nextDateForDayOfWeek(dayOfWeek: number): string {
+  const today = new Date();
+  const todayFrontend = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  const diffDays = (dayOfWeek - todayFrontend + 7) % 7;
+  const d = new Date(today);
+  d.setDate(today.getDate() + diffDays);
+  return toDateStr(d);
+}
+
+function defaultForm(dayOfWeek: number, isKine: boolean, coachName: string, lockInstructor: boolean): FormState {
   return {
     name: "", eventType: "class",
     serviceType: isKine ? "kinesiology" : "group",
-    dayOfWeek,
+    date: nextDateForDayOfWeek(dayOfWeek),
     startTime: "09:00", endTime: "10:00",
-    coach: isKine ? coachName : "",
+    coach: (isKine || lockInstructor) ? coachName : "",
     maxCapacity: 20, note: "",
     hasBookingCutoff: true, bookingCutoffValue: 3, bookingCutoffUnit: "hours",
     bookingMode: "regular",
@@ -121,6 +130,8 @@ export interface CreateClassModalProps {
   initialDayOfWeek?: number;
   isKine?: boolean;
   currentUserName?: string;
+  /** Hide the instructor selector and auto-assign the current user as instructor (COACH/KINESIOLOGIST). */
+  lockInstructor?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -133,9 +144,10 @@ export function CreateClassModal({
   initialDayOfWeek = 0,
   isKine = false,
   currentUserName = "",
+  lockInstructor = false,
 }: CreateClassModalProps) {
   const [form, setForm] = useState<FormState>(() =>
-    defaultForm(initialDayOfWeek, isKine, currentUserName),
+    defaultForm(initialDayOfWeek, isKine, currentUserName, lockInstructor),
   );
   const [recurMode, setRecurMode] = useState<"none" | "weekly">("none");
   const [recur, setRecur] = useState({
@@ -156,10 +168,13 @@ export function CreateClassModal({
 
   const isWeeklyCreate    = recurMode === "weekly" && form.eventType !== "blocked_time";
   const cannotSubmitWeekly = isWeeklyCreate && occurrenceCount === 0;
+  const cannotSubmitSingle = !isWeeklyCreate && !form.date;
+
+  const requiresCoachSelection = !isKine && !lockInstructor;
 
   // ── Single class ────────────────────────────────────────────────────────────
   const handleSingle = async () => {
-    if (!form.name || (!isKine && !form.coach)) return;
+    if (!form.name || !form.date || (requiresCoachSelection && !form.coach)) return;
     setSaving(true);
     const res = await fetch("/api/classes", {
       method: "POST",
@@ -179,7 +194,7 @@ export function CreateClassModal({
 
   // ── Batch (weekly recurrence) ───────────────────────────────────────────────
   const handleBatch = async () => {
-    if (!form.name || (!isKine && !form.coach)) return;
+    if (!form.name || (requiresCoachSelection && !form.coach)) return;
     if (recur.weekdays.length === 0) {
       onToast("Selecciona al menos un día de la semana", false); return;
     }
@@ -291,8 +306,8 @@ export function CreateClassModal({
                   className={inputCls} style={inputStyle} />
               </div>
 
-              {/* Instructor — hidden when KINESIOLOGIST (auto-assigned) */}
-              {!isKine && (
+              {/* Instructor — hidden when auto-assigned (KINESIOLOGIST or COACH self-creation) */}
+              {!isKine && !lockInstructor && (
                 <div>
                   <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Instructor *</label>
                   <select value={form.coach} onChange={e => setF({ coach: e.target.value })}
@@ -323,18 +338,17 @@ export function CreateClassModal({
                   </div>
                 )}
 
-                {/* Día — deshabilitado en modo semanal */}
+                {/* Fecha — deshabilitada en modo semanal (los días se definen en la repetición) */}
                 <div className={form.eventType === "blocked_time" ? "col-span-2" : ""}>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Día</label>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Fecha</label>
                   {recurMode === "weekly" ? (
                     <div className={inputCls} style={{ ...inputStyle, opacity: 0.45, fontSize: "0.68rem", display: "flex", alignItems: "center" }}>
                       Los días se definen en la repetición
                     </div>
                   ) : (
-                    <select value={form.dayOfWeek} onChange={e => setF({ dayOfWeek: Number(e.target.value) })}
-                      className={inputCls} style={inputStyle}>
-                      {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                    </select>
+                    <input type="date" value={form.date}
+                      onChange={e => setF({ date: e.target.value })}
+                      className={inputCls} style={inputStyle} />
                   )}
                 </div>
               </div>
@@ -499,7 +513,7 @@ export function CreateClassModal({
               <motion.button
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 onClick={handleSubmit}
-                disabled={saving || !form.name || (!isKine && !form.coach) || cannotSubmitWeekly}
+                disabled={saving || !form.name || (requiresCoachSelection && !form.coach) || cannotSubmitWeekly || cannotSubmitSingle}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
                 style={{ background: "linear-gradient(to right, #4fc3f7, #22c55e)" }}>
                 {saving

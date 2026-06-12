@@ -107,6 +107,15 @@ export async function POST(request: Request) {
     }
     const memberId = session.user.id;
 
+    // COACH/KINESIOLOGIST cannot book themselves into classes — they manage attendance,
+    // not reserve as members. Members are added via invitations/convocatoria.
+    if (session.user.role === "COACH" || session.user.role === "KINESIOLOGIST") {
+      return Response.json(
+        { error: "Los coaches y kinesiólogos no pueden reservar clases para sí mismos." },
+        { status: 403 }
+      );
+    }
+
     const { classId } = await request.json();
     if (!classId) {
       return Response.json({ error: "classId requerido" }, { status: 400 });
@@ -196,25 +205,37 @@ export async function POST(request: Request) {
     if (gymSession.program.serviceType !== "OTHER") {
       const max = gymSession.program.maxCapacity ?? 0;
       if (max > 0 && gymSession._count.bookings >= max) {
-        return Response.json({ error: "Clase llena" }, { status: 400 });
+        return Response.json({ error: "Esta clase ya no tiene cupos." }, { status: 400 });
       }
     }
 
-    const duplicate = await prisma.booking.findFirst({
-      where: { sessionId: classId, memberId, status: { not: "CANCELLED" } },
+    // A booking row may already exist for this (session, member) pair if the member
+    // previously cancelled — @@unique([sessionId, memberId]) means we must reuse/update
+    // that row instead of inserting a new one, or the insert throws a P2002 (→ 500).
+    const existingBooking = await prisma.booking.findUnique({
+      where: { sessionId_memberId: { sessionId: classId, memberId } },
     });
-    if (duplicate) {
+    if (existingBooking && existingBooking.status !== "CANCELLED") {
       return Response.json({ error: "Ya tienes esta clase reservada" }, { status: 400 });
     }
 
     const booking = await prisma.$transaction(async (tx) => {
-      const newBooking = await tx.booking.create({
-        data: { sessionId: classId, memberId, status: "CONFIRMED" },
-        include: {
-          session: { include: { program: true } },
-          member: { select: { id: true, name: true, email: true } },
-        },
-      });
+      const newBooking = existingBooking
+        ? await tx.booking.update({
+            where: { id: existingBooking.id },
+            data: { status: "CONFIRMED" },
+            include: {
+              session: { include: { program: true } },
+              member: { select: { id: true, name: true, email: true } },
+            },
+          })
+        : await tx.booking.create({
+            data: { sessionId: classId, memberId, status: "CONFIRMED" },
+            include: {
+              session: { include: { program: true } },
+              member: { select: { id: true, name: true, email: true } },
+            },
+          });
       if (validMembershipId !== null && validTotalSessions !== null) {
         // Atomic increment — WHERE guard prevents race-condition over-consumption
         const incremented = await tx.membership.updateMany({

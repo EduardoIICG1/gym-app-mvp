@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
-import { useBranding } from "@/components/BrandingProvider";
+import { useBranding, useUpdateBranding } from "@/components/BrandingProvider";
 import { isValidHex, hasLowContrast } from "@/lib/colorUtils";
-import { MAX_GYM_NAME_LENGTH, type BrandingConfig } from "@/lib/brandingShared";
+import { MAX_GYM_NAME_LENGTH, DEFAULT_BRANDING, type BrandingConfig } from "@/lib/brandingShared";
 import type { AppearanceMode } from "@prisma/client";
 import { Loader2, Upload, RotateCcw } from "lucide-react";
 
@@ -18,6 +18,7 @@ const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string }[] = [
 export default function BrandingSettingsPage() {
   const activeUser = useCurrentUser();
   const currentBranding = useBranding();
+  const updateBranding = useUpdateBranding();
 
   const [form, setForm] = useState<BrandingConfig>(currentBranding);
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,7 @@ export default function BrandingSettingsPage() {
       }
       const updated = await res.json();
       setForm((prev) => ({ ...prev, ...updated }));
+      updateBranding(updated);
       showToast("Cambios guardados");
     } catch {
       showToast("Error al guardar", false);
@@ -86,9 +88,29 @@ export default function BrandingSettingsPage() {
       }
       const data = await res.json();
       setForm((prev) => ({ ...prev, logoUrl: data.logoUrl }));
+      updateBranding({ logoUrl: data.logoUrl });
       showToast("Logo actualizado");
     } catch {
       showToast("Error al subir el logo", false);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    setUploading(true);
+    try {
+      const res = await fetch("/api/branding/logo", { method: "DELETE" });
+      if (!res.ok) {
+        showToast("Error al quitar el logo", false);
+        return;
+      }
+      const data = await res.json();
+      setForm((prev) => ({ ...prev, logoUrl: data.logoUrl }));
+      updateBranding({ logoUrl: data.logoUrl });
+      showToast("Logo quitado");
+    } catch {
+      showToast("Error al quitar el logo", false);
     } finally {
       setUploading(false);
     }
@@ -104,6 +126,7 @@ export default function BrandingSettingsPage() {
       }
       const data = await res.json();
       setForm(data);
+      updateBranding(data);
       showToast("Valores predeterminados restaurados");
     } catch {
       showToast("Error al restaurar valores predeterminados", false);
@@ -154,7 +177,7 @@ export default function BrandingSettingsPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/jpeg,image/svg+xml,image/webp"
+              accept="image/png,image/jpeg,image/webp"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -162,17 +185,29 @@ export default function BrandingSettingsPage() {
                 e.target.value = "";
               }}
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50"
-              style={{ borderColor: "var(--card-border)", color: "var(--text-primary)" }}
-            >
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {uploading ? "Subiendo..." : "Subir logo"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50"
+                style={{ borderColor: "var(--card-border)", color: "var(--text-primary)" }}
+              >
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {uploading ? "Subiendo..." : "Subir logo"}
+              </button>
+              {form.logoUrl !== DEFAULT_BRANDING.logoUrl && (
+                <button
+                  onClick={handleLogoRemove}
+                  disabled={uploading}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50"
+                  style={{ borderColor: "var(--card-border)", color: "var(--text-secondary)" }}
+                >
+                  Quitar logo
+                </button>
+              )}
+            </div>
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              PNG, JPG, SVG o WebP. Máximo 2MB.
+              PNG, JPG o WebP. Máximo 2MB.
             </p>
           </div>
         </div>

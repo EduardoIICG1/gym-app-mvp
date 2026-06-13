@@ -2,16 +2,18 @@
 // Uses the REST API directly via `fetch` — no @supabase/* SDK dependency.
 // Bucket "branding-assets" must exist and be public (logos are served to the
 // login screen and app shell for all users, including signed-out visitors).
+import { matchesDeclaredType } from "./imageSignature";
 
 const BUCKET = "branding-assets";
 
-export const ALLOWED_LOGO_MIME_TYPES = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
+// SVG is intentionally not supported: it can embed scripts and would need
+// dedicated sanitization before being served publicly.
+export const ALLOWED_LOGO_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"];
 export const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
-  "image/svg+xml": "svg",
   "image/webp": "webp",
 };
 
@@ -41,8 +43,14 @@ export async function uploadGymLogo(file: Buffer, mimeType: string): Promise<Upl
   if (!ALLOWED_LOGO_MIME_TYPES.includes(mimeType)) {
     throw new Error("Tipo de archivo no permitido");
   }
+  if (file.byteLength === 0) {
+    throw new Error("El archivo está vacío");
+  }
   if (file.byteLength > MAX_LOGO_SIZE_BYTES) {
     throw new Error("El archivo supera el tamaño máximo permitido");
+  }
+  if (!matchesDeclaredType(file, mimeType)) {
+    throw new Error("El contenido del archivo no coincide con el tipo declarado");
   }
 
   const { url, serviceRoleKey } = getSupabaseConfig();
@@ -68,13 +76,20 @@ export async function uploadGymLogo(file: Buffer, mimeType: string): Promise<Upl
   };
 }
 
-// Best-effort cleanup of the previous logo — failures are not fatal since the
-// new logo has already been saved and the row already points at it.
+// Best-effort cleanup — failures are logged (without secrets) but never
+// surfaced to the caller, since the DB row has already been updated to the
+// new/default state by the time this runs.
 export async function deleteGymLogo(storagePath: string): Promise<void> {
-  const { url, serviceRoleKey } = getSupabaseConfig();
-
-  await fetch(`${url}/storage/v1/object/${BUCKET}/${storagePath}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${serviceRoleKey}` },
-  }).catch(() => undefined);
+  try {
+    const { url, serviceRoleKey } = getSupabaseConfig();
+    const res = await fetch(`${url}/storage/v1/object/${BUCKET}/${storagePath}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${serviceRoleKey}` },
+    });
+    if (!res.ok) {
+      console.error(`deleteGymLogo: failed to delete ${storagePath} (${res.status})`);
+    }
+  } catch (err) {
+    console.error(`deleteGymLogo: error deleting ${storagePath}`, err instanceof Error ? err.message : err);
+  }
 }

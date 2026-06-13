@@ -100,9 +100,7 @@ export async function DELETE() {
     }
 
     const existing = await prisma.gymSettings.findUnique({ where: { id: GYM_SETTINGS_ID } });
-    if (existing?.logoStoragePath) {
-      await deleteGymLogo(existing.logoStoragePath);
-    }
+    const previousStoragePath = existing?.logoStoragePath ?? null;
 
     const restored = await prisma.gymSettings.upsert({
       where: { id: GYM_SETTINGS_ID },
@@ -126,6 +124,11 @@ export async function DELETE() {
         updatedById: session.user.id,
       },
     });
+
+    // DB now points at the default logo — clean up the uploaded one (best-effort).
+    if (previousStoragePath) {
+      await deleteGymLogo(previousStoragePath);
+    }
 
     return Response.json({
       gymName: restored.gymName,

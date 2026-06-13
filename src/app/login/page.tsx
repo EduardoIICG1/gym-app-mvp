@@ -1,7 +1,7 @@
-import Image from "next/image";
 import { signIn } from "@/auth";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { BRAND } from "@/lib/brand";
+import { getBranding, DEFAULT_BRANDING } from "@/lib/branding";
 
 function SportCurve() {
   return (
@@ -23,6 +23,10 @@ export default async function LoginPage({
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
   const { callbackUrl, error } = await searchParams;
+  const branding = await getBranding();
+  const loginTitle = branding.gymName === DEFAULT_BRANDING.gymName
+    ? BRAND.loginTitle
+    : `Bienvenido a ${branding.gymName}`;
 
   return (
     <div
@@ -59,12 +63,10 @@ export default async function LoginPage({
 
       {/* Logo + sport curve */}
       <div className="relative z-10 flex flex-col items-center gap-4 px-8 pt-16 pb-7 sm:pt-0 sm:pb-7 sm:gap-3.5">
-        <Image
-          src={BRAND.logoSrc}
-          alt={BRAND.name}
-          width={260}
-          height={104}
-          priority
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={branding.logoUrl ?? BRAND.logoSrc}
+          alt={branding.gymName}
           className="w-[190px] sm:w-[260px] h-auto"
         />
         <SportCurve />
@@ -93,7 +95,7 @@ export default async function LoginPage({
 
         <div className="text-center">
           <p className="text-[19px] sm:text-[22px] font-semibold mb-2 sm:mb-2.5 text-white tracking-tight">
-            {BRAND.loginTitle}
+            {loginTitle}
           </p>
           <p className="text-[13px] sm:text-sm leading-relaxed" style={{ color: "#7e8fa4" }}>
             {BRAND.loginSubtitle}

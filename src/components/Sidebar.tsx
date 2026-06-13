@@ -6,10 +6,11 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Home, Calendar, BookOpen, Users, CreditCard, User,
-  ChevronLeft, ChevronRight, Inbox, Stethoscope,
+  ChevronLeft, ChevronRight, Inbox, Stethoscope, Palette,
 } from "lucide-react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { ROLE_LABELS } from "@/lib/labels";
+import { useBranding } from "@/components/BrandingProvider";
 
 const NAV_ITEMS = [
   { path: "/",                  label: "Inicio",       icon: Home,         roles: ["admin", "coach", "member", "owner", "kinesiologist"] },
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { path: "/admin/classes",     label: "Clases",       icon: BookOpen,     roles: ["admin", "coach", "kinesiologist"] },
   { path: "/admin/members",     label: "Miembros",     icon: Users,        roles: ["admin", "coach", "kinesiologist"] },
   { path: "/admin/memberships", label: "Membresías",   icon: CreditCard,   roles: ["admin", "coach", "kinesiologist"] },
+  { path: "/admin/settings/branding", label: "Apariencia", icon: Palette,   roles: ["admin"] },
   { path: "/profile",            label: "Mi Perfil",    icon: User,         roles: ["member", "owner"] },
   { path: "/staff-profile",      label: "Mi Perfil",    icon: User,         roles: ["admin", "coach", "kinesiologist"] },
 ];
@@ -34,6 +36,7 @@ const ROLE_COLOR: Record<string, string> = {
 export function Sidebar() {
   const pathname = usePathname();
   const activeUser = useCurrentUser();
+  const branding = useBranding();
   const [collapsed, setCollapsed] = useState(pathname !== "/");
   const [hovered, setHovered] = useState(false);
 
@@ -91,12 +94,23 @@ export function Sidebar() {
         {/* Logo */}
         <div className="flex items-center gap-3 p-4 border-b overflow-hidden" style={{ borderColor: "var(--card-border)", minHeight: "64px" }}>
           <Link href="/" className="shrink-0 group">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
-              style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e, #f97316)" }}
-            >
-              <span className="text-white font-bold text-base" style={{ fontFamily: "var(--font-display)" }}>P</span>
-            </div>
+            {branding.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={branding.logoUrl}
+                alt={branding.gymName}
+                className="w-9 h-9 rounded-xl object-cover transition-transform group-hover:scale-110"
+              />
+            ) : (
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
+                style={{ background: "linear-gradient(135deg, var(--brand-primary), var(--brand-accent), #f97316)" }}
+              >
+                <span className="text-white font-bold text-base" style={{ fontFamily: "var(--font-display)" }}>
+                  {branding.gymName.charAt(0)}
+                </span>
+              </div>
+            )}
           </Link>
           <AnimatePresence>
             {isExpanded && (
@@ -108,7 +122,7 @@ export function Sidebar() {
                 className="overflow-hidden whitespace-nowrap min-w-0"
               >
                 <p className="font-bold text-sm leading-tight" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
-                  Primary Performance
+                  {branding.gymName}
                 </p>
                 <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                   {ROLE_LABELS[activeUser.role] ?? activeUser.role}

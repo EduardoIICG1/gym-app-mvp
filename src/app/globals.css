@@ -20,6 +20,10 @@
   --navbar-bg: rgba(17, 17, 20, 0.92);
   --hover-overlay: rgba(255, 255, 255, 0.06);
 
+  /* Brand (tenant-configurable — defaults to Primary Performance) */
+  --brand-primary: #4fc3f7;
+  --brand-accent: #22c55e;
+
   /* Semantic aliases */
   --foreground: var(--text-primary);
   --muted-foreground: var(--text-muted);
@@ -66,6 +70,9 @@
   --color-warning: var(--color-warning);
   --color-error: var(--color-error);
   --color-info: var(--color-info);
+
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-accent: var(--brand-accent);
 
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: var(--radius);

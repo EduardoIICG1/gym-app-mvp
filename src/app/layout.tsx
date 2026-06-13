@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Sora, DM_Sans } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { Providers } from "@/components/Providers";
+import { BrandingProvider } from "@/components/BrandingProvider";
+import { getBranding } from "@/lib/branding";
 import "./globals.css";
 
 const sora = Sora({
@@ -16,24 +18,52 @@ const dmSans = DM_Sans({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Primary Performance",
-  description: "Gestión de clases y reservas",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getBranding();
+  return {
+    title: branding.gymName,
+    description: "Gestión de clases y reservas",
+  };
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const branding = await getBranding();
+  // appearanceMode SYSTEM defaults to dark for SSR; the inline script below
+  // corrects it on the client before paint based on matchMedia / pp_theme.
+  const initialDark = branding.appearanceMode !== "LIGHT";
+
   return (
-    <html lang="es" className={`dark ${sora.variable} ${dmSans.variable}`} suppressHydrationWarning>
+    <html
+      lang="es"
+      className={`${initialDark ? "dark " : ""}${sora.variable} ${dmSans.variable}`}
+      suppressHydrationWarning
+    >
       <head>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `:root{--brand-primary:${branding.primaryColor};--brand-accent:${branding.accentColor};}`,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){if(localStorage.getItem('pp_theme')==='light')document.documentElement.classList.remove('dark');var fs=localStorage.getItem('pp_font_size');if(fs&&fs!=='normal')document.documentElement.setAttribute('data-font-size',fs);})()`,
+            __html: `(function(){
+  var t=localStorage.getItem('pp_theme');
+  var mode=${JSON.stringify(branding.appearanceMode)};
+  var dark;
+  if(t==='light'||t==='dark'){dark=t==='dark';}
+  else if(mode==='SYSTEM'){dark=window.matchMedia('(prefers-color-scheme: dark)').matches;}
+  else{dark=mode!=='LIGHT';}
+  document.documentElement.classList.toggle('dark',dark);
+  var fs=localStorage.getItem('pp_font_size');if(fs&&fs!=='normal')document.documentElement.setAttribute('data-font-size',fs);
+})()`,
           }}
         />
       </head>
       <body className="min-h-screen antialiased overflow-x-hidden" style={{ background: "var(--background)", color: "var(--text-primary)" }}>
         <Providers>
-          <AppShell>{children}</AppShell>
+          <BrandingProvider branding={branding}>
+            <AppShell>{children}</AppShell>
+          </BrandingProvider>
         </Providers>
       </body>
     </html>

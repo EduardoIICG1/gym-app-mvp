@@ -57,6 +57,7 @@ El objetivo es que cualquier continuación del proyecto tenga contexto suficient
 - Perfil miembro `/profile`.
 - Perfil staff `/staff-profile`.
 - Módulo Health / Kinesiología `/health`.
+- Configuración de apariencia (nombre, logo, colores, modo claro/oscuro) `/admin/settings/branding` — en desarrollo, PR en revisión.
 
 ### Clases y calendario
 
@@ -322,6 +323,7 @@ Regla objetivo acordada (NO implementar en PR #38 — requiere PR dedicado):
 
 No implementar antes de estabilizar Primary Performance.
 
+- [x] Fundación de branding/tenant: tabla `GymSettings` (single-row) + módulo `/admin/settings/branding` para personalizar nombre, logo y colores (paso previo a un modelo `Gym` real).
 - [ ] Entidad `Gym` / tenant.
 - [ ] Panel Super Admin.
 - [ ] Crear / editar gimnasios.

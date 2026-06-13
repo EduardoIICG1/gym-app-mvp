@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { useCurrentUser } from "@/lib/useCurrentUser";
 import { useTheme } from "@/lib/useTheme";
 import { useFontSize } from "@/lib/useFontSize";
+import { useBranding } from "@/components/BrandingProvider";
 import { Sun, Moon, LogOut } from "lucide-react";
 
 export function Navbar() {
@@ -13,6 +14,7 @@ export function Navbar() {
   const activeUser = useCurrentUser();
   const { theme, toggleTheme } = useTheme();
   const { fontSize, increase, decrease } = useFontSize();
+  const branding = useBranding();
 
   const initials = activeUser.name
     .split(" ")
@@ -29,14 +31,21 @@ export function Navbar() {
       <div className="px-2 sm:px-6 h-14 flex items-center justify-between gap-1">
         {/* Logo — visible on mobile only (desktop uses sidebar logo) */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0 min-w-0 lg:hidden">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e, #f97316)" }}
-          >
-            <span className="text-white font-bold text-sm" style={{ fontFamily: "var(--font-display)" }}>P</span>
-          </div>
+          {branding.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logoUrl} alt={branding.gymName} className="w-8 h-8 rounded-xl object-cover shrink-0" />
+          ) : (
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg, var(--brand-primary), var(--brand-accent), #f97316)" }}
+            >
+              <span className="text-white font-bold text-sm" style={{ fontFamily: "var(--font-display)" }}>
+                {branding.gymName.charAt(0)}
+              </span>
+            </div>
+          )}
           <span className="font-bold text-sm hidden sm:block truncate" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
-            Primary Performance
+            {branding.gymName}
           </span>
         </Link>
 
@@ -85,7 +94,7 @@ export function Navbar() {
           >
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-              style={{ background: "linear-gradient(135deg, #4fc3f7, #22c55e)" }}
+              style={{ background: "linear-gradient(135deg, var(--brand-primary), var(--brand-accent))" }}
             >
               {initials}
             </div>

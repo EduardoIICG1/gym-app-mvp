@@ -91,6 +91,12 @@ enum RestrictionSeverity {
   CRITICAL
 }
 
+enum AppearanceMode {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
 // ─── Business Models ─────────────────────────────────────────────────────────
 
 model User {
@@ -123,6 +129,9 @@ model User {
   patientHealthSessions  HealthSession[]      @relation("PatientHealthSessions")
   patientRestrictions    HealthRestriction[]  @relation("PatientRestrictions")
   createdRestrictions    HealthRestriction[]  @relation("RestrictionCreatedBy")
+
+  // Branding relations
+  updatedGymSettings GymSettings[] @relation("GymSettingsUpdatedBy")
 }
 
 // Many-to-many: Member ↔ Coach with service type
@@ -381,4 +390,34 @@ model HealthRestriction {
   @@index([healthRecordId])
   @@index([patientId])
   @@index([isActive])
+}
+
+// ─── Branding / Tenant Configuration ──────────────────────────────────────────
+
+// Persisted visual identity configuration for the gym.
+//
+// MVP note (single tenant): there is currently no Gym/Tenant/Organization entity.
+// This table holds a single row (id = "primary") representing Primary Performance.
+// All reads/writes target that fixed row.
+//
+// Future multi-tenant migration path:
+//   1. Introduce a `Gym`/`Tenant` model.
+//   2. Add `gymId String @unique` to this model, FK'd to `Gym.id`.
+//   3. Backfill the existing "primary" row with the Primary Performance gymId.
+//   4. Drop the fixed-id convention; resolve settings by the authenticated user's gymId.
+// No application code outside `src/lib/branding.ts` should assume a single row —
+// all reads go through `getGymSettings()` / `getBranding()`.
+model GymSettings {
+  id              String         @id @default("primary")
+  gymName         String         @default("Primary Performance")
+  logoUrl         String?
+  logoStoragePath String?
+  primaryColor    String         @default("#4fc3f7")
+  accentColor     String         @default("#22c55e")
+  appearanceMode  AppearanceMode @default(DARK)
+  updatedById     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  updatedBy User? @relation("GymSettingsUpdatedBy", fields: [updatedById], references: [id])
 }

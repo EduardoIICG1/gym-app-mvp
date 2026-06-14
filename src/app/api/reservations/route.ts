@@ -2,6 +2,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { Reservation, ReservationStatus, AttendanceStatus } from "@/lib/types";
 import type { BookingStatus } from "@prisma/client";
+import {
+  findEligibleMembership,
+  getMembershipDenialReason,
+  MEMBERSHIP_DENIAL_MESSAGES,
+} from "@/lib/membershipSelection";
 
 const BOOKING_TO_STATUS: Record<BookingStatus, ReservationStatus> = {
   INVITED:    "reserved",
@@ -138,68 +143,22 @@ export async function POST(request: Request) {
     if (gymSession.status === "CANCELLED") {
       return Response.json({ error: "Clase cancelada" }, { status: 400 });
     }
-    // Track which membership to increment (set inside gating block, used in transaction below)
-    let validMembershipId: string | null = null;
-    let validTotalSessions: number | null = null;
+    // Track which membership to save/consume on the booking (MEMBER only; ADMIN/COACH bypass)
+    let chosenMembershipId: string | null = null;
+    let chosenTotalSessions: number | null = null;
 
-    // Membership gating — MEMBER only; ADMIN/COACH bypass
     if (session.user.role === "MEMBER") {
       const serviceType = gymSession.program.serviceType;
       const now = new Date();
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
 
-      const memberships = await prisma.membership.findMany({
-        where: { memberId, serviceType },
-        orderBy: { createdAt: "desc" },
-      });
-
-      if (memberships.length === 0) {
-        return Response.json(
-          { error: "No tienes una membresía activa para este tipo de clase." },
-          { status: 403 }
-        );
+      const eligible = await findEligibleMembership(prisma, memberId, serviceType, now);
+      if (!eligible) {
+        const reason = await getMembershipDenialReason(prisma, memberId, serviceType, now);
+        return Response.json({ error: MEMBERSHIP_DENIAL_MESSAGES[reason] }, { status: 403 });
       }
 
-      const valid = memberships.find(
-        (m) =>
-          m.status === "ACTIVE" &&
-          m.startDate <= now &&
-          (m.endDate === null || m.endDate >= todayStart) &&
-          (m.totalSessions === null || m.usedSessions < m.totalSessions)
-      );
-
-      if (!valid) {
-        const hasActive = memberships.some((m) => m.status === "ACTIVE");
-        if (hasActive) {
-          const active = memberships.find((m) => m.status === "ACTIVE")!;
-          if (active.totalSessions !== null && active.usedSessions >= active.totalSessions) {
-            return Response.json(
-              { error: "No tienes sesiones disponibles en tu membresía." },
-              { status: 403 }
-            );
-          }
-          return Response.json(
-            { error: "Tu membresía está vencida. Regulariza tu membresía para reservar." },
-            { status: 403 }
-          );
-        }
-        if (memberships.some((m) => m.status === "EXPIRED")) {
-          return Response.json(
-            { error: "Tu membresía está vencida. Regulariza tu membresía para reservar." },
-            { status: 403 }
-          );
-        }
-        return Response.json(
-          { error: "Tu membresía no está activa. Contacta a administración." },
-          { status: 403 }
-        );
-      }
-      // valid is confirmed non-null here — capture for session tracking
-      if (valid.totalSessions !== null) {
-        validMembershipId   = valid.id;
-        validTotalSessions  = valid.totalSessions;
-      }
+      chosenMembershipId  = eligible.id;
+      chosenTotalSessions = eligible.totalSessions;
     }
 
     if (gymSession.program.serviceType !== "OTHER") {
@@ -223,24 +182,34 @@ export async function POST(request: Request) {
       const newBooking = existingBooking
         ? await tx.booking.update({
             where: { id: existingBooking.id },
-            data: { status: "CONFIRMED" },
+            data: { status: "CONFIRMED", membershipId: chosenMembershipId },
             include: {
               session: { include: { program: true } },
               member: { select: { id: true, name: true, email: true } },
             },
           })
         : await tx.booking.create({
-            data: { sessionId: classId, memberId, status: "CONFIRMED" },
+            data: {
+              sessionId: classId,
+              memberId,
+              status: "CONFIRMED",
+              membershipId: chosenMembershipId,
+            },
             include: {
               session: { include: { program: true } },
               member: { select: { id: true, name: true, email: true } },
             },
           });
-      if (validMembershipId !== null && validTotalSessions !== null) {
+      if (chosenMembershipId !== null && chosenTotalSessions !== null) {
         // Atomic increment — WHERE guard prevents race-condition over-consumption
         const incremented = await tx.membership.updateMany({
-          where: { id: validMembershipId, usedSessions: { lt: validTotalSessions } },
-          data:  { usedSessions: { increment: 1 } },
+          where: {
+            id: chosenMembershipId,
+            status: "ACTIVE",
+            paymentStatus: "PAID",
+            usedSessions: { lt: chosenTotalSessions },
+          },
+          data: { usedSessions: { increment: 1 } },
         });
         if (incremented.count === 0) throw new Error("SESSION_CONFLICT");
       }
@@ -288,19 +257,42 @@ export async function DELETE(request: Request) {
     const isLate = booking.session.startsAt.getTime() - now.getTime() <= CANCEL_WINDOW_MS;
 
     // Only look for a membership to credit if the cancel is within the free window
-    let membershipToCredit: { id: string } | null = null;
+    let membershipIdToCredit: string | null = null;
+    let reviewRequired = false;
+
     if (!isLate) {
-      membershipToCredit = await prisma.membership.findFirst({
-        where: {
-          memberId,
-          serviceType:   booking.session.program.serviceType,
-          status:        "ACTIVE",
-          totalSessions: { not: null },
-          usedSessions:  { gt: 0 },
-        },
-        orderBy: { createdAt: "desc" },
-        select:  { id: true },
-      });
+      if (booking.membershipId) {
+        // Refund exactly the membership this booking consumed
+        const m = await prisma.membership.findUnique({
+          where: { id: booking.membershipId },
+          select: { totalSessions: true, usedSessions: true },
+        });
+        if (m && m.totalSessions !== null && m.usedSessions > 0) {
+          membershipIdToCredit = booking.membershipId;
+        }
+      } else {
+        // Historical booking with no recorded membershipId — conservative fallback:
+        // only auto-credit if exactly one limited ACTIVE+PAID membership is a candidate.
+        const candidates = await prisma.membership.findMany({
+          where: {
+            memberId,
+            serviceType:   booking.session.program.serviceType,
+            status:        "ACTIVE",
+            paymentStatus: "PAID",
+            totalSessions: { not: null },
+            usedSessions:  { gt: 0 },
+          },
+          select: { id: true },
+        });
+        if (candidates.length === 1) {
+          membershipIdToCredit = candidates[0].id;
+        } else {
+          reviewRequired = true;
+          console.warn(
+            `[reservations] cancelación sin membershipId requiere revisión administrativa (bookingId=${booking.id})`
+          );
+        }
+      }
     }
 
     await prisma.$transaction(async (tx) => {
@@ -308,10 +300,10 @@ export async function DELETE(request: Request) {
         where: { id: booking.id },
         data:  { status: "CANCELLED" },
       });
-      if (membershipToCredit) {
+      if (membershipIdToCredit) {
         // Guard against decrement below zero (defensive — should never trigger)
         await tx.membership.updateMany({
-          where: { id: membershipToCredit.id, usedSessions: { gt: 0 } },
+          where: { id: membershipIdToCredit, usedSessions: { gt: 0 } },
           data:  { usedSessions: { decrement: 1 } },
         });
       }
@@ -321,6 +313,12 @@ export async function DELETE(request: Request) {
       success: true,
       late:    isLate,
       ...(isLate ? { message: "Cancelación tardía: la sesión no será recuperada." } : {}),
+      ...(reviewRequired
+        ? {
+            reviewRequired: true,
+            message: "Tu reserva fue cancelada. El reembolso de la sesión requiere revisión administrativa.",
+          }
+        : {}),
     });
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });

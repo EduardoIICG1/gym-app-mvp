@@ -323,7 +323,32 @@ Regla objetivo acordada (NO implementar en PR #38 — requiere PR dedicado):
 
 No implementar antes de estabilizar Primary Performance.
 
-- [x] Fundación de branding/tenant: tabla `GymSettings` (single-row) + módulo `/admin/settings/branding` para personalizar nombre, logo y colores (paso previo a un modelo `Gym` real).
+### Branding y personalización visual — postergado
+
+El QA visual del PR #41 (`feat/tenant-branding-foundation`) determinó que el
+módulo de Apariencia (nombre, logo, colores de marca, modo claro/oscuro) no
+entrega suficiente valor para el piloto en su estado actual: los colores
+dinámicos solo afectan una parte mínima de la interfaz, la mayoría de los
+módulos no usa los nuevos tokens y el logo no tiene una visualización
+satisfactoria. Convertirlo en una personalización real requeriría refactorizar
+el sistema visual completo, por lo que se reubica como parte de Multi-gimnasio
+/ Super Admin y del rediseño visual.
+
+- El desarrollo completo (modelo `GymSettings`, storage de logo, validación de
+  imágenes, `/admin/settings/branding`, `/api/branding*`, `BrandingProvider`,
+  integración en layout/login/Navbar/Sidebar) queda preservado en el PR #41 y
+  en la rama `feat/tenant-branding-foundation` (commit de referencia
+  `ccf2fbf39161d66f619a6abeb6f4d7f89dd4a7d7`), cerrado sin merge como
+  referencia futura.
+- La migración `20260613000000_gym_settings_branding` ya fue aplicada en la
+  base UAT; el schema/historial de `master` se alinea vía un PR técnico
+  dedicado (tabla `GymSettings` y bucket `branding-assets` permanecen en UAT
+  sin uso por la aplicación hasta retomar este módulo).
+
+- [x] Fundación de branding/tenant: tabla `GymSettings` (single-row) + módulo `/admin/settings/branding` para personalizar nombre, logo y colores — implementado en PR #41, postergado (ver nota arriba).
+- [ ] Retomar branding/personalización visual como parte de Multi-gimnasio /
+  Super Admin y del rediseño visual, una vez exista un modelo `Gym`/tenant
+  real.
 - [ ] Entidad `Gym` / tenant.
 - [ ] Panel Super Admin.
 - [ ] Crear / editar gimnasios.

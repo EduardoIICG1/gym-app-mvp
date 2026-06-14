@@ -322,6 +322,26 @@ Regla objetivo acordada (NO implementar en PR #38 — requiere PR dedicado):
 
 No implementar antes de estabilizar Primary Performance.
 
+### Branding y personalización visual — postergado
+
+- El módulo visual (nombre, logo, colores de marca, modo claro/oscuro) fue
+  desarrollado y validado técnicamente en el PR #41.
+- El PR #41 fue cerrado sin merge por prioridad de producto (no por fallas
+  técnicas).
+- El desarrollo completo se conserva como referencia en:
+  - PR #41 (cerrado, sin merge);
+  - rama `feat/tenant-branding-foundation`;
+  - commit de referencia `ccf2fbf39161d66f619a6abeb6f4d7f89dd4a7d7`.
+- La tabla `GymSettings` y su migración (`20260613000000_gym_settings_branding`)
+  permanecen como base técnica dormida (alineadas en `master` vía PR #42).
+- No existe funcionalidad visible de branding en `master`.
+- Se retomará solamente después de:
+  1. estabilizar Primary Performance;
+  2. cerrar pendientes operativos críticos;
+  3. definir los tokens del rediseño visual (sección 6);
+  4. iniciar el modelo multi-tenant real (este bloque).
+- No eliminar la rama ni el PR de referencia.
+
 - [ ] Entidad `Gym` / tenant.
 - [ ] Panel Super Admin.
 - [ ] Crear / editar gimnasios.
@@ -338,15 +358,23 @@ No implementar antes de estabilizar Primary Performance.
 
 El orden asume que la demo se realiza con el estado actual y que el feedback de la admin determina qué ajustes son críticos.
 
-1. **Cerrar PRs abiertos y estabilizar** — ningún PR sin mergear pendiente de QA.
-2. **Demo con admin** — flujos principales, anotar feedback sin implementar en caliente.
-3. **Incorporar feedback crítico** — solo lo que bloquea la operación diaria.
-4. **Mobile-first de flujos principales** — `/admin/classes`, calendario, panel de serie, `/classes` member-facing.
-5. **Rediseño visual Loganfield por módulos** — empezar por tokens y componentes base, luego por vista.
-6. **Health fase 2** — reabrir sesión, adjuntar documentos, exportar ficha.
-7. **Producción / hardening** — DB, backups, seguridad, dominio, deploy controlado.
-8. **Super Admin / multi-gimnasio** — solo cuando Primary Performance esté estable en producción.
-9. **Pagos / membresías avanzado** — paralelizable con #8 si hay demanda real.
+1. **Consumo de sesiones solo desde membresías `ACTIVE` + `PAID`** (sección 8.1) —
+   corrige qué membresía se descuenta al reservar; prioridad inmediata antes de
+   iniciar cualquier módulo nuevo.
+2. **Pendientes operativos críticos** (sección 3.1–3.3: reemplazo de coach,
+   asistencia post-clase, invitaciones).
+3. **Experiencia miembro** (sección 4).
+4. **Hardening productivo** (sección 9: base de datos, seguridad, calidad,
+   observabilidad).
+5. **Cerrar PRs abiertos y estabilizar** — ningún PR sin mergear pendiente de QA
+   (PR #41 cerrado sin merge; PR #42 de alineación de migración pendiente).
+6. **Demo con admin** — flujos principales, anotar feedback sin implementar en caliente.
+7. **Mobile-first de flujos principales** — `/admin/classes`, calendario, panel de serie, `/classes` member-facing.
+8. **Rediseño visual Loganfield por módulos** — empezar por tokens y componentes base, luego por vista.
+9. **Health fase 2** — reabrir sesión, adjuntar documentos, exportar ficha.
+10. **Multi-gimnasio / Super Admin** — solo cuando Primary Performance esté
+    estable en producción; incluye retomar branding/personalización (sección 10).
+11. **Pagos / membresías avanzado** — paralelizable con #10 si hay demanda real.
 
 ---
 

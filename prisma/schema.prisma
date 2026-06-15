@@ -195,21 +195,24 @@ model Session {
 
 // Member ↔ Session — Booking always references a real Session
 model Booking {
-  id        String        @id @default(cuid())
-  sessionId String
-  memberId  String
-  status    BookingStatus @default(INVITED)
-  notes     String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  sessionId    String
+  memberId     String
+  membershipId String?
+  status       BookingStatus @default(INVITED)
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   session    Session            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   member     User               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  membership Membership?        @relation(fields: [membershipId], references: [id])
   invitation BookingInvitation?
 
   @@unique([sessionId, memberId])
   @@index([memberId])
   @@index([sessionId])
+  @@index([membershipId])
 }
 
 // Coach/Admin convocatoria — PENDING does not consume capacity.
@@ -256,8 +259,9 @@ model Membership {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @default(now()) @updatedAt
 
-  member    User  @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  grantedBy User? @relation("MembershipGrantedBy", fields: [grantedById], references: [id])
+  member    User      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  grantedBy User?     @relation("MembershipGrantedBy", fields: [grantedById], references: [id])
+  bookings  Booking[]
 
   @@index([memberId])
   @@index([status])

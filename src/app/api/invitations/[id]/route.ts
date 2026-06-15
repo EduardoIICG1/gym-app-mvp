@@ -1,5 +1,10 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  findEligibleMembership,
+  getMembershipDenialReason,
+  MEMBERSHIP_DENIAL_MESSAGES,
+} from "@/lib/membershipSelection";
 
 // PATCH /api/invitations/[id]
 // MEMBER responds to their own invitation: "accepted" | "declined"
@@ -87,51 +92,22 @@ export async function PATCH(
     const memberId = authSession.user.id;
     const serviceType = gymSession.program.serviceType;
     const now = new Date();
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
 
-    // Validate active membership with available sessions
-    const memberships = await prisma.membership.findMany({
-      where: { memberId, serviceType },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const validMembership = memberships.find(
-      (m) =>
-        m.status === "ACTIVE" &&
-        m.startDate <= now &&
-        (m.endDate === null || m.endDate >= todayStart) &&
-        (m.totalSessions === null || m.usedSessions < m.totalSessions)
-    );
+    // Validate eligible membership (ACTIVE + PAID + valid dates + sessions available)
+    const validMembership = await findEligibleMembership(prisma, memberId, serviceType, now);
 
     if (!validMembership) {
-      if (memberships.length === 0) {
-        return Response.json(
-          { error: "Tu membresía no está activa para este servicio." },
-          { status: 403 }
-        );
-      }
-      const hasActive = memberships.some((m) => m.status === "ACTIVE");
-      if (hasActive) {
-        const active = memberships.find((m) => m.status === "ACTIVE")!;
-        if (active.totalSessions !== null && active.usedSessions >= active.totalSessions) {
-          return Response.json(
-            { error: "No tienes sesiones disponibles." },
-            { status: 403 }
-          );
-        }
-      }
-      return Response.json(
-        { error: "Tu membresía no está activa para este servicio." },
-        { status: 403 }
-      );
+      const reason = await getMembershipDenialReason(prisma, memberId, serviceType, now);
+      return Response.json({ error: MEMBERSHIP_DENIAL_MESSAGES[reason] }, { status: 403 });
     }
 
-    // Check for existing non-cancelled booking for this session
-    const duplicate = await prisma.booking.findFirst({
-      where: { sessionId: gymSession.id, memberId, status: { not: "CANCELLED" } },
+    // A booking row may already exist for this (session, member) pair if the member
+    // previously cancelled — @@unique([sessionId, memberId]) means we must reuse/update
+    // that row instead of inserting a new one, or the insert throws a P2002 (→ 500).
+    const existingBooking = await prisma.booking.findUnique({
+      where: { sessionId_memberId: { sessionId: gymSession.id, memberId } },
     });
-    if (duplicate) {
+    if (existingBooking && existingBooking.status !== "CANCELLED") {
       return Response.json({ error: "Ya estás inscrito en esta clase." }, { status: 409 });
     }
 
@@ -149,11 +125,16 @@ export async function PATCH(
     const membershipId = validMembership.id;
     const totalSessions = validMembership.totalSessions!;
 
-    // Atomic: create booking + update invitation + increment usedSessions
+    // Atomic: create/reuse booking + update invitation + increment usedSessions
     const booking = await prisma.$transaction(async (tx) => {
-      const newBooking = await tx.booking.create({
-        data: { sessionId: gymSession.id, memberId, status: "CONFIRMED" },
-      });
+      const newBooking = existingBooking
+        ? await tx.booking.update({
+            where: { id: existingBooking.id },
+            data: { status: "CONFIRMED", membershipId },
+          })
+        : await tx.booking.create({
+            data: { sessionId: gymSession.id, memberId, status: "CONFIRMED", membershipId },
+          });
 
       await tx.bookingInvitation.update({
         where: { id },
@@ -163,7 +144,12 @@ export async function PATCH(
       if (trackSessions) {
         // Atomic increment with WHERE guard to prevent race-condition over-consumption
         const incremented = await tx.membership.updateMany({
-          where: { id: membershipId, usedSessions: { lt: totalSessions } },
+          where: {
+            id: membershipId,
+            status: "ACTIVE",
+            paymentStatus: "PAID",
+            usedSessions: { lt: totalSessions },
+          },
           data: { usedSessions: { increment: 1 } },
         });
         if (incremented.count === 0) throw new Error("SESSION_CONFLICT");
@@ -176,7 +162,7 @@ export async function PATCH(
   } catch (e) {
     if (e instanceof Error && e.message === "SESSION_CONFLICT") {
       return Response.json(
-        { error: "No tienes sesiones disponibles." },
+        { error: "No tienes sesiones disponibles en tu membresía." },
         { status: 403 }
       );
     }

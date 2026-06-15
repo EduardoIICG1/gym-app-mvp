@@ -146,32 +146,60 @@ export async function DELETE(
     }
 
     // Admin/Coach override: always credit the session back regardless of timing
-    const membershipToCredit = await prisma.membership.findFirst({
-      where: {
-        memberId:      booking.member.id,
-        serviceType:   booking.session.program.serviceType,
-        status:        "ACTIVE",
-        totalSessions: { not: null },
-        usedSessions:  { gt: 0 },
-      },
-      orderBy: { createdAt: "desc" },
-      select:  { id: true },
-    });
+    let membershipIdToCredit: string | null = null;
+    let reviewRequired = false;
+
+    if (booking.membershipId) {
+      // Refund exactly the membership this booking consumed
+      const m = await prisma.membership.findUnique({
+        where: { id: booking.membershipId },
+        select: { totalSessions: true, usedSessions: true },
+      });
+      if (m && m.totalSessions !== null && m.usedSessions > 0) {
+        membershipIdToCredit = booking.membershipId;
+      }
+    } else {
+      // Historical booking with no recorded membershipId — conservative fallback:
+      // only auto-credit if exactly one limited ACTIVE+PAID membership is a candidate.
+      const candidates = await prisma.membership.findMany({
+        where: {
+          memberId:      booking.member.id,
+          serviceType:   booking.session.program.serviceType,
+          status:        "ACTIVE",
+          paymentStatus: "PAID",
+          totalSessions: { not: null },
+          usedSessions:  { gt: 0 },
+        },
+        select: { id: true },
+      });
+      if (candidates.length === 1) {
+        membershipIdToCredit = candidates[0].id;
+      } else {
+        reviewRequired = true;
+        console.warn(
+          `[reservations] cancelación admin/coach sin membershipId requiere revisión administrativa (bookingId=${id})`
+        );
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.booking.update({
         where: { id },
         data:  { status: "CANCELLED" },
       });
-      if (membershipToCredit) {
+      if (membershipIdToCredit) {
         await tx.membership.updateMany({
-          where: { id: membershipToCredit.id, usedSessions: { gt: 0 } },
+          where: { id: membershipIdToCredit, usedSessions: { gt: 0 } },
           data:  { usedSessions: { decrement: 1 } },
         });
       }
     });
 
-    return Response.json({ success: true, bookingId: id });
+    return Response.json({
+      success: true,
+      bookingId: id,
+      ...(reviewRequired ? { reviewRequired: true } : {}),
+    });
   } catch {
     return Response.json({ error: "Error interno" }, { status: 500 });
   }

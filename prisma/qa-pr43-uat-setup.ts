@@ -20,6 +20,8 @@ import {
   ID,
   QA_PREFIX,
   saveState,
+  loadState,
+  allStableIds,
   daysFromNow,
   hoursFromNow,
   type QaState,
@@ -36,6 +38,42 @@ if (!memberEmail) {
 const prisma = getPrisma();
 
 async function main() {
+  // ── Clean-slate guard ────────────────────────────────────────────────
+  // Never silently reuse/reset fixtures left over from a previous run.
+  if (loadState()) {
+    console.error(
+      "Abort: .tmp/pr43-qa-state.json already exists. Run qa-pr43-uat-cleanup.ts first, " +
+        "then re-run setup."
+    );
+    process.exit(1);
+  }
+
+  const ids = allStableIds();
+  const [existingPrograms, existingSessions, existingMemberships, existingBookings, existingInvitations] =
+    await Promise.all([
+      prisma.program.findMany({ where: { id: { in: ids.programs } }, select: { id: true } }),
+      prisma.session.findMany({ where: { id: { in: ids.sessions } }, select: { id: true } }),
+      prisma.membership.findMany({ where: { id: { in: ids.memberships } }, select: { id: true } }),
+      prisma.booking.findMany({ where: { id: { in: ids.bookings } }, select: { id: true } }),
+      prisma.bookingInvitation.findMany({ where: { id: { in: ids.invitations } }, select: { id: true } }),
+    ]);
+  const preExisting = [
+    ...existingPrograms.map((r) => `Program:${r.id}`),
+    ...existingSessions.map((r) => `Session:${r.id}`),
+    ...existingMemberships.map((r) => `Membership:${r.id}`),
+    ...existingBookings.map((r) => `Booking:${r.id}`),
+    ...existingInvitations.map((r) => `BookingInvitation:${r.id}`),
+  ];
+  if (preExisting.length > 0) {
+    console.error(
+      "Abort: found pre-existing QA-PR43 fixtures in UAT (no state file, but stable ids already exist).\n" +
+        "Run qa-pr43-uat-cleanup.ts first (you may need to recreate .tmp/pr43-qa-state.json manually), " +
+        "or remove these rows manually before re-running setup:"
+    );
+    for (const id of preExisting) console.error(`  - ${id}`);
+    process.exit(1);
+  }
+
   const member = await prisma.user.findUnique({ where: { email: memberEmail! } });
   if (!member) {
     console.error(`Abort: no user found with email ${memberEmail}.`);

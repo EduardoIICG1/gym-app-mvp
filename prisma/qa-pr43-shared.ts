@@ -5,7 +5,7 @@ loadEnvConfig(process.cwd());
 
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import path from "path";
 
 // Local-only QA fixtures for PR #43 — never committed (see .git/info/exclude).
@@ -103,4 +103,20 @@ export function loadState(): QaState | null {
 export function saveState(state: QaState) {
   if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+export function deleteStateFile() {
+  if (existsSync(STATE_FILE)) unlinkSync(STATE_FILE);
+}
+
+// Every stable id this tooling can create, flattened — used by setup to verify
+// it is starting from a clean slate before creating anything.
+export function allStableIds() {
+  return {
+    programs: Object.values(ID.programs),
+    sessions: Object.values(ID.sessions),
+    memberships: Object.values(ID.memberships),
+    bookings: Object.values(ID.bookings),
+    invitations: Object.values(ID.invitations),
+  };
 }

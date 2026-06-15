@@ -4,22 +4,41 @@
 // Required env var:
 //   PR43_QA_CONFIRM=PR43_UAT_ONLY
 //
-// Reads .tmp/pr43-qa-state.json and deletes ONLY the rows it created:
-//   invitations -> bookings -> sessions -> QA programs -> memberships
-// Every row is verified to carry the QA_PREFIX in a visible field before
-// being deleted. The MEMBER user itself is NEVER deleted or modified.
+// Reads .tmp/pr43-qa-state.json and deletes:
+//   1. BookingInvitations  (memberId=state.memberId, sessionId in verified QA sessions, message QA-PR43-)
+//   2. Bookings            (memberId=state.memberId, sessionId in verified QA sessions — ANY status,
+//                            including bookings created by the real routes during manual QA, not just
+//                            the ones pre-created by setup)
+//   3. QA sessions         (id in state.sessions, programId in state.programs, notes QA-PR43-)
+//   4. QA programs         (id in state.programs, name QA-PR43-, no sessions left)
+//   5. QA memberships      (id in state.memberships, grantReason QA-PR43-, no bookings left)
+//
+// Bookings/invitations belonging to OTHER members on a QA session are never touched.
+// The MEMBER user itself is NEVER deleted or modified.
 //
 // Dry run (no deletions, just prints what would be removed):
 //   npx tsx prisma/qa-pr43-uat-cleanup.ts --dry-run
 // ─────────────────────────────────────────────────────────────────────────
 
-import { requireQaConfirm, getPrisma, QA_PREFIX, loadState } from "./qa-pr43-shared";
+import { requireQaConfirm, getPrisma, QA_PREFIX, loadState, deleteStateFile, type QaState } from "./qa-pr43-shared";
 
 requireQaConfirm();
 
 const dryRun = process.argv.includes("--dry-run");
 
 const prisma = getPrisma();
+
+const log = (msg: string) => console.log(dryRun ? `[dry-run] ${msg}` : msg);
+
+// Sessions from state.sessions that genuinely belong to this QA fixture set:
+// their id is in state.sessions, their programId is one of state.programs,
+// and their notes carry the QA_PREFIX marker written by setup.
+async function getVerifiedQaSessions(state: QaState) {
+  const sessionIds = Object.values(state.sessions);
+  const programIds = new Set(Object.values(state.programs));
+  const sessions = await prisma.session.findMany({ where: { id: { in: sessionIds } } });
+  return sessions.filter((s) => programIds.has(s.programId) && s.notes?.startsWith(QA_PREFIX));
+}
 
 async function main() {
   const state = loadState();
@@ -28,61 +47,72 @@ async function main() {
     return;
   }
 
-  const log = (msg: string) => console.log(dryRun ? `[dry-run] ${msg}` : msg);
+  const verifiedSessions = await getVerifiedQaSessions(state);
+  const verifiedSessionIds = verifiedSessions.map((s) => s.id);
 
-  // ── Invitations ──────────────────────────────────────────────────
-  const invitationIds = Object.values(state.invitations);
-  if (invitationIds.length > 0) {
-    const invitations = await prisma.bookingInvitation.findMany({
-      where: { id: { in: invitationIds } },
+  const skippedSessionIds = Object.values(state.sessions).filter((id) => !verifiedSessionIds.includes(id));
+  for (const id of skippedSessionIds) {
+    console.warn(`Skipping session ${id}: does not match a QA program + ${QA_PREFIX} notes`);
+  }
+
+  // ── 1. BookingInvitations (dynamic, FK-safe: before bookings) ───────────
+  const invitations =
+    verifiedSessionIds.length > 0
+      ? await prisma.bookingInvitation.findMany({
+          where: {
+            memberId: state.memberId,
+            sessionId: { in: verifiedSessionIds },
+            message: { startsWith: QA_PREFIX },
+          },
+        })
+      : [];
+  for (const inv of invitations) {
+    log(`Delete invitation ${inv.id} (session=${inv.sessionId}, status=${inv.status}, bookingId=${inv.bookingId ?? "—"})`);
+    if (!dryRun) await prisma.bookingInvitation.delete({ where: { id: inv.id } });
+  }
+
+  // Any QA invitation whose message doesn't carry the prefix is left alone —
+  // but warn so it doesn't silently block session deletion below.
+  if (verifiedSessionIds.length > 0) {
+    const unrecognizedInvitations = await prisma.bookingInvitation.findMany({
+      where: { memberId: state.memberId, sessionId: { in: verifiedSessionIds }, NOT: { message: { startsWith: QA_PREFIX } } },
+      select: { id: true, sessionId: true },
     });
-    for (const inv of invitations) {
-      if (!inv.message?.startsWith(QA_PREFIX)) {
-        console.warn(`Skipping invitation ${inv.id}: message does not start with ${QA_PREFIX}`);
-        continue;
-      }
-      log(`Delete invitation ${inv.id}`);
-      if (!dryRun) await prisma.bookingInvitation.delete({ where: { id: inv.id } });
+    for (const inv of unrecognizedInvitations) {
+      console.warn(`Skipping invitation ${inv.id} (session=${inv.sessionId}): message does not start with ${QA_PREFIX}`);
     }
   }
 
-  // ── Bookings ─────────────────────────────────────────────────────
-  const bookingIds = Object.values(state.bookings);
-  if (bookingIds.length > 0) {
-    const bookings = await prisma.booking.findMany({ where: { id: { in: bookingIds } } });
-    for (const b of bookings) {
-      // Re-reservation/invitation bookings may have been re-confirmed by the manual
-      // checklist (status/notes change) — verify by id membership in state instead.
-      log(`Delete booking ${b.id} (session=${b.sessionId}, status=${b.status})`);
-      if (!dryRun) await prisma.booking.delete({ where: { id: b.id } });
-    }
+  // ── 2. Bookings — ALL bookings of this member on verified QA sessions ───
+  // Covers setup's pre-created bookings AND any booking created later by the
+  // real routes during manual QA (any status: CONFIRMED, CANCELLED, etc.)
+  const bookings =
+    verifiedSessionIds.length > 0
+      ? await prisma.booking.findMany({
+          where: { memberId: state.memberId, sessionId: { in: verifiedSessionIds } },
+        })
+      : [];
+  for (const b of bookings) {
+    log(`Delete booking ${b.id} (session=${b.sessionId}, status=${b.status}, membershipId=${b.membershipId ?? "—"})`);
+    if (!dryRun) await prisma.booking.delete({ where: { id: b.id } });
   }
 
-  // ── Sessions ─────────────────────────────────────────────────────
-  const sessionIds = Object.values(state.sessions);
-  if (sessionIds.length > 0) {
-    const sessions = await prisma.session.findMany({ where: { id: { in: sessionIds } } });
-    for (const s of sessions) {
-      if (!s.notes?.startsWith(QA_PREFIX)) {
-        console.warn(`Skipping session ${s.id}: notes do not start with ${QA_PREFIX}`);
-        continue;
-      }
-      // Defensive: refuse to delete a session that has bookings/invitations
-      // we didn't already remove above (e.g. created by someone else).
-      const remainingBookings = await prisma.booking.count({ where: { sessionId: s.id } });
-      const remainingInvitations = await prisma.bookingInvitation.count({ where: { sessionId: s.id } });
-      if (remainingBookings > 0 || remainingInvitations > 0) {
-        console.warn(
-          `Skipping session ${s.id}: still has ${remainingBookings} booking(s) / ${remainingInvitations} invitation(s)`
-        );
-        continue;
-      }
-      log(`Delete session ${s.id}`);
-      if (!dryRun) await prisma.session.delete({ where: { id: s.id } });
+  // ── 3. QA sessions ───────────────────────────────────────────────────
+  for (const s of verifiedSessions) {
+    // Defensive re-check — should be zero after step 1/2 in a real run.
+    const remainingBookings = await prisma.booking.count({ where: { sessionId: s.id } });
+    const remainingInvitations = await prisma.bookingInvitation.count({ where: { sessionId: s.id } });
+    if (!dryRun && (remainingBookings > 0 || remainingInvitations > 0)) {
+      console.warn(
+        `Skipping session ${s.id}: still has ${remainingBookings} booking(s) / ${remainingInvitations} invitation(s)`
+      );
+      continue;
     }
+    log(`Delete session ${s.id}`);
+    if (!dryRun) await prisma.session.delete({ where: { id: s.id } });
   }
 
-  // ── Programs (only the QA-PR43- ones, and only if no sessions remain) ──
+  // ── 4. QA programs (only if no sessions remain) ─────────────────────────
   const programIds = Object.values(state.programs);
   if (programIds.length > 0) {
     const programs = await prisma.program.findMany({ where: { id: { in: programIds } } });
@@ -92,7 +122,7 @@ async function main() {
         continue;
       }
       const remainingSessions = await prisma.session.count({ where: { programId: p.id } });
-      if (remainingSessions > 0) {
+      if (!dryRun && remainingSessions > 0) {
         console.warn(`Skipping program ${p.id}: still has ${remainingSessions} session(s)`);
         continue;
       }
@@ -101,7 +131,7 @@ async function main() {
     }
   }
 
-  // ── Memberships ──────────────────────────────────────────────────
+  // ── 5. QA memberships ────────────────────────────────────────────────
   const membershipIds = Object.values(state.memberships);
   if (membershipIds.length > 0) {
     const memberships = await prisma.membership.findMany({ where: { id: { in: membershipIds } } });
@@ -111,7 +141,7 @@ async function main() {
         continue;
       }
       const remainingBookings = await prisma.booking.count({ where: { membershipId: m.id } });
-      if (remainingBookings > 0) {
+      if (!dryRun && remainingBookings > 0) {
         console.warn(`Skipping membership ${m.id}: still referenced by ${remainingBookings} booking(s)`);
         continue;
       }
@@ -120,11 +150,49 @@ async function main() {
     }
   }
 
-  console.log(
-    dryRun
-      ? "\nDry run complete. No data was deleted. The MEMBER user was not touched."
-      : "\nCleanup complete. The MEMBER user was not touched."
-  );
+  // ── Post-cleanup verification ───────────────────────────────────────
+  const allSessionIds = Object.values(state.sessions);
+  const [remainingBookings, remainingInvitations, remainingSessions, remainingPrograms, remainingMemberships] =
+    await Promise.all([
+      allSessionIds.length > 0
+        ? prisma.booking.count({ where: { memberId: state.memberId, sessionId: { in: allSessionIds } } })
+        : Promise.resolve(0),
+      allSessionIds.length > 0
+        ? prisma.bookingInvitation.count({ where: { memberId: state.memberId, sessionId: { in: allSessionIds } } })
+        : Promise.resolve(0),
+      prisma.session.count({ where: { id: { in: allSessionIds } } }),
+      prisma.program.count({ where: { id: { in: Object.values(state.programs) } } }),
+      prisma.membership.count({ where: { id: { in: Object.values(state.memberships) } } }),
+    ]);
+
+  console.log("\nVerification:");
+  console.log(`  remaining bookings on QA sessions (this member): ${remainingBookings}`);
+  console.log(`  remaining invitations on QA sessions (this member): ${remainingInvitations}`);
+  console.log(`  remaining QA sessions: ${remainingSessions}`);
+  console.log(`  remaining QA programs: ${remainingPrograms}`);
+  console.log(`  remaining QA memberships: ${remainingMemberships}`);
+
+  const allClean =
+    remainingBookings === 0 &&
+    remainingInvitations === 0 &&
+    remainingSessions === 0 &&
+    remainingPrograms === 0 &&
+    remainingMemberships === 0;
+
+  if (dryRun) {
+    console.log("\nDry run complete. No data was deleted. The MEMBER user was not touched.");
+    return;
+  }
+
+  if (allClean) {
+    deleteStateFile();
+    console.log("\nCleanup complete and verified clean. .tmp/pr43-qa-state.json deleted. The MEMBER user was not touched.");
+  } else {
+    console.log(
+      "\nCleanup incomplete — some QA fixtures remain (see counts above). " +
+        ".tmp/pr43-qa-state.json was kept so you can investigate and re-run cleanup."
+    );
+  }
 }
 
 main()

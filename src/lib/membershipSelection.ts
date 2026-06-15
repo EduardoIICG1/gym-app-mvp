@@ -13,12 +13,18 @@ const ELIGIBLE_ORDER_BY: Prisma.MembershipOrderByWithRelationInput[] = [
 // Eligible = ACTIVE + PAID + same serviceType + started + (no endDate or not expired)
 //          + sessions available (unlimited or usedSessions < totalSessions).
 // Ordered by soonest-expiring first (endDate ASC, NULLS LAST), then oldest createdAt, then id.
+//
+// endDate is compared against the start of "now"'s day (not the exact instant): a membership
+// expiring "today" remains eligible for the whole day, matching the previous day-based semantics.
 export async function findEligibleMembership(
   tx: Tx,
   memberId: string,
   serviceType: ServiceType,
   now: Date = new Date()
 ): Promise<Membership | null> {
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
   const candidates = await tx.membership.findMany({
     where: {
       memberId,
@@ -26,7 +32,7 @@ export async function findEligibleMembership(
       status: "ACTIVE",
       paymentStatus: "PAID",
       startDate: { lte: now },
-      OR: [{ endDate: null }, { endDate: { gte: now } }],
+      OR: [{ endDate: null }, { endDate: { gte: todayStart } }],
     },
     orderBy: ELIGIBLE_ORDER_BY,
   });
@@ -59,6 +65,9 @@ export async function getMembershipDenialReason(
   serviceType: ServiceType,
   now: Date = new Date()
 ): Promise<MembershipDenialReason> {
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
   const memberships = await tx.membership.findMany({
     where: { memberId, serviceType },
     orderBy: ELIGIBLE_ORDER_BY,
@@ -74,7 +83,7 @@ export async function getMembershipDenialReason(
   const pool = paid.length > 0 ? paid : relevant;
 
   if (pool.every((m) => m.startDate > now)) return "not_started";
-  if (pool.every((m) => m.status === "EXPIRED" || (m.endDate !== null && m.endDate < now))) {
+  if (pool.every((m) => m.status === "EXPIRED" || (m.endDate !== null && m.endDate < todayStart))) {
     return "expired";
   }
   if (paid.length === 0) return "pending_payment";

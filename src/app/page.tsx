@@ -849,7 +849,7 @@ export default function Home() {
                                 onChange={e => setEditDraft(d => ({ ...d, isPinned: e.target.checked }))}
                                 className="w-3.5 h-3.5"
                               />
-                              Pinear
+                              Fijar
                             </label>
                           )}
                         </div>
@@ -1585,7 +1585,7 @@ export default function Home() {
                       onChange={e => setNewPinned(e.target.checked)}
                       className="w-3.5 h-3.5"
                     />
-                    Pinear
+                    Fijar
                   </label>
                 )}
               </div>

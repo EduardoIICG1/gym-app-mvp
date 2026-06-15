@@ -101,11 +101,13 @@ export async function PATCH(
       return Response.json({ error: MEMBERSHIP_DENIAL_MESSAGES[reason] }, { status: 403 });
     }
 
-    // Check for existing non-cancelled booking for this session
-    const duplicate = await prisma.booking.findFirst({
-      where: { sessionId: gymSession.id, memberId, status: { not: "CANCELLED" } },
+    // A booking row may already exist for this (session, member) pair if the member
+    // previously cancelled — @@unique([sessionId, memberId]) means we must reuse/update
+    // that row instead of inserting a new one, or the insert throws a P2002 (→ 500).
+    const existingBooking = await prisma.booking.findUnique({
+      where: { sessionId_memberId: { sessionId: gymSession.id, memberId } },
     });
-    if (duplicate) {
+    if (existingBooking && existingBooking.status !== "CANCELLED") {
       return Response.json({ error: "Ya estás inscrito en esta clase." }, { status: 409 });
     }
 
@@ -123,11 +125,16 @@ export async function PATCH(
     const membershipId = validMembership.id;
     const totalSessions = validMembership.totalSessions!;
 
-    // Atomic: create booking + update invitation + increment usedSessions
+    // Atomic: create/reuse booking + update invitation + increment usedSessions
     const booking = await prisma.$transaction(async (tx) => {
-      const newBooking = await tx.booking.create({
-        data: { sessionId: gymSession.id, memberId, status: "CONFIRMED", membershipId },
-      });
+      const newBooking = existingBooking
+        ? await tx.booking.update({
+            where: { id: existingBooking.id },
+            data: { status: "CONFIRMED", membershipId },
+          })
+        : await tx.booking.create({
+            data: { sessionId: gymSession.id, memberId, status: "CONFIRMED", membershipId },
+          });
 
       await tx.bookingInvitation.update({
         where: { id },

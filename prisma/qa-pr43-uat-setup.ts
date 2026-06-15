@@ -4,14 +4,20 @@
 //
 // Required env vars:
 //   PR43_QA_CONFIRM=PR43_UAT_ONLY
-//   PR43_QA_MEMBER_EMAIL=<email of an EXISTING user with role MEMBER>
+//   PR43_QA_MEMBER_EMAIL=<email of a DEDICATED TEST user with role MEMBER>
+//   PR43_QA_COACH_EMAIL=<email of a DEDICATED TEST user with role COACH or ADMIN>
+//   PR43_QA_ADMIN_EMAIL=<email of a DEDICATED TEST user with role ADMIN>
+//
+// All three accounts MUST be dedicated test accounts (no real Primary
+// Performance staff/member identities) and must be three distinct users.
 //
 // This script:
-//   - NEVER creates, modifies, or deletes other users.
+//   - NEVER creates, modifies, or deletes users — including these three.
 //   - Only creates Programs/Sessions/Memberships/Bookings/Invitations,
 //     all tagged with the QA_PREFIX in a visible field.
 //   - Is idempotent: re-running it upserts the same fixtures by stable id.
-//   - Records every created id in .tmp/pr43-qa-state.json.
+//   - Records every created id (plus memberId/coachId/invitedById) in
+//     .tmp/pr43-qa-state.json.
 // ─────────────────────────────────────────────────────────────────────────
 
 import {
@@ -30,8 +36,14 @@ import {
 requireQaConfirm();
 
 const memberEmail = process.env.PR43_QA_MEMBER_EMAIL;
-if (!memberEmail) {
-  console.error("Abort: set PR43_QA_MEMBER_EMAIL=<email of an existing MEMBER user>.");
+const coachEmail = process.env.PR43_QA_COACH_EMAIL;
+const adminEmail = process.env.PR43_QA_ADMIN_EMAIL;
+
+if (!memberEmail || !coachEmail || !adminEmail) {
+  console.error(
+    "Abort: set all three of PR43_QA_MEMBER_EMAIL, PR43_QA_COACH_EMAIL and PR43_QA_ADMIN_EMAIL " +
+      "to dedicated test accounts before running this script."
+  );
   process.exit(1);
 }
 
@@ -74,9 +86,10 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Resolve the three dedicated test accounts (no findFirst — explicit only) ──
   const member = await prisma.user.findUnique({ where: { email: memberEmail! } });
   if (!member) {
-    console.error(`Abort: no user found with email ${memberEmail}.`);
+    console.error(`Abort: no user found with PR43_QA_MEMBER_EMAIL=${memberEmail}.`);
     process.exit(1);
   }
   if (member.role !== "MEMBER") {
@@ -84,17 +97,38 @@ async function main() {
     process.exit(1);
   }
 
-  const coach = await prisma.user.findFirst({ where: { role: { in: ["ADMIN", "COACH"] } } });
+  const coach = await prisma.user.findUnique({ where: { email: coachEmail! } });
   if (!coach) {
-    console.error("Abort: no ADMIN/COACH user found to assign as session coach.");
+    console.error(`Abort: no user found with PR43_QA_COACH_EMAIL=${coachEmail}.`);
+    process.exit(1);
+  }
+  if (coach.role !== "COACH" && coach.role !== "ADMIN") {
+    console.error(`Abort: user ${coachEmail} has role ${coach.role}, expected COACH or ADMIN.`);
     process.exit(1);
   }
 
-  const admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+  const admin = await prisma.user.findUnique({ where: { email: adminEmail! } });
+  if (!admin) {
+    console.error(`Abort: no user found with PR43_QA_ADMIN_EMAIL=${adminEmail}.`);
+    process.exit(1);
+  }
+  if (admin.role !== "ADMIN") {
+    console.error(`Abort: user ${adminEmail} has role ${admin.role}, expected ADMIN.`);
+    process.exit(1);
+  }
 
-  console.log(`Using MEMBER ${member.email} (${member.id})`);
-  console.log(`Using coach/session owner ${coach.email} (${coach.id})`);
-  console.log(admin ? `Using ADMIN ${admin.email} (${admin.id}) for invitation` : "No ADMIN found — invitation scenario will be skipped");
+  const distinctIds = new Set([member.id, coach.id, admin.id]);
+  if (distinctIds.size !== 3) {
+    console.error(
+      "Abort: PR43_QA_MEMBER_EMAIL, PR43_QA_COACH_EMAIL and PR43_QA_ADMIN_EMAIL must be three distinct users."
+    );
+    process.exit(1);
+  }
+
+  console.log("QA MEMBER:", member.email, `(${member.role})`);
+  console.log("QA COACH:", coach.email, `(${coach.role})`);
+  console.log("QA ADMIN:", admin.email, `(${admin.role})`);
+  console.log("\nNo se utilizarán usuarios distintos a estas tres cuentas.\n");
 
   // ── Programs ────────────────────────────────────────────────────────
   const programGroup = await prisma.program.upsert({
@@ -364,30 +398,26 @@ async function main() {
   // PENDING invitation, bookingId=null — accepting it must find the CANCELLED
   // booking above (same sessionId+memberId) and reuse it instead of inserting.
   const invitationIds: Record<string, string> = {};
-  if (admin) {
-    const inv = await prisma.bookingInvitation.upsert({
-      where: { id: ID.invitations.main },
-      create: {
-        id: ID.invitations.main,
-        sessionId: sessionIds.invitation,
-        memberId: member.id,
-        invitedById: admin.id,
-        status: "PENDING",
-        message: `${QA_PREFIX}invitación de prueba — aceptar para validar reutilización de booking cancelado (caso G)`,
-      },
-      update: {},
-    });
-    invitationIds.main = inv.id;
-  } else {
-    console.warn("No ADMIN user found — invitation scenario (#7) was not created.");
-  }
+  const inv = await prisma.bookingInvitation.upsert({
+    where: { id: ID.invitations.main },
+    create: {
+      id: ID.invitations.main,
+      sessionId: sessionIds.invitation,
+      memberId: member.id,
+      invitedById: admin.id,
+      status: "PENDING",
+      message: `${QA_PREFIX}invitación de prueba — aceptar para validar reutilización de booking cancelado (caso G)`,
+    },
+    update: {},
+  });
+  invitationIds.main = inv.id;
 
   // ── Persist state ─────────────────────────────────────────────────
   const state: QaState = {
     memberId: member.id,
     memberEmail: member.email,
     coachId: coach.id,
-    invitedById: admin?.id ?? null,
+    invitedById: admin.id,
     createdAt: new Date().toISOString(),
     programs: {
       group: programGroup.id,
